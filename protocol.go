@@ -47,7 +47,6 @@ func NewProtocol(domain string) Protocol {
 	metadata = append(metadata, domain...)
 
 	p.d.Absorb(metadata)
-	p.d.Permute()
 
 	return p
 }
