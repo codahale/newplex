@@ -1,3 +1,15 @@
+// Package newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations
+// (e.g., hashing, encryption, message authentication codes, and authenticated encryption) in complex protocols.
+// Inspired by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, and [Xoodyak]'s Cyclist
+// mode, Newplex uses the [Simpira] V2 permutation to provide 10+ Gb/sec performance on modern processors at a 128-bit
+// security level.
+//
+// [TupleHash]: https://www.nist.gov/publications/sha-3-derived-functions-cshake-kmac-tuplehash-and-parallelhash
+// [STROBE]: https://strobe.sourceforge.io
+// [Noise Protocol]: http://www.noiseprotocol.org
+// [Merlin]: https://merlin.cool
+// [Xoodyak]: https://keccak.team/xoodyak.html
+// [Simpira]: https://eprint.iacr.org/2016/122.pdf
 package newplex
 
 import (
@@ -8,14 +20,24 @@ import (
 	"github.com/codahale/newplex/internal/tuplehash"
 )
 
+// TagSize is the number of bytes added to the plaintext by the Seal operation.
 const TagSize = 16
 
+// ErrInvalidCiphertext is returned when the ciphertext is invalid or has been decrypted with the wrong key.
 var ErrInvalidCiphertext = errors.New("newplex: invalid ciphertext")
 
+// A Protocol is a stateful object providing fine-grained symmetric-key cryptographic services like hashing, message
+// authentication codes, pseudorandom functions, authenticated encryption, and more.
+//
+// Protocol instances are not concurrent-safe.
 type Protocol struct {
 	d Duplex
 }
 
+// NewProtocol creates a new Protocol with the given domain separation string.
+//
+// The domain separation string should be unique to the application and specific protocol. It should not contain dynamic
+// data like timestamps or user IDs. A good format is "application-name.protocol-name".
 func NewProtocol(domain string) Protocol {
 	var p Protocol
 
@@ -30,6 +52,7 @@ func NewProtocol(domain string) Protocol {
 	return p
 }
 
+// Mix updates the protocol's state using the given label and input.
 func (p *Protocol) Mix(label string, input []byte) {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
 	metadata[0] = opMix
@@ -41,7 +64,15 @@ func (p *Protocol) Mix(label string, input []byte) {
 	p.d.Absorb(tuplehash.AppendRightEncode(metadata[:0], uint64(len(input))*bitsPerByte))
 }
 
+// Derive updates the protocol's state with the given label and output length and then generates n bytes of pseudorandom
+// output. It appends the output to dst and returns the resulting slice.
+//
+// Derive panics if n is negative.
 func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
+	if n < 0 {
+		panic("invalid argument to Derive: n cannot be negative")
+	}
+
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
 	metadata[0] = opDerive
 	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
@@ -56,6 +87,13 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 	return ret
 }
 
+// Encrypt updates the protocol's state with the given label and plaintext length, then uses the state to encrypt the
+// given plaintext. It appends the ciphertext to dst and returns the resulting slice.
+//
+// Encrypt provides confidentiality but not authenticity. To ensure ciphertext authenticity, use Seal instead.
+//
+// To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
+// dst must not overlap plaintext.
 func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
 	metadata[0] = opCrypt
@@ -71,21 +109,34 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 	return ret
 }
 
-func (p *Protocol) Decrypt(label string, dst, plaintext []byte) []byte {
+// Decrypt updates the protocol's state with the given label and plaintext length, then uses the state to decrypt the
+// given ciphertext. It appends the plaintext to dst and returns the resulting slice.
+//
+// Decrypt provides confidentiality but not authenticity. To ensure ciphertext authenticity, use Seal instead.
+//
+// To reuse ciphertext's storage for the encrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
+// of dst must not overlap ciphertext.
+func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
 	metadata[0] = opCrypt
 	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
 	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(len(plaintext))*bitsPerByte)
+	metadata = tuplehash.AppendRightEncode(metadata, uint64(len(ciphertext))*bitsPerByte)
 
-	ret, ciphertext := sliceForAppend(dst, len(plaintext))
+	ret, plaintext := sliceForAppend(dst, len(ciphertext))
 	p.d.Absorb(metadata)
 	p.d.Permute()
-	p.d.Decrypt(ciphertext, plaintext)
+	p.d.Decrypt(plaintext, ciphertext)
 	p.d.Permute()
 	return ret
 }
 
+// Seal updates the protocol's state with the given label and plaintext length, then uses the state to encrypt the
+// given plaintext, appending an authentication tag of TagSize bytes. It appends the ciphertext to dst and returns the
+// resulting slice.
+//
+// To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
+// dst must not overlap plaintext.
 func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
@@ -105,6 +156,12 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	return ret
 }
 
+// Open updates the protocol's state with the given label and plaintext length, then uses the state to decrypt the given
+// ciphertext, verifying the final TagSize bytes as an authentication tag. If the ciphertext is authentic, it appends
+// the ciphertext to dst and returns the resulting slice; otherwise, ErrInvalidCiphertext is returned.
+//
+// To reuse ciphertext's storage for the decrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
+// of dst must not overlap ciphertext.
 func (p *Protocol) Open(label string, dst, ciphertext []byte) ([]byte, error) {
 	ret, plaintext := sliceForAppend(dst, len(ciphertext)-TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
@@ -131,15 +188,13 @@ func (p *Protocol) Open(label string, dst, ciphertext []byte) ([]byte, error) {
 }
 
 const (
-	opInit      = 0x01
-	opMix       = 0x02
-	opDerive    = 0x03
-	opCrypt     = 0x04
-	opAuthCrypt = 0x05
-)
+	opInit      = 0x01 // Initialize a protocol with a domain separation string.
+	opMix       = 0x02 // Mix a labeled input value into the protocol's state.
+	opDerive    = 0x03 // Derive pseudorandom data from the protocol's state.
+	opCrypt     = 0x04 // Encrypt or decrypt an input value.
+	opAuthCrypt = 0x05 // Seal or open an input value.
 
-const (
-	bitsPerByte = 8
+	bitsPerByte = 8 // The number of bits in one byte.
 )
 
 // sliceForAppend takes a slice and a requested number of bytes. It returns a slice with the contents of the given slice
