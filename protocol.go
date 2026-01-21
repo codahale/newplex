@@ -73,14 +73,9 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 		panic("invalid argument to Derive: n cannot be negative")
 	}
 
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
-	metadata[0] = opDerive
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
-	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(n)*bitsPerByte) //nolint:gosec // unlikely to see 18 EB outputs
+	p.absorbMetadata(opDerive, label, n)
 
 	ret, prf := sliceForAppend(dst, n)
-	p.d.Absorb(metadata)
 	p.d.Permute()
 	p.d.Squeeze(prf)
 	p.d.Permute()
@@ -95,14 +90,9 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 // To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
 // dst must not overlap plaintext.
 func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
-	metadata[0] = opCrypt
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
-	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(len(plaintext))*bitsPerByte)
+	p.absorbMetadata(opCrypt, label, len(plaintext))
 
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
-	p.d.Absorb(metadata)
 	p.d.Permute()
 	p.d.Encrypt(ciphertext, plaintext)
 	p.d.Permute()
@@ -117,14 +107,9 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 // To reuse ciphertext's storage for the encrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
 func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
-	metadata[0] = opCrypt
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
-	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(len(ciphertext))*bitsPerByte)
+	p.absorbMetadata(opCrypt, label, len(ciphertext))
 
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
-	p.d.Absorb(metadata)
 	p.d.Permute()
 	p.d.Decrypt(plaintext, ciphertext)
 	p.d.Permute()
@@ -141,13 +126,8 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
 
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
-	metadata[0] = opAuthCrypt
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
-	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(len(plaintext))*bitsPerByte)
+	p.absorbMetadata(opAuthCrypt, label, len(plaintext))
 
-	p.d.Absorb(metadata)
 	p.d.Permute()
 	p.d.Encrypt(ciphertext, plaintext)
 	p.d.Permute()
@@ -167,13 +147,8 @@ func (p *Protocol) Open(label string, dst, ciphertext []byte) ([]byte, error) {
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
 	var tagP [TagSize]byte
 
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
-	metadata[0] = opAuthCrypt
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
-	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(len(plaintext))*bitsPerByte)
+	p.absorbMetadata(opAuthCrypt, label, len(plaintext))
 
-	p.d.Absorb(metadata)
 	p.d.Permute()
 	p.d.Decrypt(plaintext, ciphertext)
 	p.d.Permute()
@@ -185,6 +160,16 @@ func (p *Protocol) Open(label string, dst, ciphertext []byte) ([]byte, error) {
 		return nil, ErrInvalidCiphertext
 	}
 	return ret, nil
+}
+
+func (p *Protocol) absorbMetadata(op byte, label string, n int) {
+	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
+	metadata[0] = op
+	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
+	metadata = append(metadata, label...)
+	metadata = tuplehash.AppendRightEncode(metadata, uint64(n)*bitsPerByte) //nolint:gosec // unlikely to see 18 EB outputs
+
+	p.d.Absorb(metadata)
 }
 
 const (
