@@ -46,7 +46,7 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 	metadata[0] = opDerive
 	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
 	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(n)*bitsPerByte)
+	metadata = tuplehash.AppendRightEncode(metadata, uint64(n)*bitsPerByte) //nolint:gosec // unlikely to see 18 EB outputs
 
 	ret, prf := sliceForAppend(dst, n)
 	p.d.Absorb(metadata)
