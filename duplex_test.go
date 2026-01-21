@@ -16,12 +16,12 @@ func TestDuplex_Encrypt(t *testing.T) {
 
 	var d1 newplex.Duplex
 	d1.Absorb([]byte("it's a key"))
-	d1.Key()
+	d1.Permute()
 	d1.Encrypt(b, a)
 
 	var d2 newplex.Duplex
 	d2.Absorb([]byte("it's a key"))
-	d2.Key()
+	d2.Permute()
 	d2.Decrypt(c, b)
 
 	if got, want := c, a; !bytes.Equal(got, want) {
@@ -82,7 +82,7 @@ func BenchmarkDuplex_Encrypt(b *testing.B) {
 	for _, length := range lengths {
 		b.Run(length.name, func(b *testing.B) {
 			var d newplex.Duplex
-			d.Key()
+			d.Permute()
 
 			output := make([]byte, length.n)
 			b.SetBytes(int64(length.n))

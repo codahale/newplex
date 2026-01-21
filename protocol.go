@@ -65,9 +65,9 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
 	p.d.Absorb(metadata)
-	p.d.Key()
+	p.d.Permute()
 	p.d.Encrypt(ciphertext, plaintext)
-	p.d.Unkey()
+	p.d.Permute()
 	return ret
 }
 
@@ -80,9 +80,9 @@ func (p *Protocol) Decrypt(label string, dst, plaintext []byte) []byte {
 
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
 	p.d.Absorb(metadata)
-	p.d.Key()
+	p.d.Permute()
 	p.d.Decrypt(ciphertext, plaintext)
-	p.d.Unkey()
+	p.d.Permute()
 	return ret
 }
 
@@ -97,9 +97,9 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	metadata = tuplehash.AppendRightEncode(metadata, uint64(len(plaintext))*bitsPerByte)
 
 	p.d.Absorb(metadata)
-	p.d.Key()
+	p.d.Permute()
 	p.d.Encrypt(ciphertext, plaintext)
-	p.d.Unkey()
+	p.d.Permute()
 	p.d.Squeeze(tag)
 	p.d.Permute()
 	return ret
@@ -117,9 +117,9 @@ func (p *Protocol) Open(label string, dst, ciphertext []byte) ([]byte, error) {
 	metadata = tuplehash.AppendRightEncode(metadata, uint64(len(plaintext))*bitsPerByte)
 
 	p.d.Absorb(metadata)
-	p.d.Key()
+	p.d.Permute()
 	p.d.Decrypt(plaintext, ciphertext)
-	p.d.Unkey()
+	p.d.Permute()
 	p.d.Squeeze(tagP[:])
 	p.d.Permute()
 

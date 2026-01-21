@@ -10,61 +10,53 @@ import (
 	"github.com/codahale/newplex/internal/simpira"
 )
 
+// Duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-8 V2 permutation, has a width
+// of 1024 bits, a capacity of 256 bits, and a rate of 768 bits. This offers 128 bits of security for collision
+// resistance, 256 bits of security for state recovery, and 128 bits of security for birthday-bound
+// indistinguishability.
 type Duplex struct {
 	state [width]byte
 	idx   int
-	keyed bool
 }
 
-func (d *Duplex) Key() {
-	d.Permute()
-	d.keyed = true
-}
-
-func (d *Duplex) Unkey() {
-	d.Permute()
-	d.keyed = false
-}
-
+// Absorb updates the duplex's state with the given data, running the permutation as the state becomes fully updated.
+//
+// Multiple Absorb calls are effectively the same thing as a single Absorb call with concatenated inputs.
 func (d *Duplex) Absorb(b []byte) {
-	if d.keyed {
-		panic("newplex: cannot absorb in keyed mode")
-	}
-
 	for len(b) > 0 {
-		remain := min(len(b), unkeyedRate-d.idx)
+		remain := min(len(b), rate-d.idx)
 		subtle.XORBytes(d.state[d.idx:], d.state[d.idx:], b[:remain])
 		d.idx += remain
-		if d.idx == unkeyedRate {
+		if d.idx == rate {
 			d.Permute()
 		}
 		b = b[remain:]
 	}
 }
 
+// Squeeze fills the given slice with data from the duplex's state, running the permutaiton as the state becomes
+// exhausted.
+//
+// Multiple Squeeze calls are effectively the same thing as a single Squeeze call with concatenated outputs.
 func (d *Duplex) Squeeze(out []byte) {
-	if d.keyed {
-		panic("newplex: cannot squeeze in keyed mode")
-	}
-
 	for len(out) > 0 {
-		remain := min(len(out), unkeyedRate-d.idx)
+		remain := min(len(out), rate-d.idx)
 		copy(out[:remain], d.state[d.idx:d.idx+remain])
 		d.idx += remain
-		if d.idx == unkeyedRate {
+		if d.idx == rate {
 			d.Permute()
 		}
 		out = out[remain:]
 	}
 }
 
+// Encrypt updates the duplex's state with the given plaintext source and writes an encrypted copy to the given
+// ciphertext destination.
+//
+// Multiple Encrypt calls are effectively the same thing as a single Encrypt call with concatenated inputs.
 func (d *Duplex) Encrypt(dst, src []byte) {
-	if !d.keyed {
-		panic("newplex: cannot encrypt in unkeyed mode")
-	}
-
 	for len(src) > 0 {
-		remain := min(len(src), keyedRate-d.idx)
+		remain := min(len(src), rate-d.idx)
 		in := src[:remain]
 		out := dst[:remain]
 		state := d.state[d.idx : d.idx+remain]
@@ -73,20 +65,20 @@ func (d *Duplex) Encrypt(dst, src []byte) {
 		copy(out, state)
 
 		d.idx += remain
-		if d.idx == keyedRate {
+		if d.idx == rate {
 			d.Permute()
 		}
 		src = src[remain:]
 	}
 }
 
+// Decrypt writes a decrypted copy of the given ciphertext source to the given plaintext destination and updates the
+// duplex's state with the plaintext.
+//
+// Multiple Decrypt calls are effectively the same thing as a single Decrypt call with concatenated inputs.
 func (d *Duplex) Decrypt(dst, src []byte) {
-	if !d.keyed {
-		panic("newplex: cannot decrypt in unkeyed mode")
-	}
-
 	for len(src) > 0 {
-		remain := min(len(src), keyedRate-d.idx)
+		remain := min(len(src), rate-d.idx)
 		in := src[:remain]
 		out := dst[:remain]
 		state := d.state[d.idx : d.idx+remain]
@@ -95,20 +87,17 @@ func (d *Duplex) Decrypt(dst, src []byte) {
 		copy(state, in)
 
 		d.idx += remain
-		if d.idx == keyedRate {
+		if d.idx == rate {
 			d.Permute()
 		}
 		src = src[remain:]
 	}
 }
 
+// Permute resets the duplex's state index and applies the Simpira-8 V2 permutation to its 1024-bit state.
 func (d *Duplex) Permute() {
 	simpira.Permute8(&d.state)
 	d.idx = 0
-}
-
-func (d *Duplex) Clear() {
-	clear(d.state[:])
 }
 
 func (d *Duplex) String() string {
@@ -139,9 +128,7 @@ var (
 )
 
 const (
-	width           = 128 // The width of the permutation in bytes.
-	unkeyedCapacity = 32  // The duplex's capacity in bytes, with the collision resistance being capacity/2.
-	unkeyedRate     = width - unkeyedCapacity
-	keyedCapacity   = 16
-	keyedRate       = width - keyedCapacity
+	width    = 128              // The width of the permutation in bytes.
+	capacity = 32               // The duplex's capacity in bytes.
+	rate     = width - capacity // The rate of the duplex as determined by its width and capacity.
 )
