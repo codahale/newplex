@@ -166,6 +166,32 @@ func ExampleDuplex_Absorb() {
 	// Output: f358635df728f485fdd3165bc369fa7c
 }
 
+func ExampleDuplex_Encrypt() {
+	var d newplex.Duplex
+	d.Absorb([]byte("key"))
+	d.Permute()
+
+	plaintext := []byte("hello world")
+	ciphertext := make([]byte, len(plaintext))
+	d.Encrypt(ciphertext, plaintext)
+
+	fmt.Printf("%x\n", ciphertext)
+
+	// To decrypt, we need a fresh duplex state with the same key.
+	var d2 newplex.Duplex
+	d2.Absorb([]byte("key"))
+	d2.Permute()
+
+	decrypted := make([]byte, len(ciphertext))
+	d2.Decrypt(decrypted, ciphertext)
+
+	fmt.Printf("%s\n", decrypted)
+
+	// Output:
+	// 5d369b4ce12f16bbb778f5
+	// hello world
+}
+
 func BenchmarkDuplex_Absorb(b *testing.B) {
 	for _, length := range lengths {
 		b.Run(length.name, func(b *testing.B) {
