@@ -2,6 +2,7 @@ package newplex_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/codahale/newplex"
@@ -48,6 +49,78 @@ func TestDuplex_Absorb(t *testing.T) {
 	if got, want := d1.String(), d2.String(); got != want {
 		t.Errorf("Absorb('one', 'two', three') = %s, want %s", got, want)
 	}
+}
+
+func TestDuplex_Squeeze(t *testing.T) {
+	t.Parallel()
+
+	var d1 newplex.Duplex
+	d1.Absorb([]byte("input"))
+	out1 := make([]byte, 20)
+	d1.Squeeze(out1)
+
+	var d2 newplex.Duplex
+	d2.Absorb([]byte("input"))
+	out2 := make([]byte, 20)
+	d2.Squeeze(out2[:10])
+	d2.Squeeze(out2[10:])
+
+	if !bytes.Equal(out1, out2) {
+		t.Errorf("Squeeze(20) = %x, Squeeze(10)+Squeeze(10) = %x", out1, out2)
+	}
+}
+
+func TestDuplex_MarshalBinary(t *testing.T) {
+	t.Parallel()
+
+	var d1 newplex.Duplex
+	d1.Absorb([]byte("input"))
+
+	data, err := d1.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var d2 newplex.Duplex
+	if err := d2.UnmarshalBinary(data); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := d2.String(), d1.String(); got != want {
+		t.Errorf("UnmarshalBinary(MarshalBinary()) = %s, want %s", got, want)
+	}
+
+	// Verify continued operation matches
+	out1 := make([]byte, 32)
+	d1.Squeeze(out1)
+
+	out2 := make([]byte, 32)
+	d2.Squeeze(out2)
+
+	if !bytes.Equal(out1, out2) {
+		t.Errorf("Post-restore Squeeze mismatch: %x vs %x", out2, out1)
+	}
+}
+
+func TestDuplex_UnmarshalBinary_Invalid(t *testing.T) {
+	t.Parallel()
+
+	var d newplex.Duplex
+	if err := d.UnmarshalBinary([]byte{0x01}); err == nil {
+		t.Error("UnmarshalBinary(short) should have failed")
+	}
+}
+
+func ExampleDuplex_Absorb() {
+	var d newplex.Duplex
+	d.Absorb([]byte("example input"))
+	d.Permute()
+
+	out := make([]byte, 16)
+	d.Squeeze(out)
+
+	fmt.Printf("%x\n", out)
+	// Output: f358635df728f485fdd3165bc369fa7c
 }
 
 func BenchmarkDuplex_Absorb(b *testing.B) {
