@@ -18,8 +18,8 @@ func FuzzProtocolDivergence(f *testing.F) {
 	drbg := sha3.NewSHAKE128()
 	_, _ = drbg.Write([]byte("newplex divergence"))
 
-	seed := make([]byte, 1024)
 	for range 10 {
+		seed := make([]byte, 1024)
 		_, _ = drbg.Read(seed)
 		f.Add(seed)
 	}
@@ -110,8 +110,8 @@ func FuzzProtocolReversibility(f *testing.F) {
 	drbg := sha3.NewSHAKE128()
 	_, _ = drbg.Write([]byte("newplex reversibility"))
 
-	seed := make([]byte, 1024)
 	for range 10 {
+		seed := make([]byte, 1024)
 		_, _ = drbg.Read(seed)
 		f.Add(seed)
 	}
