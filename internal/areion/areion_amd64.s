@@ -11,7 +11,7 @@ MOUOU 0(DI), X0   // x0
 	MOVOU 32(DI), X2  // x2
 	MOVOU 48(DI), X3  // x3
 	
-	PXOR X15, X15     // zero
+PXOR X15, X15     // zero
 	
 	// ROUND macro
 	// Arguments:
