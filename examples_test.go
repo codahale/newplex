@@ -2,7 +2,7 @@ package newplex_test
 
 import (
 	"crypto/ecdh"
-	"crypto/sha3"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/codahale/newplex"
@@ -117,20 +117,14 @@ func ExampleProtocol_aead() {
 }
 
 func Example_hpke() {
-	rng := sha3.NewSHAKE128()
-	_, _ = rng.Write([]byte("newplex hpke example"))
-
-	receiver, err := ecdh.P256().GenerateKey(rng)
-	if err != nil {
-		panic(err)
-	}
+	receiverPrivBuf, _ := hex.DecodeString("c3a9b89b9a9a15da3c7a7e8ce9c96a828744abf52c0239f4180b0948fa3b1c74")
+	receiver, _ := ecdh.X25519().NewPrivateKey(receiverPrivBuf)
 
 	var ciphertext []byte
 	{
-		ephemeral, err := ecdh.P256().GenerateKey(rng)
-		if err != nil {
-			panic(err)
-		}
+		// This should be randomly generated, but it would make the test always fail.
+		ephemeralPrivBuf, _ := hex.DecodeString("a0b9a9ea71d45df9a8c7cf7da798c4394342993b21f24c7bb3612e573e8a58df")
+		ephemeral, _ := ecdh.X25519().NewPrivateKey(ephemeralPrivBuf)
 
 		hpke := newplex.NewProtocol("com.example.hpke")
 		hpke.Mix("receiver", receiver.PublicKey().Bytes())
@@ -145,7 +139,7 @@ func Example_hpke() {
 	}
 
 	{
-		ephemeral, err := ecdh.P256().NewPublicKey(ciphertext[:65])
+		ephemeral, err := ecdh.X25519().NewPublicKey(ciphertext[:32])
 		if err != nil {
 			panic(err)
 		}
@@ -158,13 +152,13 @@ func Example_hpke() {
 			panic(err)
 		}
 		hpke.Mix("ecdh", ss)
-		plaintext, err := hpke.Open("message", nil, ciphertext[65:])
+		plaintext, err := hpke.Open("message", nil, ciphertext[32:])
 		if err != nil {
 			panic(err)
 		}
 		fmt.Printf("%s\n", plaintext)
 	}
 	// Output:
-	// 040b848704e689d88b8a85438297e444941fd8a783329cab7ea28e63511394da76067d6b42ba81c544a2cba13319c133f2351d732396b9603f30289e7d308e23f6ae53f7ba497928288292c1e0d361a2ac3c0aa3a591dede8b42d1d8
+	// 672e904ba78b50b56f896d4b9c2f8018aecfd34038523a6faa4e82e37be4281f596dc142472d519b2fdcd11004ee9435447ac88aa9c422abc95d11
 	// hello world
 }
