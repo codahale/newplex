@@ -3,6 +3,7 @@ package newplex
 import (
 	"crypto/subtle"
 	"encoding"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -105,19 +106,20 @@ func (d *Duplex) String() string {
 }
 
 func (d *Duplex) UnmarshalBinary(data []byte) error {
-	if len(data) != len(d.state) {
+	if len(data) != len(d.state)+2 {
 		return errors.New("newplex: invalid state length")
 	}
-	copy(d.state[:], data)
+	d.idx = int(binary.LittleEndian.Uint16(data[:2]))
+	copy(d.state[:], data[2:])
 	return nil
 }
 
 func (d *Duplex) AppendBinary(b []byte) ([]byte, error) {
-	return append(b, d.state[:]...), nil
+	return append(binary.LittleEndian.AppendUint16(b, uint16(d.idx)), d.state[:]...), nil //nolint:gosec // idx < 1024
 }
 
 func (d *Duplex) MarshalBinary() (data []byte, err error) {
-	return d.AppendBinary(make([]byte, 0, len(d.state)))
+	return d.AppendBinary(make([]byte, 0, 2+len(d.state)))
 }
 
 var (

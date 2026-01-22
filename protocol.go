@@ -14,6 +14,7 @@ package newplex
 
 import (
 	"crypto/subtle"
+	"encoding"
 	"errors"
 	"slices"
 
@@ -161,6 +162,23 @@ func (p *Protocol) Open(label string, dst, ciphertext []byte) ([]byte, error) {
 	return ret, nil
 }
 
+// Clone returns a full clone of the receiver.
+func (p *Protocol) Clone() Protocol {
+	return *p
+}
+
+func (p *Protocol) AppendBinary(b []byte) ([]byte, error) {
+	return p.d.AppendBinary(b)
+}
+
+func (p *Protocol) MarshalBinary() (data []byte, err error) {
+	return p.d.MarshalBinary()
+}
+
+func (p *Protocol) UnmarshalBinary(data []byte) error {
+	return p.d.UnmarshalBinary(data)
+}
+
 func (p *Protocol) absorbMetadata(op byte, label string, n int) {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
 	metadata[0] = op
@@ -170,6 +188,12 @@ func (p *Protocol) absorbMetadata(op byte, label string, n int) {
 
 	p.d.Absorb(metadata)
 }
+
+var (
+	_ encoding.BinaryAppender    = (*Protocol)(nil)
+	_ encoding.BinaryMarshaler   = (*Protocol)(nil)
+	_ encoding.BinaryUnmarshaler = (*Protocol)(nil)
+)
 
 const (
 	opInit      = 0x01 // Initialize a protocol with a domain separation string.

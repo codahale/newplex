@@ -1,6 +1,7 @@
 package newplex_test
 
 import (
+	"bytes"
 	"encoding/hex"
 	"testing"
 
@@ -34,88 +35,130 @@ func TestKnownAnswers(t *testing.T) {
 	}
 }
 
-func BenchmarkHash(b *testing.B) {
-	hash := func(message, dst []byte) []byte {
-		protocol := newplex.NewProtocol("hash")
-		protocol.Mix("message", message)
-		return protocol.Derive("digest", dst, 32)
-	}
+func TestProtocol_Clone(t *testing.T) {
+	t.Parallel()
 
-	for _, length := range lengths {
-		b.Run(length.name, func(b *testing.B) {
-			input := make([]byte, length.n)
-			digest := make([]byte, 32)
-			b.ReportAllocs()
-			b.SetBytes(int64(len(input)))
-			for b.Loop() {
-				hash(input, digest[:0])
-			}
-		})
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("a thing", []byte("another thing"))
+	p2 := p1.Clone()
+
+	if got, want := p2.Derive("third", nil, 8), p1.Derive("third", nil, 8); !bytes.Equal(got, want) {
+		t.Errorf("Derive('third') = %x, want = %x", got, want)
 	}
 }
 
-func BenchmarkPRF(b *testing.B) {
-	key := make([]byte, 32)
-	prf := func(output []byte) []byte {
-		protocol := newplex.NewProtocol("prf")
-		protocol.Mix("key", key)
-		return protocol.Derive("output", output[:0], len(output))
+func TestProtocol_MarshalBinary(t *testing.T) {
+	t.Parallel()
+
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("a thing", []byte("another thing"))
+
+	state, err := p1.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, length := range lengths {
-		b.Run(length.name, func(b *testing.B) {
-			output := make([]byte, length.n)
-			b.ReportAllocs()
-			b.SetBytes(int64(len(output)))
-			for b.Loop() {
-				prf(output)
-			}
-		})
-	}
-}
-
-func BenchmarkStream(b *testing.B) {
-	key := make([]byte, 32)
-	nonce := make([]byte, 16)
-	stream := func(message []byte) []byte {
-		protocol := newplex.NewProtocol("stream")
-		protocol.Mix("key", key)
-		protocol.Mix("nonce", nonce)
-		return protocol.Encrypt("message", message[:0], message)
+	var p2 newplex.Protocol
+	if err := p2.UnmarshalBinary(state); err != nil {
+		t.Fatal(err)
 	}
 
-	for _, length := range lengths {
-		b.Run(length.name, func(b *testing.B) {
-			output := make([]byte, length.n)
-			b.ReportAllocs()
-			b.SetBytes(int64(len(output)))
-			for b.Loop() {
-				stream(output)
-			}
-		})
+	if got, want := p2.Derive("third", nil, 8), p1.Derive("third", nil, 8); !bytes.Equal(got, want) {
+		t.Errorf("Derive('third') = %x, want = %x", got, want)
 	}
 }
 
-func BenchmarkAEAD(b *testing.B) {
-	key := make([]byte, 32)
-	nonce := make([]byte, 16)
-	ad := make([]byte, 32)
-	aead := func(message []byte) []byte {
-		protocol := newplex.NewProtocol("aead")
-		protocol.Mix("key", key)
-		protocol.Mix("nonce", nonce)
-		protocol.Mix("ad", ad)
-		return protocol.Seal("message", message[:0], message)
+func TestProtocol_UnmarshalBinary(t *testing.T) {
+	t.Parallel()
+
+	p := newplex.NewProtocol("example")
+	if err := p.UnmarshalBinary([]byte{}); err == nil {
+		t.Error("UnmarshalBinary(initialized) should have failed")
+	}
+}
+
+func TestProtocol_AppendBinary(t *testing.T) {
+	t.Parallel()
+
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("a thing", []byte("another thing"))
+
+	got, err := p1.AppendBinary(nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, length := range lengths {
-		b.Run(length.name, func(b *testing.B) {
-			output := make([]byte, length.n+newplex.TagSize)
-			b.ReportAllocs()
-			b.SetBytes(int64(len(output)))
-			for b.Loop() {
-				aead(output[:length.n])
-			}
-		})
+	want, err := p1.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(got, want) {
+		t.Errorf("AppendBinary = %x, want %x", got, want)
+	}
+}
+
+func TestProtocol_Derive_nonzero_output_slices(t *testing.T) {
+	t.Parallel()
+
+	zero := make([]byte, 10)
+	nonZero := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}
+
+	p1 := newplex.NewProtocol("example")
+	p2 := newplex.NewProtocol("example")
+
+	if got, want := p1.Derive("test", nonZero[:0], 10), p2.Derive("test", zero[:0], 10); !bytes.Equal(got, want) {
+		t.Errorf("Derive(nonZero) = %x, want = %x", got, want)
+	}
+}
+
+func TestProtocol_Derive_negative_length(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+
+	p := newplex.NewProtocol("example")
+	p.Derive("test", nil, -200)
+}
+
+func FuzzProtocol_Open_ciphertext_modification(f *testing.F) {
+	f.Add([]byte("a message"), 4, byte(7))
+	f.Fuzz(func(t *testing.T, plaintext []byte, idx int, mask byte) {
+		if idx < 0 || idx >= len(plaintext)+newplex.TagSize || mask == 0 {
+			t.Skip()
+		}
+
+		p := newplex.NewProtocol("fuzz-open")
+		ciphertext := p.Seal("message", nil, plaintext)
+		ciphertext[idx] ^= mask
+
+		p = newplex.NewProtocol("fuzz-open")
+		recovered, err := p.Open("message", nil, ciphertext)
+		if err == nil {
+			t.Fatalf("Open(Seal(%x)[%d] ^ %d) = %x", plaintext, idx, mask, recovered)
+		}
+	})
+}
+
+func TestProtocol_Open_unauthenticated_plaintext(t *testing.T) {
+	t.Parallel()
+
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("key", []byte("I'm a key."))
+	plaintext := []byte("I'm a message.")
+	ciphertext := p1.Seal("message", nil, plaintext)
+
+	ciphertext[0] ^= 1
+
+	p2 := newplex.NewProtocol("example")
+	p2.Mix("key", []byte("I'm a key."))
+	_, _ = p2.Open("message", ciphertext[:0], ciphertext)
+
+	if got, want := ciphertext[:len(plaintext)], make([]byte, len(plaintext)); !bytes.Equal(got, want) {
+		t.Fatalf("Open(invalid) left reachable unauthenticated plaintext: %x vs %x", got, plaintext)
 	}
 }
