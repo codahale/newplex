@@ -70,6 +70,7 @@ func (d *Duplex) Encrypt(dst, src []byte) {
 			d.Permute()
 		}
 		src = src[remain:]
+		dst = dst[remain:]
 	}
 }
 
@@ -92,6 +93,7 @@ func (d *Duplex) Decrypt(dst, src []byte) {
 			d.Permute()
 		}
 		src = src[remain:]
+		dst = dst[remain:]
 	}
 }
 

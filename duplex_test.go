@@ -154,6 +154,33 @@ func TestDuplex_Decrypt_InPlace(t *testing.T) {
 	}
 }
 
+func TestDuplex_Encrypt_MultiBlock(t *testing.T) {
+	t.Parallel()
+
+	// rate is 96, so we need > 96 bytes to trigger multi-block logic
+	plaintext := make([]byte, 200)
+	for i := range plaintext {
+		plaintext[i] = byte(i)
+	}
+	key := []byte("key")
+
+	var d1 newplex.Duplex
+	d1.Absorb(key)
+	d1.Permute()
+	ciphertext := make([]byte, len(plaintext))
+	d1.Encrypt(ciphertext, plaintext)
+
+	var d2 newplex.Duplex
+	d2.Absorb(key)
+	d2.Permute()
+	decrypted := make([]byte, len(ciphertext))
+	d2.Decrypt(decrypted, ciphertext)
+
+	if !bytes.Equal(plaintext, decrypted) {
+		t.Errorf("Multi-block decryption failed")
+	}
+}
+
 func ExampleDuplex_Absorb() {
 	var d newplex.Duplex
 	d.Absorb([]byte("example input"))
