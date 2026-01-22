@@ -58,12 +58,12 @@ func (d *Duplex) Squeeze(out []byte) {
 func (d *Duplex) Encrypt(dst, src []byte) {
 	for len(src) > 0 {
 		remain := min(len(src), rate-d.idx)
-		in := src[:remain]
-		out := dst[:remain]
-		state := d.state[d.idx : d.idx+remain]
+		p := src[:remain]
+		c := dst[:remain]
+		k := d.state[d.idx : d.idx+remain]
 
-		subtle.XORBytes(state, state, in)
-		copy(out, state)
+		subtle.XORBytes(c, k, p)
+		subtle.XORBytes(k, k, p)
 
 		d.idx += remain
 		if d.idx == rate {
@@ -80,12 +80,12 @@ func (d *Duplex) Encrypt(dst, src []byte) {
 func (d *Duplex) Decrypt(dst, src []byte) {
 	for len(src) > 0 {
 		remain := min(len(src), rate-d.idx)
-		in := src[:remain]
-		out := dst[:remain]
-		state := d.state[d.idx : d.idx+remain]
+		c := src[:remain]
+		p := dst[:remain]
+		k := d.state[d.idx : d.idx+remain]
 
-		subtle.XORBytes(out, state, in)
-		copy(state, in)
+		subtle.XORBytes(p, k, c)
+		subtle.XORBytes(k, k, p)
 
 		d.idx += remain
 		if d.idx == rate {

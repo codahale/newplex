@@ -111,6 +111,49 @@ func TestDuplex_UnmarshalBinary_Invalid(t *testing.T) {
 	}
 }
 
+func TestDuplex_Decrypt_InPlace(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("key")
+	plaintext := []byte("hello world")
+
+	// 1. Encrypt first to get valid ciphertext
+	var dEnc newplex.Duplex
+	dEnc.Absorb(key)
+	dEnc.Permute()
+	ciphertext := make([]byte, len(plaintext))
+	dEnc.Encrypt(ciphertext, plaintext)
+
+	// 2. Decrypt with separate buffers (Correct behavior)
+	var dDec1 newplex.Duplex
+	dDec1.Absorb(key)
+	dDec1.Permute()
+	out1 := make([]byte, len(ciphertext))
+	dDec1.Decrypt(out1, ciphertext)
+
+	// 3. Decrypt in-place
+	var dDec2 newplex.Duplex
+	dDec2.Absorb(key)
+	dDec2.Permute()
+	// Copy ciphertext because it will be overwritten
+	buf := make([]byte, len(ciphertext))
+	copy(buf, ciphertext)
+	dDec2.Decrypt(buf, buf)
+
+	// Verify plaintext recovery
+	if !bytes.Equal(out1, plaintext) {
+		t.Fatalf("Separate buffer decryption failed")
+	}
+	if !bytes.Equal(buf, plaintext) {
+		t.Fatalf("In-place decryption failed to recover plaintext")
+	}
+
+	// Verify state consistency
+	if dDec1.String() != dDec2.String() {
+		t.Errorf("State mismatch after in-place decryption!\nSeparate: %s\nIn-place: %s", dDec1.String(), dDec2.String())
+	}
+}
+
 func ExampleDuplex_Absorb() {
 	var d newplex.Duplex
 	d.Absorb([]byte("example input"))
