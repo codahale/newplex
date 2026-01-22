@@ -8,14 +8,15 @@ import (
 
 func FuzzPermute2(f *testing.F) {
 	const width = 32
-	rng := sha3.NewSHAKE128()
-	_, _ = rng.Write([]byte("simpira-2-v2"))
 
+	drbg := sha3.NewSHAKE128()
+	_, _ = drbg.Write([]byte("simpira-2-v2"))
 	for range 10 {
 		state := make([]byte, width)
-		_, _ = rng.Read(state)
+		_, _ = drbg.Read(state)
 		f.Add(state)
 	}
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) != width {
 			t.Skip()
@@ -35,14 +36,15 @@ func FuzzPermute2(f *testing.F) {
 
 func FuzzPermute4(f *testing.F) {
 	const width = 64
-	rng := sha3.NewSHAKE128()
-	_, _ = rng.Write([]byte("simpira-4-v2"))
 
+	drbg := sha3.NewSHAKE128()
+	_, _ = drbg.Write([]byte("simpira-4-v2"))
 	for range 10 {
 		state := make([]byte, width)
-		_, _ = rng.Read(state)
+		_, _ = drbg.Read(state)
 		f.Add(state)
 	}
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) != width {
 			t.Skip()
@@ -62,14 +64,15 @@ func FuzzPermute4(f *testing.F) {
 
 func FuzzPermute6(f *testing.F) {
 	const width = 96
-	rng := sha3.NewSHAKE128()
-	_, _ = rng.Write([]byte("simpira-6-v2"))
 
+	drbg := sha3.NewSHAKE128()
+	_, _ = drbg.Write([]byte("simpira-6-v2"))
 	for range 10 {
 		state := make([]byte, width)
-		_, _ = rng.Read(state)
+		_, _ = drbg.Read(state)
 		f.Add(state)
 	}
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) != width {
 			t.Skip()
@@ -89,14 +92,15 @@ func FuzzPermute6(f *testing.F) {
 
 func FuzzPermute8(f *testing.F) {
 	const width = 128
-	rng := sha3.NewSHAKE128()
-	_, _ = rng.Write([]byte("simpira-8-v2"))
 
+	drbg := sha3.NewSHAKE128()
+	_, _ = drbg.Write([]byte("simpira-8-v2"))
 	for range 10 {
 		state := make([]byte, width)
-		_, _ = rng.Read(state)
+		_, _ = drbg.Read(state)
 		f.Add(state)
 	}
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) != width {
 			t.Skip()
