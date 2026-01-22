@@ -35,6 +35,51 @@ func TestKnownAnswers(t *testing.T) {
 	}
 }
 
+func TestProtocol_EmptyInputs(t *testing.T) {
+	t.Parallel()
+
+	p := newplex.NewProtocol("empty-test")
+	p.Mix("", nil)
+	p.Mix("label", nil)
+	p.Mix("", []byte("value"))
+
+	p1 := p.Clone()
+	out := p1.Derive("", nil, 0)
+	if len(out) != 0 {
+		t.Errorf("Derive(0) returned %d bytes", len(out))
+	}
+
+	p2 := p.Clone()
+	ct := p2.Encrypt("enc", nil, nil)
+	if len(ct) != 0 {
+		t.Errorf("Encrypt(nil) returned %d bytes", len(ct))
+	}
+
+	// Encrypt(nil) -> nil ciphertext.
+	// Decrypt(nil) should work on that.
+	p3 := p.Clone()
+	pt := p3.Decrypt("enc", nil, nil)
+	if len(pt) != 0 {
+		t.Errorf("Decrypt(nil) returned %d bytes", len(pt))
+	}
+
+	pSeal := p.Clone()
+	sealed := pSeal.Seal("seal", nil, nil)
+	if len(sealed) != newplex.TagSize {
+		t.Errorf("Seal(nil) returned %d bytes, want %d", len(sealed), newplex.TagSize)
+	}
+
+	// Open needs the state before Seal.
+	pOpen := p.Clone()
+	opened, err := pOpen.Open("seal", nil, sealed)
+	if err != nil {
+		t.Errorf("Open(Seal(nil)) failed: %v", err)
+	}
+	if len(opened) != 0 {
+		t.Errorf("Open(Seal(nil)) returned %d bytes", len(opened))
+	}
+}
+
 func TestProtocol_Clone(t *testing.T) {
 	t.Parallel()
 
