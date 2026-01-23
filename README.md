@@ -84,7 +84,9 @@ architectures:
 * Simpira-784 V2
 * Simpira-1024 V2
 
-Of these, Simpira-1024 provides the best performance across both platforms at a wider size.
+Of these, Simpira-1024 provides the best performance across both platforms. Areion-512 has better performance as a pure
+permutation, but its small width means a 256-bit capacity duplex can only process 256 bits at a time, vs. 784 with
+Simpira-1024.
 
 ### arm64
 
