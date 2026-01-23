@@ -69,10 +69,25 @@ d.Squeeze(output)
 
 ## Performance
 
-Newplex uses the Simpira-8 v2 permutation (128-bit width, AES-NI accelerated) to achieve high performance on modern
+Newplex uses the Simpira b=8 V2 permutation (128-bit width, AES-NI accelerated) to achieve high performance on modern
 AMD64 and ARM64 processors.
 
 ## Permutation Implementations
+
+This repo contains implementations of the following permutations with full optimization for both `amd64` and `arm64`
+architectures:
+
+* Areion-512
+* Gimli-384
+* Haraka-512 V2
+* Keccak-f\[1600\]
+* Keccak-p\[1600, 12\]
+* Simpira b=2 V2
+* Simpira b=4 V2
+* Simpira b=6 V2
+* Simpira b=8 V2
+
+Of these, Simpira b=8 provides the best performance across both platforms at a wider size.
 
 ### arm64
 
