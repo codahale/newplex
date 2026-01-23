@@ -40,6 +40,7 @@ var rc = [24]uint64{ //nolint:gochecknoglobals // constants are static
 // keccakF1600Generic applies the Keccak permutation.
 //
 //nolint:funlen // it's just big
+//goland:noinspection DuplicatedCode
 func keccakF1600Generic(da *[200]byte, rounds int) {
 	a := (*[25]uint64)(unsafe.Pointer(da))
 

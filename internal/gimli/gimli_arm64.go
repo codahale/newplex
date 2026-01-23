@@ -5,4 +5,5 @@ func permute(state *[48]byte) {
 }
 
 //go:noescape
+//goland:noinspection GoUnusedParameter
 func permuteAsm(state *[48]byte)
