@@ -27,13 +27,13 @@ func TestPermute512(t *testing.T) {
 	}
 }
 
-func TestPermute784(t *testing.T) {
+func TestPermute768(t *testing.T) {
 	var state [96]byte
-	Permute784(&state)
+	Permute768(&state)
 
 	// from reference implementation at https://mouha.be/wp-content/uploads/simpira_v2.zip, corrected for endianness
 	if got, want := hex.EncodeToString(state[:]), "9236688b9d98eaa569e690f11fb7cfa1f555e8977e67cbd0efb3955652b93211d2d8626b344530429aac0ce4ee42779a2885662f63c16414631f516b0b9a6492bb356d9e8e5d356f7ee92dbab7a9b2a449e7f2686b68afb60cdfaebdce1e5a22"; got != want {
-		t.Errorf("Permute784(0x00) = %s, want = %s", got, want)
+		t.Errorf("Permute768(0x00) = %s, want = %s", got, want)
 	}
 }
 
@@ -103,7 +103,7 @@ func FuzzPermute512(f *testing.F) {
 	})
 }
 
-func FuzzPermute784(f *testing.F) {
+func FuzzPermute768(f *testing.F) {
 	const width = 96
 
 	drbg := sha3.NewSHAKE128()
@@ -122,11 +122,11 @@ func FuzzPermute784(f *testing.F) {
 		var state1, state2 [width]byte
 		copy(state1[:], data)
 		copy(state2[:], data)
-		Permute784(&state1)
-		permute784Generic(&state2)
+		Permute768(&state1)
+		permute768Generic(&state2)
 
 		if got, want := state2[:], state1[:]; !bytes.Equal(got, want) {
-			t.Errorf("Permute784-ASM(%x) = %x, want = %x", data, got, want)
+			t.Errorf("Permute768-ASM(%x) = %x, want = %x", data, got, want)
 		}
 	})
 }

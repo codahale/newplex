@@ -3,7 +3,7 @@ package simpira
 const (
 	Width256  = 32
 	Width512  = 64
-	Width784  = 96
+	Width768  = 96
 	Width1024 = 128
 )
 
@@ -17,9 +17,9 @@ func Permute512(state *[Width512]byte) {
 	permute512(state)
 }
 
-// Permute784 applies the Simpira v2 permutation to a 768-bit state (b=6).
-func Permute784(state *[Width784]byte) {
-	permute784(state)
+// Permute768 applies the Simpira v2 permutation to a 768-bit state (b=6).
+func Permute768(state *[Width768]byte) {
+	permute768(state)
 }
 
 // Permute1024 applies the Simpira v2 permutation to a 1024-bit state (b=8).

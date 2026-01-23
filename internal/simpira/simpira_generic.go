@@ -85,7 +85,7 @@ func permute512Generic(state *[64]byte) {
 	}
 }
 
-func permute784Generic(state *[96]byte) {
+func permute768Generic(state *[96]byte) {
 	c := uint32(1)
 	b := uint32(6)
 	s := [6]int{0, 1, 2, 5, 4, 3}

@@ -117,8 +117,8 @@ TEXT ·permute512(SB), NOSPLIT, $0
 	MOVOU X3, 48(DI)
 	RET
 
-// func permute784(state *[96]byte)
-TEXT ·permute784(SB), NOSPLIT, $0
+// func permute768(state *[96]byte)
+TEXT ·permute768(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
 	MOVOU 0(DI), X0   // x0

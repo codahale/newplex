@@ -81,11 +81,11 @@ architectures:
 * Keccak-p\[1600, 12\]
 * Simpira-256 V2
 * Simpira-512 V2
-* Simpira-784 V2
+* Simpira-768 V2
 * Simpira-1024 V2
 
 Of these, Simpira-1024 provides the best performance across both platforms. Areion-512 has better performance as a pure
-permutation, but its small width means a 256-bit capacity duplex can only process 256 bits at a time, vs. 784 with
+permutation, but its small width means a 256-bit capacity duplex can only process 256 bits at a time, vs. 768 with
 Simpira-1024.
 
 ### arm64
@@ -102,7 +102,7 @@ BenchmarkKeccakF1600-14         10313076               116.2 ns/op      1721.23 
 BenchmarkKeccakP1600-14         19886576                59.85 ns/op     3341.83 MB/s           0 B/op          0 allocs/op
 BenchmarkSimpira256-14          34086267                34.62 ns/op      924.35 MB/s           0 B/op          0 allocs/op
 BenchmarkSimpira512-14          34091756                34.66 ns/op     1846.25 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira784-14          33838640                34.77 ns/op     2760.77 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira768-14          33838640                34.77 ns/op     2760.77 MB/s           0 B/op          0 allocs/op
 BenchmarkSimpira1024-14         27197598                43.55 ns/op     2938.97 MB/s           0 B/op          0 allocs/op
 PASS
 ok      github.com/codahale/newplex/internal/benchmarks 10.828s
@@ -122,7 +122,7 @@ BenchmarkKeccakF1600-4           3677113               327.6 ns/op       610.42 
 BenchmarkKeccakP1600-4           7366798               163.0 ns/op      1227.36 MB/s           0 B/op          0 allocs/op
 BenchmarkSimpira256-4           29939313                40.29 ns/op      794.22 MB/s           0 B/op          0 allocs/op
 BenchmarkSimpira512-4           29543602                40.77 ns/op     1569.60 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira784-4           28870940                41.90 ns/op     2291.35 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira768-4           28870940                41.90 ns/op     2291.35 MB/s           0 B/op          0 allocs/op
 BenchmarkSimpira1024-4          21799807                55.25 ns/op     2316.78 MB/s           0 B/op          0 allocs/op
 PASS
 ok      github.com/codahale/newplex/internal/benchmarks 10.851s

@@ -73,12 +73,12 @@ func BenchmarkSimpira512(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpira784(b *testing.B) {
+func BenchmarkSimpira768(b *testing.B) {
 	var state [96]byte
 	b.ReportAllocs()
 	b.SetBytes(int64(len(state)))
 	for b.Loop() {
-		simpira.Permute784(&state)
+		simpira.Permute768(&state)
 	}
 }
 

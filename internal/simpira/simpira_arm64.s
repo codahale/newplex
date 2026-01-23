@@ -185,8 +185,8 @@ loop4_block:
 	RET
 
 
-// func permute784(state *[96]byte)
-TEXT ·permute784(SB), NOSPLIT, $0
+// func permute768(state *[96]byte)
+TEXT ·permute768(SB), NOSPLIT, $0
 	MOVD state+0(FP), R0
 	
 	VLD1 (R0), [V0.B16]
