@@ -91,47 +91,19 @@ Of these, Simpira-1024 provides the best performance across both platforms at a 
 ```text
 goos: darwin                                                                                                                                                                                                                                         
 goarch: arm64
-pkg: github.com/codahale/newplex/internal/areion
+pkg: github.com/codahale/newplex/internal/benchmarks
 cpu: Apple M4 Pro
-BenchmarkPermute512-14          52485667                22.38 ns/op     2859.76 MB/s           0 B/op          0 allocs/op
+BenchmarkAreion512-14           52577181                22.49 ns/op     2845.10 MB/s           0 B/op          0 allocs/op
+BenchmarkGimli384-14            16989957                69.22 ns/op      693.48 MB/s           0 B/op          0 allocs/op
+BenchmarkHaraka512-14           49320556                23.52 ns/op     2721.22 MB/s           0 B/op          0 allocs/op
+BenchmarkKeccakF1600-14         10240404               116.5 ns/op      1716.78 MB/s           0 B/op          0 allocs/op
+BenchmarkKeccakP1600-14         19830312                59.96 ns/op     3335.69 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira256-14          33783981                34.41 ns/op      930.02 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira512-14          33429597                34.70 ns/op     1844.23 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira784-14          33738348                34.76 ns/op     2761.75 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira1024-14         27184224                43.65 ns/op     2932.33 MB/s           0 B/op          0 allocs/op
 PASS
-ok      github.com/codahale/newplex/internal/areion     2.666s
-
-goos: darwin
-goarch: arm64
-pkg: github.com/codahale/newplex/internal/gimli
-cpu: Apple M4 Pro
-BenchmarkPermute-14     17031936                70.03 ns/op      685.37 MB/s           0 B/op          0 allocs/op
-PASS
-ok      github.com/codahale/newplex/internal/gimli      1.367s
-
-goos: darwin
-goarch: arm64
-pkg: github.com/codahale/newplex/internal/haraka
-cpu: Apple M4 Pro
-BenchmarkPermute512-14          48967584                24.29 ns/op     2634.78 MB/s           0 B/op          0 allocs/op
-PASS
-ok      github.com/codahale/newplex/internal/haraka     1.368s
-
-goos: darwin
-goarch: arm64
-pkg: github.com/codahale/newplex/internal/keccak
-cpu: Apple M4 Pro
-BenchmarkF1600-14                  8667880               119.2 ns/op      1677.80 MB/s           0 B/op          0 allocs/op
-BenchmarkP1600-14                 19857316                60.01 ns/op      3332.78 MB/s           0 B/op          0 allocs/op
-PASS
-ok      github.com/codahale/newplex/internal/keccak     2.395s
-
-goos: darwin
-goarch: arm64
-pkg: github.com/codahale/newplex/internal/simpira
-cpu: Apple M4 Pro
-BenchmarkPermute256-14            33610927                35.39 ns/op      904.14 MB/s           0 B/op          0 allocs/op
-BenchmarkPermute512-14            34202080                34.86 ns/op     1835.72 MB/s
-BenchmarkPermute784-14            34018386                34.86 ns/op     2753.96 MB/s
-BenchmarkPermute1024-14           27187585                43.73 ns/op     2927.35 MB/s
-PASS
-ok      github.com/codahale/newplex/internal/simpira    4.994s
+ok      github.com/codahale/newplex/internal/benchmarks 10.868s
 ```
 
 ### amd64
@@ -139,47 +111,19 @@ ok      github.com/codahale/newplex/internal/simpira    4.994s
 ```text
 goos: linux
 goarch: amd64
-pkg: github.com/codahale/newplex/internal/areion
+pkg: github.com/codahale/newplex/internal/benchmarks
 cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
-BenchmarkPermute512-4           57479552                21.38 ns/op     2992.92 MB/s           0 B/op          0 allocs/op
+BenchmarkAreion512-4            53262529                22.59 ns/op     2833.11 MB/s           0 B/op          0 allocs/op
+BenchmarkGimli384-4             14807415                80.95 ns/op      592.94 MB/s           0 B/op          0 allocs/op
+BenchmarkHaraka512-4            38889375                30.98 ns/op     2065.76 MB/s           0 B/op          0 allocs/op
+BenchmarkKeccakF1600-4           3501240               343.7 ns/op       581.96 MB/s           0 B/op          0 allocs/op
+BenchmarkKeccakP1600-4           6999891               171.1 ns/op      1168.62 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira256-4           28396915                42.43 ns/op      754.10 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira512-4           27792969                42.85 ns/op     1493.63 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira784-4           27120734                44.08 ns/op     2177.66 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira1024-4          20634771                57.97 ns/op     2208.19 MB/s           0 B/op          0 allocs/op
 PASS
-ok      github.com/codahale/newplex/internal/areion     1.231s
-
-goos: linux
-goarch: amd64
-pkg: github.com/codahale/newplex/internal/gimli
-cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
-BenchmarkPermute-4      15694228                76.49 ns/op      627.56 MB/s           0 B/op          0 allocs/op
-PASS
-ok      github.com/codahale/newplex/internal/gimli      1.203s
-
-goos: linux
-goarch: amd64
-pkg: github.com/codahale/newplex/internal/haraka
-cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
-BenchmarkPermute512-4           40973859                29.24 ns/op     2188.89 MB/s           0 B/op          0 allocs/op
-PASS
-ok      github.com/codahale/newplex/internal/haraka     1.200s
-
-goos: linux
-goarch: amd64
-pkg: github.com/codahale/newplex/internal/keccak
-cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
-BenchmarF1600-4                   3676816               326.9 ns/op       611.84 MB/s           0 B/op          0 allocs/op
-BenchmarP1600-4                   7275388               162.7 ns/op      1229.02 MB/s           0 B/op          0 allocs/op
-PASS
-ok      github.com/codahale/newplex/internal/keccak     2.389s
-
-goos: linux
-goarch: amd64
-pkg: github.com/codahale/newplex/internal/simpira
-cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
-BenchmarkPermute256-4     29862538                40.24 ns/op      795.17 MB/s           0 B/op          0 allocs/op
-BenchmarkPermute512-4     29536484                40.59 ns/op     1576.73 MB/s           0 B/op          0 allocs/op
-BenchmarkPermute784-4     30012813                41.55 ns/op     2310.47 MB/s           0 B/op          0 allocs/op
-BenchmarkPermute1024-4    21942882                54.00 ns/op     2370.33 MB/s           0 B/op          0 allocs/op
-PASS
-ok      github.com/codahale/newplex/internal/simpira    4.836s
+ok      github.com/codahale/newplex/internal/benchmarks 10.800s
 ```
 
 ## License
