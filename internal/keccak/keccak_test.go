@@ -41,7 +41,7 @@ func TestCompliance12(t *testing.T) {
 	}
 }
 
-func BenchmarkKeccakF1600(b *testing.B) {
+func BenchmarkF1600(b *testing.B) {
 	var state [200]byte
 	b.SetBytes(int64(len(state)))
 	b.ReportAllocs()
@@ -50,7 +50,7 @@ func BenchmarkKeccakF1600(b *testing.B) {
 	}
 }
 
-func BenchmarkKeccakF1600Rounds12(b *testing.B) {
+func BenchmarkP1600(b *testing.B) {
 	var state [200]byte
 	b.SetBytes(int64(len(state)))
 	b.ReportAllocs()
