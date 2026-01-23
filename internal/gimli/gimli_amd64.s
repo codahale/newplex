@@ -26,23 +26,23 @@ TEXT ·permuteAsm(SB), NOSPLIT, $0
 #define SPBOX() \
 	/* x = rotate(x, 24) -> rotate right 8 */ \
 	MOVOU X0, X3; \
-	PSRLLD $8, X0; \
-	PSLLD $24, X3; \
+	PSRLL $8, X0; \
+	PSLLL $24, X3; \
 	POR X3, X0; \
 	\
 	/* y = rotate(y, 9) -> rotate left 9 */ \
 	MOVOU X1, X3; \
-	PSLLD $9, X1; \
-	PSRLLD $23, X3; \
+	PSLLL $9, X1; \
+	PSRLL $23, X3; \
 	POR X3, X1; \
 	\
 	/* new_x = x ^ (z << 1) ^ ((y&z) << 2) */ \
 	MOVOU X2, X3; \
-	PSLLD $1, X3; \
+	PSLLL $1, X3; \
 	PXOR X0, X3; /* x ^ (z << 1) */ \
 	MOVOU X1, X4; \
 	PAND X2, X4; /* y & z */ \
-	PSLLD $2, X4; \
+	PSLLL $2, X4; \
 	PXOR X4, X3; /* new_x stored in X3 */ \
 	\
 	/* new_y = y ^ x ^ ((x|z) << 1) */ \
@@ -50,7 +50,7 @@ TEXT ·permuteAsm(SB), NOSPLIT, $0
 	PXOR X0, X4; /* y ^ x */ \
 	MOVOU X0, X5; \
 	POR X2, X5; /* x | z */ \
-	PSLLD $1, X5; \
+	PSLLL $1, X5; \
 	PXOR X5, X4; /* new_y stored in X4 */ \
 	\
 	/* new_z = z ^ y ^ ((x&y) << 3) */ \
@@ -58,7 +58,7 @@ TEXT ·permuteAsm(SB), NOSPLIT, $0
 	PXOR X1, X5; /* z ^ y */ \
 	MOVOU X0, X6; \
 	PAND X1, X6; /* x & y */ \
-	PSLLD $3, X6; \
+	PSLLL $3, X6; \
 	PXOR X6, X5; /* new_z stored in X5 */ \
 	\
 	/* Update state */ \
