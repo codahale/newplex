@@ -167,14 +167,19 @@ func (p *Protocol) Clone() Protocol {
 	return *p
 }
 
+// AppendBinary appends the binary representation of the protocol's state to the given slice. It implements
+// encoding.BinaryAppender.
 func (p *Protocol) AppendBinary(b []byte) ([]byte, error) {
 	return p.d.AppendBinary(b)
 }
 
+// MarshalBinary returns the binary representation of the protocol's state. It implements encoding.BinaryMarshaler.
 func (p *Protocol) MarshalBinary() (data []byte, err error) {
 	return p.d.MarshalBinary()
 }
 
+// UnmarshalBinary restores the protocol's state from the given binary representation. It implements
+// encoding.BinaryUnmarshaler.
 func (p *Protocol) UnmarshalBinary(data []byte) error {
 	return p.d.UnmarshalBinary(data)
 }

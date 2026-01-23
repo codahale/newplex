@@ -107,10 +107,13 @@ func (d *Duplex) Permute() {
 	d.idx = 0
 }
 
+// String returns the hexadecimal representation of the duplex's state.
 func (d *Duplex) String() string {
 	return hex.EncodeToString(d.state[:])
 }
 
+// UnmarshalBinary restores the duplex's state from the given binary representation. It implements
+// encoding.BinaryUnmarshaler.
 func (d *Duplex) UnmarshalBinary(data []byte) error {
 	if len(data) != len(d.state)+2 {
 		return errors.New("newplex: invalid state length")
@@ -120,10 +123,13 @@ func (d *Duplex) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// AppendBinary appends the binary representation of the duplex's state to the given slice. It implements
+// encoding.BinaryAppender.
 func (d *Duplex) AppendBinary(b []byte) ([]byte, error) {
 	return append(binary.LittleEndian.AppendUint16(b, uint16(d.idx)), d.state[:]...), nil //nolint:gosec // idx < 1024
 }
 
+// MarshalBinary returns the binary representation of the duplex's state. It implements encoding.BinaryMarshaler.
 func (d *Duplex) MarshalBinary() (data []byte, err error) {
 	return d.AppendBinary(make([]byte, 0, 2+len(d.state)))
 }
