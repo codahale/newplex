@@ -6,12 +6,12 @@
 TEXT ·permute512Asm(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
-MOUOU 0(DI), X0   // x0
+    MOVOU 0(DI), X0   // x0
 	MOVOU 16(DI), X1  // x1
 	MOVOU 32(DI), X2  // x2
 	MOVOU 48(DI), X3  // x3
 	
-PXOR X15, X15     // zero
+    PXOR X15, X15     // zero
 	
 	// ROUND macro
 	// Arguments:
@@ -20,10 +20,11 @@ PXOR X15, X15     // zero
 	// Uses X4, X5 as scratch. X15 is zero.
 #define ROUND(s0, s1, s2, s3, offset) \
 	MOVOU ·roundConstants + offset(SB), X5; \
-	MOVOU s0, s1;         /* s1 = s0 */ \
-	AESENC X15, s1;       /* s1 = AESENC(s1, 0) = AESENC(s0, 0) */ \
+	MOVOU s0, X4;         /* tmp = s0 */ \
+	AESENC s1, X4;        /* tmp = AESENC(tmp, s1) = Transformed(s0) ^ s1 */ \
+	MOVOU X4, s1;         /* s1 = tmp */ \
 	MOVOU s2, X4;         /* tmp = s2 */ \
-	AESENC s3, X4;        /* tmp = AESENC(tmp, s3) = AESENC(s2, s3) */ \
+	AESENC s3, X4;        /* tmp = AESENC(tmp, s3) = Transformed(s2) ^ s3 */ \
 	AESENCLAST X5, s2;    /* s2 = AESENCLAST(s2, RC) */ \
 	AESENC X15, s2;       /* s2 = AESENC(s2, 0) */ \
 	AESENCLAST X15, s0;   /* s0 = AESENCLAST(s0, 0) */ \
@@ -52,7 +53,7 @@ PXOR X15, X15     // zero
 	MOVOU X2, 48(DI)
 	RET
 
-// Round constants (Little Endian bytes as determined in generic implementation)
+// Round constants for Areion-512
 // RC0
 DATA ·roundConstants+0(SB)/4, $0x03707344
 DATA ·roundConstants+4(SB)/4, $0x13198a2e
