@@ -2,8 +2,8 @@
 
 #include "textflag.h"
 
-// func permute2(state *[32]byte)
-TEXT ·permute2(SB), NOSPLIT, $0
+// func permute256(state *[32]byte)
+TEXT ·permute256(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
 	MOVOU 0(DI), X0   // x0
@@ -58,8 +58,8 @@ loop2_unrolled:
 	MOVOU X1, 16(DI)
 	RET
 
-// func permute4(state *[64]byte)
-TEXT ·permute4(SB), NOSPLIT, $0
+// func permute512(state *[64]byte)
+TEXT ·permute512(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
 	MOVOU 0(DI), X0   // x0
@@ -117,8 +117,8 @@ TEXT ·permute4(SB), NOSPLIT, $0
 	MOVOU X3, 48(DI)
 	RET
 
-// func permute6(state *[96]byte)
-TEXT ·permute6(SB), NOSPLIT, $0
+// func permute784(state *[96]byte)
+TEXT ·permute784(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
 	MOVOU 0(DI), X0   // x0
@@ -187,8 +187,8 @@ TEXT ·permute6(SB), NOSPLIT, $0
 	MOVOU X5, 80(DI)
 	RET
 
-// func permute8(state *[128]byte)
-TEXT ·permute8(SB), NOSPLIT, $0
+// func permute1024(state *[128]byte)
+TEXT ·permute1024(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
 	MOVOU 0(DI), X0   // x0

@@ -99,7 +99,7 @@ func (d *Duplex) Decrypt(dst, src []byte) {
 
 // Permute resets the duplex's state index and applies the Simpira-8 V2 permutation to its 1024-bit state.
 func (d *Duplex) Permute() {
-	simpira.Permute8(&d.state)
+	simpira.Permute1024(&d.state)
 	d.idx = 0
 }
 
@@ -132,7 +132,7 @@ var (
 )
 
 const (
-	width    = 128              // The width of the permutation in bytes.
-	capacity = 32               // The duplex's capacity in bytes.
-	rate     = width - capacity // The rate of the duplex as determined by its width and capacity.
+	width    = simpira.Width1024 // The width of the permutation in bytes.
+	capacity = 32                // The duplex's capacity in bytes.
+	rate     = width - capacity  // The rate of the duplex as determined by its width and capacity.
 )

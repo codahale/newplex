@@ -69,8 +69,7 @@ d.Squeeze(output)
 
 ## Performance
 
-Newplex uses the Simpira b=8 V2 permutation (128-bit width, AES-NI accelerated) to achieve high performance on modern
-AMD64 and ARM64 processors.
+Newplex uses the Simpira-1024 permutation to achieve high performance on modern AMD64 and ARM64 processors.
 
 ## Permutation Implementations
 
@@ -82,10 +81,10 @@ architectures:
 * Haraka-512 V2
 * Keccak-f\[1600\]
 * Keccak-p\[1600, 12\]
-* Simpira b=2 V2
-* Simpira b=4 V2
-* Simpira b=6 V2
-* Simpira b=8 V2
+* Simpira-256 V2
+* Simpira-512 V2
+* Simpira-784 V2
+* Simpira1024 V2
 
 Of these, Simpira b=8 provides the best performance across both platforms at a wider size.
 
@@ -129,10 +128,10 @@ goos: darwin
 goarch: arm64
 pkg: github.com/codahale/newplex/internal/simpira
 cpu: Apple M4 Pro
-BenchmarkPermute2-14            33610927                35.39 ns/op      904.14 MB/s           0 B/op          0 allocs/op
-BenchmarkPermute4-14            34202080                34.86 ns/op     1835.72 MB/s
-BenchmarkPermute6-14            34018386                34.86 ns/op     2753.96 MB/s
-BenchmarkPermute8-14            27187585                43.73 ns/op     2927.35 MB/s
+BenchmarkPermute256-14            33610927                35.39 ns/op      904.14 MB/s           0 B/op          0 allocs/op
+BenchmarkPermute512-14            34202080                34.86 ns/op     1835.72 MB/s
+BenchmarkPermute784-14            34018386                34.86 ns/op     2753.96 MB/s
+BenchmarkPermute1024-14           27187585                43.73 ns/op     2927.35 MB/s
 PASS
 ok      github.com/codahale/newplex/internal/simpira    4.994s
 ```
@@ -177,10 +176,10 @@ goos: linux
 goarch: amd64
 pkg: github.com/codahale/newplex/internal/simpira
 cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
-BenchmarkPermute2-4     29862538                40.24 ns/op      795.17 MB/s           0 B/op          0 allocs/op
-BenchmarkPermute4-4     29536484                40.59 ns/op     1576.73 MB/s           0 B/op          0 allocs/op
-BenchmarkPermute6-4     30012813                41.55 ns/op     2310.47 MB/s           0 B/op          0 allocs/op
-BenchmarkPermute8-4     21942882                54.00 ns/op     2370.33 MB/s           0 B/op          0 allocs/op
+BenchmarkPermute256-4     29862538                40.24 ns/op      795.17 MB/s           0 B/op          0 allocs/op
+BenchmarkPermute512-4     29536484                40.59 ns/op     1576.73 MB/s           0 B/op          0 allocs/op
+BenchmarkPermute784-4     30012813                41.55 ns/op     2310.47 MB/s           0 B/op          0 allocs/op
+BenchmarkPermute1024-4    21942882                54.00 ns/op     2370.33 MB/s           0 B/op          0 allocs/op
 PASS
 ok      github.com/codahale/newplex/internal/simpira    4.836s
 ```

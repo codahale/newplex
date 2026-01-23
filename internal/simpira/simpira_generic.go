@@ -76,7 +76,7 @@ func fFunction(x [16]byte, c, b uint32) [16]byte {
 	return x
 }
 
-func permute2Generic(state *[32]byte) {
+func permute256Generic(state *[32]byte) {
 	c := uint32(1)
 	b := uint32(2)
 	// We need to work with 128-bit (16-byte) blocks.
@@ -107,7 +107,7 @@ func permute2Generic(state *[32]byte) {
 	copy(state[16:32], block1[:])
 }
 
-func permute4Generic(state *[64]byte) {
+func permute512Generic(state *[64]byte) {
 	c := uint32(1)
 	b := uint32(4)
 
@@ -143,7 +143,7 @@ func permute4Generic(state *[64]byte) {
 	}
 }
 
-func permute6Generic(state *[96]byte) {
+func permute784Generic(state *[96]byte) {
 	c := uint32(1)
 	b := uint32(6)
 	s := [6]int{0, 1, 2, 5, 4, 3}
@@ -183,7 +183,7 @@ func permute6Generic(state *[96]byte) {
 	}
 }
 
-func permute8Generic(state *[128]byte) {
+func permute1024Generic(state *[128]byte) {
 	c := uint32(1)
 	b := uint32(8)
 	s := [6]int{0, 1, 6, 5, 4, 3}
