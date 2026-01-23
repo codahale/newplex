@@ -57,8 +57,8 @@ tag := p.Derive("tag", nil, 32)
 
 ### Duplex
 
-`Duplex` is the low-level primitive using the Simpira-8 v2 permutation (1024-bit state). It supports `Absorb`,
-`Squeeze`, `Encrypt`, and `Decrypt` operations directly on the state.
+`Duplex` is the low-level primitive using the Simpira-1024 V2 permutation. It supports `Absorb`, `Squeeze`, `Encrypt`,
+and `Decrypt` operations directly on the state.
 
 ```go
 var d newplex.Duplex
@@ -68,8 +68,6 @@ d.Squeeze(output)
 ```
 
 ## Performance
-
-Newplex uses the Simpira-1024 permutation to achieve high performance on modern AMD64 and ARM64 processors.
 
 ## Permutation Implementations
 
@@ -84,9 +82,9 @@ architectures:
 * Simpira-256 V2
 * Simpira-512 V2
 * Simpira-784 V2
-* Simpira1024 V2
+* Simpira-1024 V2
 
-Of these, Simpira b=8 provides the best performance across both platforms at a wider size.
+Of these, Simpira-1024 provides the best performance across both platforms at a wider size.
 
 ### arm64
 
