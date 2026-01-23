@@ -134,7 +134,7 @@ PASS
 ok      github.com/codahale/newplex/internal/simpira    4.994s
 ```
 
-### arm64
+### amd64
 
 ```text
 goos: linux
