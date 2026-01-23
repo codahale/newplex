@@ -15,8 +15,8 @@ func TestCompliance(t *testing.T) {
 		rng.Read(state1[:])
 		copy(state2[:], state1[:])
 
-		F1600(&state1)                  // Should use ASM
-		keccakF1600Generic(&state2, 24) // Reference
+		F1600(&state1)            // Should use ASM
+		f1600Generic(&state2, 24) // Reference
 
 		if !bytes.Equal(state1[:], state2[:]) {
 			t.Errorf("iteration %d: generic (24 rounds) mismatch ASM", i)
@@ -32,8 +32,8 @@ func TestCompliance12(t *testing.T) {
 		rng.Read(state1[:])
 		copy(state2[:], state1[:])
 
-		P1600(&state1)                  // Should use ASM
-		keccakF1600Generic(&state2, 12) // Reference
+		P1600(&state1)            // Should use ASM
+		f1600Generic(&state2, 12) // Reference
 
 		if !bytes.Equal(state1[:], state2[:]) {
 			t.Errorf("iteration %d: generic (12 rounds) mismatch ASM", i)

@@ -2,8 +2,8 @@
 
 #include "textflag.h"
 
-// func permuteAsm(state *[48]byte)
-TEXT ·permuteAsm(SB), NOSPLIT, $0
+// func permute(state *[48]byte)
+TEXT ·permute(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 
 	// Load state into XMM0, XMM1, XMM2

@@ -2,8 +2,8 @@
 
 #include "textflag.h"
 
-// func permute512Asm(state *[64]byte)
-TEXT ·permute512Asm(SB), NOSPLIT, $0
+// func permute512(state *[64]byte)
+TEXT ·permute512(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 
 	MOVOU 0(DI), X0

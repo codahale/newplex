@@ -37,11 +37,11 @@ var rc = [24]uint64{ //nolint:gochecknoglobals // constants are static
 	0x8000000080008008,
 }
 
-// keccakF1600Generic applies the Keccak permutation.
+// f1600Generic applies the Keccak permutation.
 //
 //nolint:funlen // it's just big
 //goland:noinspection DuplicatedCode
-func keccakF1600Generic(da *[200]byte, rounds int) {
+func f1600Generic(da *[200]byte, rounds int) {
 	a := (*[25]uint64)(unsafe.Pointer(da))
 
 	// Implementation translated from Keccak-inplace.c

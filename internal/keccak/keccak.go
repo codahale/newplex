@@ -6,10 +6,10 @@ package keccak
 
 // F1600 applies the Keccak-f[1600] permutation to the state (24 rounds).
 func F1600(state *[200]byte) {
-	keccakF1600(state)
+	f1600(state)
 }
 
 // P1600 applies the Keccak-p[1600, 12] permutation to the state (12 rounds).
 func P1600(state *[200]byte) {
-	keccakF1600Rounds12(state)
+	p1600(state)
 }

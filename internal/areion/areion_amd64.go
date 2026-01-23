@@ -2,10 +2,6 @@
 
 package areion
 
-func permute512(state *[64]byte) {
-	permute512Asm(state)
-}
-
 //go:noescape
 //goland:noinspection GoUnusedParameter
-func permute512Asm(state *[64]byte)
+func permute512(state *[64]byte)

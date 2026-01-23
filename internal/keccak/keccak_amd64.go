@@ -8,8 +8,8 @@ package keccak
 
 //go:noescape
 //goland:noinspection GoUnusedParameter
-func keccakF1600(a *[200]byte)
+func f1600(a *[200]byte)
 
 //go:noescape
 //goland:noinspection GoUnusedParameter
-func keccakF1600Rounds12(a *[200]byte)
+func p1600(a *[200]byte)

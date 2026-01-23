@@ -6,10 +6,10 @@
 
 package keccak
 
-func keccakF1600(a *[200]byte) {
-	keccakF1600Generic(a, 24)
+func f1600(a *[200]byte) {
+	f1600Generic(a, 24)
 }
 
-func keccakF1600Rounds12(a *[200]byte) {
-	keccakF1600Generic(a, 12)
+func p1600(a *[200]byte) {
+	f1600Generic(a, 12)
 }
