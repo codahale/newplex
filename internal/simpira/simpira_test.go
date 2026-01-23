@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestPermute2(t *testing.T) {
+func TestPermute256(t *testing.T) {
 	var state [32]byte
 	Permute256(&state)
 
@@ -17,7 +17,7 @@ func TestPermute2(t *testing.T) {
 	}
 }
 
-func TestPermute4(t *testing.T) {
+func TestPermute512(t *testing.T) {
 	var state [64]byte
 	Permute512(&state)
 
@@ -27,7 +27,7 @@ func TestPermute4(t *testing.T) {
 	}
 }
 
-func TestPermute6(t *testing.T) {
+func TestPermute784(t *testing.T) {
 	var state [96]byte
 	Permute784(&state)
 
@@ -37,7 +37,7 @@ func TestPermute6(t *testing.T) {
 	}
 }
 
-func TestPermute8(t *testing.T) {
+func TestPermute1024(t *testing.T) {
 	var state [128]byte
 	Permute1024(&state)
 
@@ -47,7 +47,7 @@ func TestPermute8(t *testing.T) {
 	}
 }
 
-func FuzzPermute2(f *testing.F) {
+func FuzzPermute256(f *testing.F) {
 	const width = 32
 
 	drbg := sha3.NewSHAKE128()
@@ -75,7 +75,7 @@ func FuzzPermute2(f *testing.F) {
 	})
 }
 
-func FuzzPermute4(f *testing.F) {
+func FuzzPermute512(f *testing.F) {
 	const width = 64
 
 	drbg := sha3.NewSHAKE128()
@@ -103,7 +103,7 @@ func FuzzPermute4(f *testing.F) {
 	})
 }
 
-func FuzzPermute6(f *testing.F) {
+func FuzzPermute784(f *testing.F) {
 	const width = 96
 
 	drbg := sha3.NewSHAKE128()
@@ -131,7 +131,7 @@ func FuzzPermute6(f *testing.F) {
 	})
 }
 
-func FuzzPermute8(f *testing.F) {
+func FuzzPermute1024(f *testing.F) {
 	const width = 128
 
 	drbg := sha3.NewSHAKE128()
@@ -157,40 +157,4 @@ func FuzzPermute8(f *testing.F) {
 			t.Errorf("Permute1024-ASM(%x) = %x, want = %x", data, got, want)
 		}
 	})
-}
-
-func BenchmarkPermute2(b *testing.B) {
-	var state [32]byte
-	b.SetBytes(int64(len(state)))
-	b.ReportAllocs()
-	for b.Loop() {
-		Permute256(&state)
-	}
-}
-
-func BenchmarkPermute4(b *testing.B) {
-	var state [64]byte
-	b.SetBytes(int64(len(state)))
-	b.ResetTimer()
-	for b.Loop() {
-		Permute512(&state)
-	}
-}
-
-func BenchmarkPermute6(b *testing.B) {
-	var state [96]byte
-	b.SetBytes(int64(len(state)))
-	b.ResetTimer()
-	for b.Loop() {
-		Permute784(&state)
-	}
-}
-
-func BenchmarkPermute8(b *testing.B) {
-	var state [128]byte
-	b.SetBytes(int64(len(state)))
-	b.ResetTimer()
-	for b.Loop() {
-		Permute1024(&state)
-	}
 }

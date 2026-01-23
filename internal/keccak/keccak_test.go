@@ -40,21 +40,3 @@ func TestCompliance12(t *testing.T) {
 		}
 	}
 }
-
-func BenchmarkF1600(b *testing.B) {
-	var state [200]byte
-	b.SetBytes(int64(len(state)))
-	b.ReportAllocs()
-	for b.Loop() {
-		F1600(&state)
-	}
-}
-
-func BenchmarkP1600(b *testing.B) {
-	var state [200]byte
-	b.SetBytes(int64(len(state)))
-	b.ReportAllocs()
-	for b.Loop() {
-		P1600(&state)
-	}
-}

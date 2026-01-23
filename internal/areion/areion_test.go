@@ -74,12 +74,3 @@ func TestPermute512GenericConsistency(t *testing.T) {
 		t.Errorf("Generic vs ASM mismatch:\nASM: %x\nGen: %x", state1[:], state2[:])
 	}
 }
-
-func BenchmarkPermute512(b *testing.B) {
-	var state [64]byte
-	b.SetBytes(int64(len(state)))
-	b.ReportAllocs()
-	for b.Loop() {
-		Permute512(&state)
-	}
-}

@@ -19,12 +19,3 @@ func TestGenericConsistency(t *testing.T) {
 		t.Errorf("Generic vs Optimized mismatch:\nOpt: %x\nGen: %x", state1, state2)
 	}
 }
-
-func BenchmarkPermute(b *testing.B) {
-	var state [48]byte
-	b.SetBytes(int64(len(state)))
-	b.ReportAllocs()
-	for b.Loop() {
-		Permute(&state)
-	}
-}
