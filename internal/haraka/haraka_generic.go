@@ -121,7 +121,7 @@ func sliceToU32s(b *[16]byte) [4]uint32 {
 // rcGeneric constants.
 // 6 rounds * 2 AES steps * 4 blocks = 48 constants.
 // The constants repeat modulo 24.
-var rcGeneric = [48][16]byte{
+var rcGeneric = [48][16]byte{ //nolint:gochecknoglobals // constant values are static
 	// Round 0
 	{0x4c, 0x70, 0x84, 0x06, 0x0a, 0xc0, 0x20, 0xe6, 0xf0, 0xfe, 0xc5, 0xb2, 0x9d, 0x7b, 0x81, 0x75},
 	{0xe1, 0xb4, 0x66, 0x8b, 0x6b, 0xa0, 0xf3, 0x88, 0xa4, 0x6b, 0x0f, 0x64, 0x17, 0xf7, 0x08, 0x2f},
@@ -185,7 +185,7 @@ func permute512Generic(state *[64]byte) {
 	copy(s2[:], state[32:48])
 	copy(s3[:], state[48:64])
 
-	for r := 0; r < 6; r++ {
+	for r := range 6 {
 		// Step 1: AES round with first 4 constants
 		s0 = aesEnc(s0, rcGeneric[8*r+0])
 		s1 = aesEnc(s1, rcGeneric[8*r+1])
