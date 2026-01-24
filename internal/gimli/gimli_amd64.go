@@ -1,3 +1,5 @@
+//go:build amd64 && !nosimd
+
 package gimli
 
 //go:noescape
