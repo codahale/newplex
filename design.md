@@ -27,16 +27,15 @@ bits, and a rate of 768 bits (i.e. `b=1024`, `c=256`, `r=768`).
 
 This provides the following security levels:
 
-| Security Metric      | Level (Bits) | Formula | Condition                    |
-|----------------------|--------------|---------|------------------------------|
-| Collision Resistance | 128          | `c/2`   | public/hash mode             |
-| State/Key Recovery   | 256          | `c`     | keyed mode (assuming K≥256)  |
-| Indistinguishability | 256          | `c`     | keyed mode (time complexity) |
-| Data Limit           | 128          | `c/2`   | max data processed per key   |
+| Security Metric      | Level (Bits) | Formula | Condition        |
+|----------------------|--------------|---------|------------------|
+| Collision Resistance | 128          | `c/2`   | public/hash mode |
+| State/Key Recovery   | 256          | `c`     | (assuming K≥256) |
+| Indistinguishability | 128          | `c/2`   | birthday bound   |
 
 The duplex provides a small number of operations: `Permute`, `Absorb`, `Squeeze`, and `Encrypt`/`Decrypt`. It provides
 no padding or framing scheme and only permutes its state when an operation's input is larger than the duplex's remaining
-rate. As such, it is a building block and should be considered weapons-grade cryptographic hazmat.
+rate. As such, it is a building block for higher level operations and should be considered cryptographic hazmat.
 
 ### `Permute`
 
@@ -62,13 +61,16 @@ equivalent to a single `Squeeze` operation with the concatenation of the sequenc
 
 ### `Encrypt/Decrypt`
 
-An `Encrypt` operation XORs the duplex's remaining rate with the input in blocks of up to 768 bits and copies the result
-into a given output buffer. When the duplex's rate is exhausted, it calls `Permute`.
+An `Encrypt` operation encrypts a plaintext by XORing it with the duplex's rate to produce a ciphertext, then XORing the
+duplex's state with the given plaintext. As the duplex's rate is exhausted, it calls `Permute`.
 
-`Decrypt` is identical, except the duplex's rate is XORed with the XOR of the input and the rate. This ensures the
-duplex's state is the same given an input from an `Encrypt` operation.
+A `Decrypt` operation decrypts a ciphertext by XORing it with the duplex's rate to produce a plaintext, then XORing the
+duplex's state with the resulting plaintext. As the duplex's rate is exhausted, it calls `Permute`.
 
-N.B.: `Encrypt` and `Decrypt` do not call `Permute` at the end of the operation, so a sequence of `Encrypt` operations
+This follows the design of [Xoodyak]'s Cyclist mode in offering encryption and decryption operations which combine
+squeezing output for use as a keystream and absorbing plaintext.
+
+N.B.: Neither `Encrypt` nor `Decrypt` call `Permute` at the end of the operation, so a sequence of `Encrypt` operations
 are equivalent to a single `Encrypt` operation with the concatenation of the sequence's outputs (e.g.
 `Encrypt('A'); Encrypt('B')` is equivalent to `Encrypt('AB')`).
 
