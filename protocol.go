@@ -55,7 +55,7 @@ func (p *Protocol) Mix(label string, input []byte) {
 
 // MixWriter updates the protocol's state using the given label and whatever data is written to the wrapped io.Writer.
 //
-// N.B.: The returned io.WriteCloser must be closed for the mix operation to be complete.
+// N.B.: The returned io.WriteCloser must be closed for the Mix operation to be complete.
 func (p *Protocol) MixWriter(label string, w io.Writer) io.WriteCloser {
 	p.absorbMetadata(opMix, label)
 	return &mixWriter{p: p, w: w, n: 0}
@@ -63,7 +63,7 @@ func (p *Protocol) MixWriter(label string, w io.Writer) io.WriteCloser {
 
 // MixReader updates the protocol's state using the given label and whatever data is read from the wrapped io.Reader.
 //
-// N.B.: The returned io.ReadCloser must be closed for the mix operation to be complete.
+// N.B.: The returned io.ReadCloser must be closed for the Mix operation to be complete.
 func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 	p.absorbMetadata(opMix, label)
 	return &mixReader{p: p, r: r, n: 0}
@@ -98,14 +98,33 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 // To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
 // dst must not overlap plaintext.
 func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
-	buf := p.absorbMetadata(opCrypt, label)
-
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
+	buf := p.absorbMetadata(opCrypt, label)
 	p.duplex.Permute()
 	p.duplex.Encrypt(ciphertext, plaintext)
 	p.duplex.Absorb(tuplehash.AppendRightEncode(buf, uint64(len(plaintext))*bitsPerByte))
 	p.duplex.Permute()
 	return ret
+}
+
+// EncryptWriter updates the protocol's state using the given label and encrypts whatever data is written to the wrapped
+// io.Writer.
+//
+// N.B.: The returned io.WriteCloser must be closed for the Encrypt operation to be complete.
+func (p *Protocol) EncryptWriter(label string, w io.Writer) io.WriteCloser {
+	p.absorbMetadata(opCrypt, label)
+	p.duplex.Permute()
+	return &cryptWriter{p: p, f: p.duplex.Encrypt, w: w, n: 0}
+}
+
+// EncryptReader updates the protocol's state using the given label and encrypts whatever data is read from the wrapped
+// io.Reader.
+//
+// N.B.: The returned io.ReadCloser must be closed for the Encrypt operation to be complete.
+func (p *Protocol) EncryptReader(label string, r io.Reader) io.ReadCloser {
+	p.absorbMetadata(opCrypt, label)
+	p.duplex.Permute()
+	return &cryptReader{p: p, f: p.duplex.Encrypt, r: r, n: 0}
 }
 
 // Decrypt updates the protocol's state with the given label, then uses the state to decrypt the given ciphertext. It
@@ -116,14 +135,33 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 // To reuse ciphertext's storage for the encrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
 func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
-	buf := p.absorbMetadata(opCrypt, label)
-
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
+	buf := p.absorbMetadata(opCrypt, label)
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
 	p.duplex.Absorb(tuplehash.AppendRightEncode(buf, uint64(len(plaintext))*bitsPerByte))
 	p.duplex.Permute()
 	return ret
+}
+
+// DecryptWriter updates the protocol's state using the given label and decrypts whatever data is written to the wrapped
+// io.Writer.
+//
+// N.B.: The returned io.WriteCloser must be closed for the Decrypt operation to be complete.
+func (p *Protocol) DecryptWriter(label string, w io.Writer) io.WriteCloser {
+	p.absorbMetadata(opCrypt, label)
+	p.duplex.Permute()
+	return &cryptWriter{p: p, f: p.duplex.Decrypt, w: w, n: 0}
+}
+
+// DecryptReader updates the protocol's state using the given label and decrypts whatever data is read from the wrapped
+// io.Reader.
+//
+// N.B.: The returned io.ReadCloser must be closed for the Decrypt operation to be complete.
+func (p *Protocol) DecryptReader(label string, r io.Reader) io.ReadCloser {
+	p.absorbMetadata(opCrypt, label)
+	p.duplex.Permute()
+	return &cryptReader{p: p, f: p.duplex.Decrypt, r: r, n: 0}
 }
 
 // Seal updates the protocol's state with the given label and plaintext length, then uses the state to encrypt the
@@ -192,6 +230,10 @@ func (p *Protocol) MarshalBinary() (data []byte, err error) {
 // encoding.BinaryUnmarshaler.
 func (p *Protocol) UnmarshalBinary(data []byte) error {
 	return p.duplex.UnmarshalBinary(data)
+}
+
+func (p *Protocol) String() string {
+	return p.duplex.String()
 }
 
 func (p *Protocol) absorbMetadata(op byte, label string) []byte {

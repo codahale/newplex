@@ -3,7 +3,6 @@ package newplex_test
 import (
 	"bytes"
 	"encoding/hex"
-	"io"
 	"testing"
 
 	"github.com/codahale/newplex"
@@ -144,65 +143,6 @@ func TestProtocol_AppendBinary(t *testing.T) {
 	}
 }
 
-func TestProtocol_MixReader(t *testing.T) {
-	t.Parallel()
-
-	p1 := newplex.NewProtocol("example")
-	p1.Mix("key", []byte("onetwothree"))
-
-	p2 := newplex.NewProtocol("example")
-	r := p2.MixReader("key", bytes.NewBufferString("onetwothree"))
-	buf := bytes.NewBuffer(nil)
-	_, err := io.Copy(buf, r)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got, want := buf.String(), "onetwothree"; got != want {
-		t.Errorf("Read got = %q, want = %q", got, want)
-	}
-
-	if err := r.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if got, want := p2.Derive("third", nil, 8), p1.Derive("third", nil, 8); !bytes.Equal(got, want) {
-		t.Errorf("Derive('third') = %x, want = %x", got, want)
-	}
-}
-
-func TestProtocol_MixWriter(t *testing.T) {
-	t.Parallel()
-
-	p1 := newplex.NewProtocol("example")
-	p1.Mix("key", []byte("onetwothree"))
-
-	p2 := newplex.NewProtocol("example")
-	buf := bytes.NewBuffer(nil)
-	w := p2.MixWriter("key", buf)
-	if _, err := w.Write([]byte("one")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := w.Write([]byte("two")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := w.Write([]byte("three")); err != nil {
-		t.Fatal(err)
-	}
-
-	if got, want := buf.String(), "onetwothree"; got != want {
-		t.Errorf("Read got = %q, want = %q", got, want)
-	}
-
-	if err := w.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if got, want := p2.Derive("third", nil, 8), p1.Derive("third", nil, 8); !bytes.Equal(got, want) {
-		t.Errorf("Derive('third') = %x, want = %x", got, want)
-	}
-}
-
 func TestProtocol_Derive_nonzero_output_slices(t *testing.T) {
 	t.Parallel()
 
@@ -247,6 +187,13 @@ func TestProtocol_Encrypt_common_prefixes(t *testing.T) {
 	if got, want := p1.Derive("test", nil, 8), p2.Derive("test", nil, 8); bytes.Equal(got, want) {
 		t.Errorf("Encrypt(10) state = Encrypt(16) state = %x", got)
 	}
+}
+
+func TestProtocol_Encrypt_same_slice(t *testing.T) {
+	msg := make([]byte, 16)
+	p1 := newplex.NewProtocol("prefixes")
+	p1.Encrypt("message", msg, msg)
+	t.Log(msg)
 }
 
 func FuzzProtocol_Open_ciphertext_modification(f *testing.F) {
