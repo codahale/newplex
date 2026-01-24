@@ -20,8 +20,10 @@ level.
 
 ## ⚠️ Security Warning
 
-**This code has not been audited.** It is experimental and should not be used for production systems or critical
-security applications. Use at your own risk.
+**This code has not been audited. This design has not been analyzed.** The design is documented in [
+`design.md`](design.md); read it and see if the arguments therein are convincing. It is experimental and should not be
+used for production systems or critical security applications.
+Use at your own risk.
 
 ## Installation
 
