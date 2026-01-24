@@ -19,9 +19,9 @@ func TestAESEnc(t *testing.T) {
 		0x63, 0x63, 0x63, 0x63, 0x63, 0x63, 0x63, 0x63,
 	}
 
-	got := aesni.AESEnc(state, key)
+	got := aesni.AESENC(state, key)
 	if !bytes.Equal(got[:], want[:]) {
-		t.Errorf("AESEnc(0, 0) = %x, want %x", got, want)
+		t.Errorf("AESENC(0, 0) = %x, want %x", got, want)
 	}
 }
 
@@ -37,8 +37,8 @@ func TestAESEncLast(t *testing.T) {
 		0x63, 0x63, 0x63, 0x63, 0x63, 0x63, 0x63, 0x63,
 	}
 
-	got := aesni.AESEnc(state, key)
+	got := aesni.AESENC(state, key)
 	if !bytes.Equal(got[:], want[:]) {
-		t.Errorf("AESEncLast(0, 0) = %x, want %x", got, want)
+		t.Errorf("AESENCLAST(0, 0) = %x, want %x", got, want)
 	}
 }

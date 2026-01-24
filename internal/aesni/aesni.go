@@ -1,6 +1,24 @@
 package aesni
 
-// sbox is the AES S-box.
+func AESENC(state, key [16]byte) [16]byte {
+	subBytes(&state)
+	shiftRows(&state)
+	mixColumns(&state)
+	for i := range 16 {
+		state[i] ^= key[i]
+	}
+	return state
+}
+
+func AESENCLAST(state, key [16]byte) [16]byte {
+	subBytes(&state)
+	shiftRows(&state)
+	for i := range 16 {
+		state[i] ^= key[i]
+	}
+	return state
+}
+
 var sbox = [256]byte{ //nolint:gochecknoglobals // too big to initialize dynamically
 	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
 	0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -48,23 +66,4 @@ func mixColumns(state *[16]byte) {
 		state[i*4+2] = s0 ^ s1 ^ mul2(s2) ^ (mul2(s3) ^ s3)
 		state[i*4+3] = (mul2(s0) ^ s0) ^ s1 ^ s2 ^ mul2(s3)
 	}
-}
-
-func AESEnc(state, key [16]byte) [16]byte {
-	subBytes(&state)
-	shiftRows(&state)
-	mixColumns(&state)
-	for i := range 16 {
-		state[i] ^= key[i]
-	}
-	return state
-}
-
-func AESEncLast(state, key [16]byte) [16]byte {
-	subBytes(&state)
-	shiftRows(&state)
-	for i := range 16 {
-		state[i] ^= key[i]
-	}
-	return state
 }

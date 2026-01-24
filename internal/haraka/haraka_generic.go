@@ -7,7 +7,7 @@ import (
 )
 
 func aesEnc(state, key [16]byte) [16]byte {
-	return aesni.AESEnc(state, key)
+	return aesni.AESENC(state, key)
 }
 
 // mix512 applies the mixing layer (transpose).

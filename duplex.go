@@ -51,17 +51,17 @@ func (d *Duplex) Squeeze(out []byte) {
 	}
 }
 
-// Encrypt updates the duplex's state with the given plaintext source and writes an encrypted copy to the given
-// ciphertext destination.
+// Encrypt XORs the given plaintext slice with the duplex's state, copies the result to the given ciphertext slice, then
+// XORs the duplex's state with the plaintext.
 //
 // Multiple Encrypt calls are effectively the same thing as a single Encrypt call with concatenated inputs.
 //
 //goland:noinspection DuplicatedCode
-func (d *Duplex) Encrypt(dst, src []byte) {
-	for len(src) > 0 {
-		remain := min(len(src), rate-d.idx)
-		p := src[:remain]
-		c := dst[:remain]
+func (d *Duplex) Encrypt(ciphertext, plaintext []byte) {
+	for len(plaintext) > 0 {
+		remain := min(len(plaintext), rate-d.idx)
+		p := plaintext[:remain]
+		c := ciphertext[:remain]
 		k := d.state[d.idx : d.idx+remain]
 
 		subtle.XORBytes(c, k, p)
@@ -71,22 +71,22 @@ func (d *Duplex) Encrypt(dst, src []byte) {
 		if d.idx == rate {
 			d.Permute()
 		}
-		src = src[remain:]
-		dst = dst[remain:]
+		plaintext = plaintext[remain:]
+		ciphertext = ciphertext[remain:]
 	}
 }
 
-// Decrypt writes a decrypted copy of the given ciphertext source to the given plaintext destination and updates the
-// duplex's state with the plaintext.
+// Decrypt XORs the given ciphertext slice with the duplex's state, copies the result to the given plaintext slice, then
+// XORs the duplex's state with the plaintext.
 //
 // Multiple Decrypt calls are effectively the same thing as a single Decrypt call with concatenated inputs.
 //
 //goland:noinspection DuplicatedCode
-func (d *Duplex) Decrypt(dst, src []byte) {
-	for len(src) > 0 {
-		remain := min(len(src), rate-d.idx)
-		c := src[:remain]
-		p := dst[:remain]
+func (d *Duplex) Decrypt(plaintext, ciphertext []byte) {
+	for len(ciphertext) > 0 {
+		remain := min(len(ciphertext), rate-d.idx)
+		c := ciphertext[:remain]
+		p := plaintext[:remain]
 		k := d.state[d.idx : d.idx+remain]
 
 		subtle.XORBytes(p, k, c)
@@ -96,8 +96,8 @@ func (d *Duplex) Decrypt(dst, src []byte) {
 		if d.idx == rate {
 			d.Permute()
 		}
-		src = src[remain:]
-		dst = dst[remain:]
+		ciphertext = ciphertext[remain:]
+		plaintext = plaintext[remain:]
 	}
 }
 
@@ -142,7 +142,7 @@ var (
 )
 
 const (
-	width    = simpira.Width1024 // The width of the permutation in bytes.
-	capacity = 32                // The duplex's capacity in bytes.
-	rate     = width - capacity  // The rate of the duplex as determined by its width and capacity.
+	width    = simpira.Permute1024Width // The width of the permutation in bytes.
+	capacity = 32                       // The duplex's capacity in bytes.
+	rate     = width - capacity         // The rate of the duplex as determined by its width and capacity.
 )

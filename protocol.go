@@ -32,7 +32,7 @@ var ErrInvalidCiphertext = errors.New("newplex: invalid ciphertext")
 //
 // Protocol instances are not concurrent-safe.
 type Protocol struct {
-	d Duplex
+	duplex Duplex
 }
 
 // NewProtocol creates a new Protocol with the given domain separation string.
@@ -47,7 +47,7 @@ func NewProtocol(domain string) Protocol {
 	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(domain))*bitsPerByte)
 	metadata = append(metadata, domain...)
 
-	p.d.Absorb(metadata)
+	p.duplex.Absorb(metadata)
 
 	return p
 }
@@ -59,9 +59,9 @@ func (p *Protocol) Mix(label string, input []byte) {
 	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
 	metadata = append(metadata, label...)
 
-	p.d.Absorb(metadata)
-	p.d.Absorb(input)
-	p.d.Absorb(tuplehash.AppendRightEncode(metadata[:0], uint64(len(input))*bitsPerByte))
+	p.duplex.Absorb(metadata)
+	p.duplex.Absorb(input)
+	p.duplex.Absorb(tuplehash.AppendRightEncode(metadata[:0], uint64(len(input))*bitsPerByte))
 }
 
 // Derive updates the protocol's state with the given label and output length and then generates n bytes of pseudorandom
@@ -76,9 +76,9 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 	p.absorbMetadata(opDerive, label, n)
 
 	ret, prf := sliceForAppend(dst, n)
-	p.d.Permute()
-	p.d.Squeeze(prf)
-	p.d.Permute()
+	p.duplex.Permute()
+	p.duplex.Squeeze(prf)
+	p.duplex.Permute()
 	return ret
 }
 
@@ -93,9 +93,9 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 	p.absorbMetadata(opCrypt, label, len(plaintext))
 
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
-	p.d.Permute()
-	p.d.Encrypt(ciphertext, plaintext)
-	p.d.Permute()
+	p.duplex.Permute()
+	p.duplex.Encrypt(ciphertext, plaintext)
+	p.duplex.Permute()
 	return ret
 }
 
@@ -110,9 +110,9 @@ func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 	p.absorbMetadata(opCrypt, label, len(ciphertext))
 
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
-	p.d.Permute()
-	p.d.Decrypt(plaintext, ciphertext)
-	p.d.Permute()
+	p.duplex.Permute()
+	p.duplex.Decrypt(plaintext, ciphertext)
+	p.duplex.Permute()
 	return ret
 }
 
@@ -128,11 +128,11 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 
 	p.absorbMetadata(opAuthCrypt, label, len(plaintext))
 
-	p.d.Permute()
-	p.d.Encrypt(ciphertext, plaintext)
-	p.d.Permute()
-	p.d.Squeeze(tag)
-	p.d.Permute()
+	p.duplex.Permute()
+	p.duplex.Encrypt(ciphertext, plaintext)
+	p.duplex.Permute()
+	p.duplex.Squeeze(tag)
+	p.duplex.Permute()
 	return ret
 }
 
@@ -142,20 +142,20 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 //
 // To reuse ciphertext's storage for the decrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
-func (p *Protocol) Open(label string, dst, ciphertext []byte) ([]byte, error) {
-	ret, plaintext := sliceForAppend(dst, len(ciphertext)-TagSize)
-	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
-	var tagP [TagSize]byte
+func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, error) {
+	ret, plaintext := sliceForAppend(dst, len(ciphertextAndTag)-TagSize)
+	ciphertext, receivedTag := ciphertextAndTag[:len(plaintext)], ciphertextAndTag[len(plaintext):]
+	var calculatedTag [TagSize]byte
 
 	p.absorbMetadata(opAuthCrypt, label, len(plaintext))
 
-	p.d.Permute()
-	p.d.Decrypt(plaintext, ciphertext)
-	p.d.Permute()
-	p.d.Squeeze(tagP[:])
-	p.d.Permute()
+	p.duplex.Permute()
+	p.duplex.Decrypt(plaintext, ciphertext)
+	p.duplex.Permute()
+	p.duplex.Squeeze(calculatedTag[:])
+	p.duplex.Permute()
 
-	if subtle.ConstantTimeCompare(tag, tagP[:]) == 0 {
+	if subtle.ConstantTimeCompare(receivedTag, calculatedTag[:]) == 0 {
 		clear(plaintext)
 		return nil, ErrInvalidCiphertext
 	}
@@ -170,18 +170,18 @@ func (p *Protocol) Clone() Protocol {
 // AppendBinary appends the binary representation of the protocol's state to the given slice. It implements
 // encoding.BinaryAppender.
 func (p *Protocol) AppendBinary(b []byte) ([]byte, error) {
-	return p.d.AppendBinary(b)
+	return p.duplex.AppendBinary(b)
 }
 
 // MarshalBinary returns the binary representation of the protocol's state. It implements encoding.BinaryMarshaler.
 func (p *Protocol) MarshalBinary() (data []byte, err error) {
-	return p.d.MarshalBinary()
+	return p.duplex.MarshalBinary()
 }
 
 // UnmarshalBinary restores the protocol's state from the given binary representation. It implements
 // encoding.BinaryUnmarshaler.
 func (p *Protocol) UnmarshalBinary(data []byte) error {
-	return p.d.UnmarshalBinary(data)
+	return p.duplex.UnmarshalBinary(data)
 }
 
 func (p *Protocol) absorbMetadata(op byte, label string, n int) {
@@ -191,7 +191,7 @@ func (p *Protocol) absorbMetadata(op byte, label string, n int) {
 	metadata = append(metadata, label...)
 	metadata = tuplehash.AppendRightEncode(metadata, uint64(n)*bitsPerByte) //nolint:gosec // unlikely to see 18 EB outputs
 
-	p.d.Absorb(metadata)
+	p.duplex.Absorb(metadata)
 }
 
 var (

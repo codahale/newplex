@@ -13,8 +13,8 @@ func fFunction(x [16]byte, c, b uint32) [16]byte {
 		binary.LittleEndian.PutUint32(constant[j*4:], xb^(j<<4))
 	}
 
-	x = aesni.AESEnc(x, constant)
-	x = aesni.AESEnc(x, [16]byte{}) // XOR 0
+	x = aesni.AESENC(x, constant)
+	x = aesni.AESENC(x, [16]byte{}) // XOR 0
 	return x
 }
 

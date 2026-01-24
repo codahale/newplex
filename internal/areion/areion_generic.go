@@ -42,17 +42,17 @@ func permute512Generic(state *[64]byte) {
 		zero := [16]byte{}
 
 		// x1New = AESENC(x0, x1) -> F0(x0) ^ x1
-		x1New := aesni.AESEnc(x0, x1)
+		x1New := aesni.AESENC(x0, x1)
 
 		// x3New = AESENC(x2, x3) -> F0(x2) ^ x3
-		x3New := aesni.AESEnc(x2, x3)
+		x3New := aesni.AESENC(x2, x3)
 
 		// x0New = AESENCLAST(x0, 0) -> F1(x0)
-		x0New := aesni.AESEncLast(x0, zero)
+		x0New := aesni.AESENCLAST(x0, zero)
 
 		// x2New = AESENC(AESENCLAST(x2, rc), 0) -> F3(x2)
-		tmp := aesni.AESEncLast(x2, rc)
-		x2New := aesni.AESEnc(tmp, zero)
+		tmp := aesni.AESENCLAST(x2, rc)
+		x2New := aesni.AESENC(tmp, zero)
 
 		blocks[i0] = x0New
 		blocks[i1] = x1New
