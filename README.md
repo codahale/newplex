@@ -2,9 +2,9 @@
 
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
 hashing, encryption, message authentication codes, and authenticated encryption) in complex protocols. Inspired
-by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, and [Xoodyak]'s Cyclist mode,
-Newplex uses the [Simpira] V2 permutation to provide 10+ Gb/sec performance on modern processors at a 128-bit security
-level.
+by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [SpongeWrap], and [Xoodyak]'s
+Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern processors at a
+128-bit security level.
 
 [TupleHash]: https://www.nist.gov/publications/sha-3-derived-functions-cshake-kmac-tuplehash-and-parallelhash
 
@@ -14,9 +14,11 @@ level.
 
 [Merlin]: https://merlin.cool
 
+[SpongeWrap]: https://eprint.iacr.org/2011/499.pdf
+
 [Xoodyak]: https://keccak.team/xoodyak.html
 
-[Simpira]: https://eprint.iacr.org/2016/122.pdf
+[Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
 
 ## ⚠️ Security Warning
 

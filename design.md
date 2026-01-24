@@ -2,9 +2,9 @@
 
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
 hashing, encryption, message authentication codes, and authenticated encryption) in complex protocols. Inspired
-by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, and [Xoodyak]'s Cyclist mode,
-Newplex uses the [Simpira] V2 permutation to provide 10+ Gb/sec performance on modern processors at a 128-bit security
-level.
+by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [SpongeWrap], and [Xoodyak]'s
+Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern processors at a
+128-bit security level.
 
 [TupleHash]: https://www.nist.gov/publications/sha-3-derived-functions-cshake-kmac-tuplehash-and-parallelhash
 
@@ -14,9 +14,11 @@ level.
 
 [Merlin]: https://merlin.cool
 
+[SpongeWrap]: https://eprint.iacr.org/2011/499.pdf
+
 [Xoodyak]: https://keccak.team/xoodyak.html
 
-[Simpira]: https://eprint.iacr.org/2016/122.pdf
+[Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
 
 ## The Duplex
 
@@ -39,8 +41,8 @@ rate. As such, it is a building block for higher level operations and should be 
 
 ### `Permute`
 
-The `Permute` operation runs the [Simpira-1024][Simpira] permutation on the duplex's entire state and resets its rate
-index to zero.
+The `Permute` operation runs the [Simpira-1024] permutation on the duplex's entire state and resets its rate index to
+zero.
 
 ### `Absorb`
 
@@ -72,8 +74,6 @@ calls `Permute`.
 
 This is functionally the same as the [SpongeWrap] construction, combining an `Absorb` call of the plaintext with a
 `Squeeze` call for encryption.
-
-[SpongeWrap]: https://eprint.iacr.org/2011/499.pdf
 
 **N.B.:** Neither `Encrypt` nor `Decrypt` call `Permute` at the end of the operation, therefore a sequence of `Encrypt`
 operations are equivalent to a single `Encrypt` operation with the concatenation of the sequence's outputs (e.g.
@@ -109,12 +109,9 @@ function Init(domain):
   Absorb(0x01 || left_encode(|domain|) || domain)
 ``` 
 
-`Init` encodes the length of the domain in bits using the `left_encode` function from [NIST SP 800-185]. This ensures an
-unambiguous and recoverable encoding for the data absorbed by the duplex. The `Init` operation is only performed once,
-when a protocol is initialized.
-
-[NIST SP 800-185]: https://www.nist.gov/publications/sha-3-derived-functions-cshake-kmac-tuplehash-and-parallelhash
-
+`Init` encodes the length of the domain in bits using the `left_encode` function from [NIST SP 800-185][TupleHash]. This
+ensures an unambiguous and recoverable encoding for the data absorbed by the duplex. The `Init` operation is only
+performed once, when a protocol is initialized.
 
 The BLAKE3 recommendations for KDF context strings apply equally to Newplex protocol domains:
 
