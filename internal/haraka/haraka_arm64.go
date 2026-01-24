@@ -1,3 +1,5 @@
+//go:build arm64 && !nosimd
+
 package haraka
 
 //go:noescape
