@@ -41,7 +41,7 @@ rate. As such, it is a building block for higher level operations and should be 
 
 `Permute` runs the [Simpira-1024][Simpira] permutation on the duplex's entire state and resets its rate index to zero.
 
-### `Asborb`
+### `Absorb`
 
 An `Absorb` operation XORs the duplex's remaining rate with the input in blocks of up to 768 bits. When the duplex's
 rate is exhausted, it calls `Permute`.
