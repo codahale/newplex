@@ -42,40 +42,22 @@ type Protocol struct {
 // data like timestamps or user IDs. A good format is "application-name.protocol-name".
 func NewProtocol(domain string) Protocol {
 	var p Protocol
-
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(domain))
-	metadata[0] = opInit
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(domain))*bitsPerByte)
-	metadata = append(metadata, domain...)
-
-	p.duplex.Absorb(metadata)
-
+	p.absorbMetadata(opInit, domain)
 	return p
 }
 
 // Mix updates the protocol's state using the given label and input.
 func (p *Protocol) Mix(label string, input []byte) {
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
-	metadata[0] = opMix
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
-	metadata = append(metadata, label...)
-
-	p.duplex.Absorb(metadata)
+	buf := p.absorbMetadata(opMix, label)
 	p.duplex.Absorb(input)
-	p.duplex.Absorb(tuplehash.AppendRightEncode(metadata[:0], uint64(len(input))*bitsPerByte))
+	p.duplex.Absorb(tuplehash.AppendRightEncode(buf, uint64(len(input))*bitsPerByte))
 }
 
 // MixWriter updates the protocol's state using the given label and whatever data is written to the wrapped io.Writer.
 //
 // N.B.: The returned io.WriteCloser must be closed for the mix operation to be complete.
 func (p *Protocol) MixWriter(label string, w io.Writer) io.WriteCloser {
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
-	metadata[0] = opMix
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
-	metadata = append(metadata, label...)
-
-	p.duplex.Absorb(metadata)
-
+	p.absorbMetadata(opMix, label)
 	return &mixWriter{p: p, w: w, n: 0}
 }
 
@@ -83,13 +65,7 @@ func (p *Protocol) MixWriter(label string, w io.Writer) io.WriteCloser {
 //
 // N.B.: The returned io.ReadCloser must be closed for the mix operation to be complete.
 func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
-	metadata[0] = opMix
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
-	metadata = append(metadata, label...)
-
-	p.duplex.Absorb(metadata)
-
+	p.absorbMetadata(opMix, label)
 	return &mixReader{p: p, r: r, n: 0}
 }
 
@@ -102,7 +78,7 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 		panic("invalid argument to Derive: n cannot be negative")
 	}
 
-	p.absorbMetadata(opDerive, label, n)
+	p.absorbMetadataAndLen(opDerive, label, n)
 
 	ret, prf := sliceForAppend(dst, n)
 	p.duplex.Permute()
@@ -119,7 +95,7 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 // To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
 // dst must not overlap plaintext.
 func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
-	p.absorbMetadata(opCrypt, label, len(plaintext))
+	p.absorbMetadataAndLen(opCrypt, label, len(plaintext))
 
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
 	p.duplex.Permute()
@@ -136,7 +112,7 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 // To reuse ciphertext's storage for the encrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
 func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
-	p.absorbMetadata(opCrypt, label, len(ciphertext))
+	p.absorbMetadataAndLen(opCrypt, label, len(ciphertext))
 
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
 	p.duplex.Permute()
@@ -155,7 +131,7 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
 
-	p.absorbMetadata(opAuthCrypt, label, len(plaintext))
+	p.absorbMetadataAndLen(opAuthCrypt, label, len(plaintext))
 
 	p.duplex.Permute()
 	p.duplex.Encrypt(ciphertext, plaintext)
@@ -176,7 +152,7 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	ciphertext, receivedTag := ciphertextAndTag[:len(plaintext)], ciphertextAndTag[len(plaintext):]
 	var expectedTag [TagSize]byte
 
-	p.absorbMetadata(opAuthCrypt, label, len(plaintext))
+	p.absorbMetadataAndLen(opAuthCrypt, label, len(plaintext))
 
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
@@ -213,7 +189,18 @@ func (p *Protocol) UnmarshalBinary(data []byte) error {
 	return p.duplex.UnmarshalBinary(data)
 }
 
-func (p *Protocol) absorbMetadata(op byte, label string, n int) {
+func (p *Protocol) absorbMetadata(op byte, label string) []byte {
+	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
+	metadata[0] = op
+	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
+	metadata = append(metadata, label...)
+
+	p.duplex.Absorb(metadata)
+
+	return metadata[:0]
+}
+
+func (p *Protocol) absorbMetadataAndLen(op byte, label string, n int) {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
 	metadata[0] = op
 	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
