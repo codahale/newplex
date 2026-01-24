@@ -11,7 +11,7 @@ import (
 	"github.com/codahale/newplex/internal/simpira"
 )
 
-// Duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-8 V2 permutation, has a width
+// Duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-1024 permutation, has a width
 // of 1024 bits, a capacity of 256 bits, and a rate of 768 bits. This offers 128 bits of security for collision
 // resistance, 256 bits of security for state recovery, and 128 bits of security for birthday-bound
 // indistinguishability.
@@ -101,7 +101,7 @@ func (d *Duplex) Decrypt(dst, src []byte) {
 	}
 }
 
-// Permute resets the duplex's state index and applies the Simpira-8 V2 permutation to its 1024-bit state.
+// Permute resets the duplex's state index and applies the Simpira-1024 permutation to its 1024-bit state.
 func (d *Duplex) Permute() {
 	simpira.Permute1024(&d.state)
 	d.idx = 0

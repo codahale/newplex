@@ -51,7 +51,7 @@ func FuzzPermute256(f *testing.F) {
 	const width = 32
 
 	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("simpira-2-v2"))
+	_, _ = drbg.Write([]byte("simpira-256-v2"))
 	for range 10 {
 		state := make([]byte, width)
 		_, _ = drbg.Read(state)
@@ -79,7 +79,7 @@ func FuzzPermute512(f *testing.F) {
 	const width = 64
 
 	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("simpira-4-v2"))
+	_, _ = drbg.Write([]byte("simpira-512-v2"))
 	for range 10 {
 		state := make([]byte, width)
 		_, _ = drbg.Read(state)
@@ -107,7 +107,7 @@ func FuzzPermute768(f *testing.F) {
 	const width = 96
 
 	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("simpira-6-v2"))
+	_, _ = drbg.Write([]byte("simpira-768-v2"))
 	for range 10 {
 		state := make([]byte, width)
 		_, _ = drbg.Read(state)
@@ -135,7 +135,7 @@ func FuzzPermute1024(f *testing.F) {
 	const width = 128
 
 	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("simpira-8-v2"))
+	_, _ = drbg.Write([]byte("simpira-1024-v2"))
 	for range 10 {
 		state := make([]byte, width)
 		_, _ = drbg.Read(state)
