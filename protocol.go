@@ -16,6 +16,7 @@ import (
 	"crypto/subtle"
 	"encoding"
 	"errors"
+	"io"
 	"slices"
 
 	"github.com/codahale/newplex/internal/tuplehash"
@@ -62,6 +63,34 @@ func (p *Protocol) Mix(label string, input []byte) {
 	p.duplex.Absorb(metadata)
 	p.duplex.Absorb(input)
 	p.duplex.Absorb(tuplehash.AppendRightEncode(metadata[:0], uint64(len(input))*bitsPerByte))
+}
+
+// MixWriter updates the protocol's state using the given label and whatever data is written to the wrapped io.Writer.
+//
+// N.B.: The returned io.WriteCloser must be closed for the mix operation to be complete.
+func (p *Protocol) MixWriter(label string, w io.Writer) io.WriteCloser {
+	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
+	metadata[0] = opMix
+	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
+	metadata = append(metadata, label...)
+
+	p.duplex.Absorb(metadata)
+
+	return &mixWriter{p: p, w: w, n: 0}
+}
+
+// MixReader updates the protocol's state using the given label and whatever data is read from the wrapped io.Reader.
+//
+// N.B.: The returned io.ReadCloser must be closed for the mix operation to be complete.
+func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
+	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
+	metadata[0] = opMix
+	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
+	metadata = append(metadata, label...)
+
+	p.duplex.Absorb(metadata)
+
+	return &mixReader{p: p, r: r, n: 0}
 }
 
 // Derive updates the protocol's state with the given label and output length and then generates n bytes of pseudorandom
