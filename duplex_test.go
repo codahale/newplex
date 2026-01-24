@@ -3,6 +3,7 @@ package newplex_test
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/codahale/newplex"
@@ -19,6 +20,32 @@ func TestDuplex_Encrypt(t *testing.T) {
 	d1.Absorb([]byte("it's a key"))
 	d1.Permute()
 	d1.Encrypt(b, a)
+
+	var d2 newplex.Duplex
+	d2.Absorb([]byte("it's a key"))
+	d2.Permute()
+	d2.Decrypt(c, b)
+
+	if got, want := c, a; !bytes.Equal(got, want) {
+		t.Errorf("crypt(crypt(%x)) = %x, want = %x", want, got, want)
+	}
+
+	if got, want := d2.String(), d1.String(); got != want {
+		t.Errorf("state = %x, want = %x", got, want)
+	}
+}
+
+func TestDuplex_Encrypt_in_place(t *testing.T) {
+	t.Parallel()
+
+	a := []byte("hello world")
+	b := slices.Clone(a)
+	c := make([]byte, len(a))
+
+	var d1 newplex.Duplex
+	d1.Absorb([]byte("it's a key"))
+	d1.Permute()
+	d1.Encrypt(b, b)
 
 	var d2 newplex.Duplex
 	d2.Absorb([]byte("it's a key"))
