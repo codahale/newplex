@@ -67,7 +67,7 @@ func ExampleProtocol_stream() {
 	}
 
 	// Output:
-	// 8a3bda4589bcef6d0cac2f
+	// affed4b00fb8cb19fe3b34
 	// hello world
 }
 

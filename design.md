@@ -46,16 +46,16 @@ rate. As such, it is a building block for higher level operations and should be 
 An `Absorb` operation XORs the duplex's remaining rate with the input in blocks of up to 768 bits. When the duplex's
 rate is exhausted, it calls `Permute`.
 
-N.B.: `Absorb` does not call `Permute` at the end of the operation, so a sequence of `Absorb` operations are equivalent
-to a single `Absorb` operation with the concatenation of the sequence's inputs (e.g. `Absorb('A'); Absorb('B')` is
-equivalent to `Absorb('AB')`).
+**N.B.:** `Absorb` does not call `Permute` at the end of the operation, so a sequence of `Absorb` operations are
+equivalent to a single `Absorb` operation with the concatenation of the sequence's inputs (e.g.
+`Absorb('A'); Absorb('B')` is equivalent to `Absorb('AB')`).
 
 ### `Squeeze`
 
 A `Squeeze` operation copies the duplex's remaining rate in blocks of up to 768 bits into a given output buffer. When
 the duplex's rate is exhausted, it calls `Permute`.
 
-N.B.: `Squeeze` does not call `Permute` at the end of the operation, so a sequence of `Squeeze` operations are
+**N.B.:** `Squeeze` does not call `Permute` at the end of the operation, so a sequence of `Squeeze` operations are
 equivalent to a single `Squeeze` operation with the concatenation of the sequence's outputs (e.g.
 `Squeeze(10); Squeeze(6)` is equivalent to `Squeeze(16)`).
 
@@ -70,8 +70,8 @@ duplex's state with the resulting plaintext. As the duplex's rate is exhausted, 
 This follows the design of [Xoodyak]'s Cyclist mode in offering encryption and decryption operations which combine
 squeezing output for use as a keystream and absorbing plaintext.
 
-N.B.: Neither `Encrypt` nor `Decrypt` call `Permute` at the end of the operation, so a sequence of `Encrypt` operations
-are equivalent to a single `Encrypt` operation with the concatenation of the sequence's outputs (e.g.
+**N.B.:** Neither `Encrypt` nor `Decrypt` call `Permute` at the end of the operation, so a sequence of `Encrypt`
+operations are equivalent to a single `Encrypt` operation with the concatenation of the sequence's outputs (e.g.
 `Encrypt('A'); Encrypt('B')` is equivalent to `Encrypt('AB')`).
 
 ## The Protocol
@@ -183,34 +183,37 @@ Consequently, Newplex protocols have the following security properties:
 ### `Encrypt`/`Decrypt`
 
 The `Encrypt` and `Decrypt` operations accept a label and an input and encrypts or decrypts them using the protocol's
-state, the label, and the input length as a key.
+state and the label.
 
 ```text
 function Encrypt(label, plaintext):
-  Absorb(0x04 || left_encode(|label|) || label || right_encode(|plaintext|))
+  Absorb(0x04 || left_encode(|label|) || label)
   Permute()
-  Encrypt(plaintext)
+  ciphertext = Encrypt(plaintext)
+  Absorb(right_encode(|plaintext|))
   Permute()
   return ciphertext
   
 function Decrypt(label, ciphertext):
-  Absorb(0x04 || left_encode(|label|) || label || right_encode(|ciphertext|))
+  Absorb(0x04 || left_encode(|label|) || label)
   Permute()
-  Decrypt(ciphertext)
+  plaintext = Decrypt(ciphertext)
+  Absorb(right_encode(|plaintext|))
   Permute()
   return plaintext
 ```
 
 `Encrypt` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
-state is indistinguishable from random, and encrypts the input with the duplex. Finally, the duplex's state is permuted
-again to prevent rollback.
+state is indistinguishable from random, and encrypts the input with the duplex. The total length of the plaintext is
+absorbed. Finally, the duplex's state is permuted again to prevent rollback.
 
 `Decrypt` is identical but uses the duplex to decrypt the data.
 
 Three points bear mentioning about `Encrypt` and `Decrypt`:
 
-1. Both `Encrypt` and `Decrypt` use the same operation code to ensure protocols have the same state after both
-   encrypting and decrypting data.
+1. Unlike `Derive`, the output of an `Encrypt` operation does not depend on its input length, so `Encrypt('A')` and
+   `Encrypt('AB')` will share a prefix. This allows for fully streaming operations, but usages which require the
+   ciphertext to depend on the plaintext length must include that as the input to a prior `Mix` operation.
 2. `Encrypt` operations offer EAV security (i.e., an entirely passive adversary will not be able to read plaintexts),
    but IND-CPA security (i.e., an adversary with an encryption oracle) requires a prior `Mix` operation to include a
    value unique to the plaintext, like a nonce or a message ID.
@@ -259,6 +262,10 @@ from the received plaintext. If the two are equal, the plaintext is returned. Ot
 
 `Seal` and `Open` provide IND-CCA2 security if one of the protocol's inputs includes a probabilistic value, like a
 nonce.
+
+**N.B.:** Unlike `Encrypt`, `Seal` does not support streaming operations. This is an intentional choice to mitigate the
+accidental disclosure of unauthenticated plaintext, and follows the generally recommended practices for API design of
+authenticated encryption.
 
 ## Basic Protocols
 

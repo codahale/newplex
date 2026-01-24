@@ -87,36 +87,41 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 	return ret
 }
 
-// Encrypt updates the protocol's state with the given label and plaintext length, then uses the state to encrypt the
-// given plaintext. It appends the ciphertext to dst and returns the resulting slice.
+// Encrypt updates the protocol's state with the given label, then uses the state to encrypt the given plaintext. It
+// appends the ciphertext to dst and returns the resulting slice.
 //
 // Encrypt provides confidentiality but not authenticity. To ensure ciphertext authenticity, use Seal instead.
+//
+// Ciphertexts produced by Encrypt do not depend on their length, so the ciphertexts for 'A' and 'AB' will share a
+// prefix. To prevent this, include the message length in a prior Mix operation.
 //
 // To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
 // dst must not overlap plaintext.
 func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
-	p.absorbMetadataAndLen(opCrypt, label, len(plaintext))
+	buf := p.absorbMetadata(opCrypt, label)
 
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
 	p.duplex.Permute()
 	p.duplex.Encrypt(ciphertext, plaintext)
+	p.duplex.Absorb(tuplehash.AppendRightEncode(buf, uint64(len(plaintext))*bitsPerByte))
 	p.duplex.Permute()
 	return ret
 }
 
-// Decrypt updates the protocol's state with the given label and plaintext length, then uses the state to decrypt the
-// given ciphertext. It appends the plaintext to dst and returns the resulting slice.
+// Decrypt updates the protocol's state with the given label, then uses the state to decrypt the given ciphertext. It
+// appends the plaintext to dst and returns the resulting slice.
 //
 // Decrypt provides confidentiality but not authenticity. To ensure ciphertext authenticity, use Seal instead.
 //
 // To reuse ciphertext's storage for the encrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
 func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
-	p.absorbMetadataAndLen(opCrypt, label, len(ciphertext))
+	buf := p.absorbMetadata(opCrypt, label)
 
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
+	p.duplex.Absorb(tuplehash.AppendRightEncode(buf, uint64(len(plaintext))*bitsPerByte))
 	p.duplex.Permute()
 	return ret
 }

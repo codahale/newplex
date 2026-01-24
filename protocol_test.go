@@ -22,16 +22,16 @@ func TestKnownAnswers(t *testing.T) {
 
 	plaintext := []byte("this is an example")
 	ciphertext := protocol.Encrypt("fourth", nil, plaintext)
-	if got, want := hex.EncodeToString(ciphertext), "fd659f03f131f48de3c07ca92f6fd0da3d49"; got != want {
+	if got, want := hex.EncodeToString(ciphertext), "44af11838b310c1c69a44f73c5ac6e8f8a5e"; got != want {
 		t.Errorf("Encrypt('fourth') = %v, want = %v", got, want)
 	}
 
 	ciphertext = protocol.Seal("fifth", nil, []byte("this is an example"))
-	if got, want := hex.EncodeToString(ciphertext), "5dd9cab41c3dc3a467ac86e6d621198998ff4832bc3698c652a05741e27d6c337889"; got != want {
+	if got, want := hex.EncodeToString(ciphertext), "6e72ad6d9e896c22333053f53fb3e1614ae81963ad8922794e87f7ff040dd5563799"; got != want {
 		t.Errorf("Seal('fifth') = %v, want = %v", got, want)
 	}
 
-	if got, want := hex.EncodeToString(protocol.Derive("sixth", nil, 8)), "07fa58199c776c6f"; got != want {
+	if got, want := hex.EncodeToString(protocol.Derive("sixth", nil, 8)), "41e9a4a21d1771f5"; got != want {
 		t.Errorf("Derive('sixth') = %v, want = %v", got, want)
 	}
 }
@@ -228,6 +228,25 @@ func TestProtocol_Derive_negative_length(t *testing.T) {
 
 	p := newplex.NewProtocol("example")
 	p.Derive("test", nil, -200)
+}
+
+func TestProtocol_Encrypt_common_prefixes(t *testing.T) {
+	short := make([]byte, 10)
+	long := make([]byte, 16)
+
+	p1 := newplex.NewProtocol("prefixes")
+	p1.Encrypt("message", short, short)
+
+	p2 := newplex.NewProtocol("prefixes")
+	p2.Encrypt("message", long, long)
+
+	if got, want := long[:len(short)], short; !bytes.Equal(got, want) {
+		t.Errorf("Encrypt(16)[:10] = %x, want = %x", got, want)
+	}
+
+	if got, want := p1.Derive("test", nil, 8), p2.Derive("test", nil, 8); bytes.Equal(got, want) {
+		t.Errorf("Encrypt(10) state = Encrypt(16) state = %x", got)
+	}
 }
 
 func FuzzProtocol_Open_ciphertext_modification(f *testing.F) {
