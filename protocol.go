@@ -174,17 +174,17 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, error) {
 	ret, plaintext := sliceForAppend(dst, len(ciphertextAndTag)-TagSize)
 	ciphertext, receivedTag := ciphertextAndTag[:len(plaintext)], ciphertextAndTag[len(plaintext):]
-	var calculatedTag [TagSize]byte
+	var expectedTag [TagSize]byte
 
 	p.absorbMetadata(opAuthCrypt, label, len(plaintext))
 
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
 	p.duplex.Permute()
-	p.duplex.Squeeze(calculatedTag[:])
+	p.duplex.Squeeze(expectedTag[:])
 	p.duplex.Permute()
 
-	if subtle.ConstantTimeCompare(receivedTag, calculatedTag[:]) == 0 {
+	if subtle.ConstantTimeCompare(receivedTag, expectedTag[:]) == 0 {
 		clear(plaintext)
 		return nil, ErrInvalidCiphertext
 	}
