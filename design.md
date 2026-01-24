@@ -39,38 +39,43 @@ rate. As such, it is a building block for higher level operations and should be 
 
 ### `Permute`
 
-`Permute` runs the [Simpira-1024][Simpira] permutation on the duplex's entire state and resets its rate index to zero.
+The `Permute` operation runs the [Simpira-1024][Simpira] permutation on the duplex's entire state and resets its rate
+index to zero.
 
 ### `Absorb`
 
-An `Absorb` operation XORs the duplex's remaining rate with the input in blocks of up to 768 bits. When the duplex's
+The `Absorb` operation XORs the duplex's remaining rate with the input in blocks of up to 768 bits. When the duplex's
 rate is exhausted, it calls `Permute`.
 
-**N.B.:** `Absorb` does not call `Permute` at the end of the operation, so a sequence of `Absorb` operations are
+**N.B.:** `Absorb` does not call `Permute` at the end of the operation, therefore a sequence of `Absorb` operations are
 equivalent to a single `Absorb` operation with the concatenation of the sequence's inputs (e.g.
 `Absorb('A'); Absorb('B')` is equivalent to `Absorb('AB')`).
 
 ### `Squeeze`
 
-A `Squeeze` operation copies the duplex's remaining rate in blocks of up to 768 bits into a given output buffer. When
-the duplex's rate is exhausted, it calls `Permute`.
+The `Squeeze` operation returns the duplex's remaining rate in blocks of up to 768 bits. When the duplex's rate is
+exhausted, it calls `Permute`.
 
-**N.B.:** `Squeeze` does not call `Permute` at the end of the operation, so a sequence of `Squeeze` operations are
+**N.B.:** `Squeeze` does not call `Permute` at the end of the operation, therefore a sequence of `Squeeze` operations
+are
 equivalent to a single `Squeeze` operation with the concatenation of the sequence's outputs (e.g.
 `Squeeze(10); Squeeze(6)` is equivalent to `Squeeze(16)`).
 
-### `Encrypt/Decrypt`
+### `Encrypt`/`Decrypt`
 
-An `Encrypt` operation encrypts a plaintext by XORing it with the duplex's rate to produce a ciphertext, then XORing the
-duplex's state with the given plaintext. As the duplex's rate is exhausted, it calls `Permute`.
+The `Encrypt` operation XORs the duplex's remaining rate with the input in blocks of up to 768 bits, returning the
+result as the ciphertext. When the duplex's rate is exhausted, it calls `Permute`.
 
-A `Decrypt` operation decrypts a ciphertext by XORing it with the duplex's rate to produce a plaintext, then XORing the
-duplex's state with the resulting plaintext. As the duplex's rate is exhausted, it calls `Permute`.
+The `Decrypt` operation XORs the ciphertext with the duplex's remaining rate in blocks of up to 768 bits, returning the
+result as the plaintext. It then XORs the duplex's rate with the plaintext. When the duplex's rate is exhausted, it
+calls `Permute`.
 
-This follows the design of [Xoodyak]'s Cyclist mode in offering encryption and decryption operations which combine
-squeezing output for use as a keystream and absorbing plaintext.
+This is functionally the same as the [SpongeWrap] construction, combining an `Absorb` call of the plaintext with a
+`Squeeze` call for encryption.
 
-**N.B.:** Neither `Encrypt` nor `Decrypt` call `Permute` at the end of the operation, so a sequence of `Encrypt`
+[SpongeWrap]: https://eprint.iacr.org/2011/499.pdf
+
+**N.B.:** Neither `Encrypt` nor `Decrypt` call `Permute` at the end of the operation, therefore a sequence of `Encrypt`
 operations are equivalent to a single `Encrypt` operation with the concatenation of the sequence's outputs (e.g.
 `Encrypt('A'); Encrypt('B')` is equivalent to `Encrypt('AB')`).
 
@@ -91,7 +96,7 @@ A protocol supports the following operations:
 
 Labels are used for all protocol operations (except `Init`) to provide domain separation of inputs and outputs. This
 ensures that semantically distinct values with identical encodings (e.g., public keys or ECDH shared secrets) result in
-distinctly encoded operations so long as the labels are distinct. Labels should be human-readable values that
+distinctly encoded operations as long as the labels are distinct. Labels should be human-readable values that
 communicate the source of the input or the intended use of the output. The label `server-p256-public-key` is good;
 `step-3a` is a bad label.
 
@@ -173,7 +178,7 @@ Consequently, Newplex protocols have the following security properties:
 
 [KDF chain]: https://signal.org/docs/specifications/doubleratchet/doubleratchet.pdf
 
-* **Resilience**: A protocol's outputs will appear random to an adversary so long as one of the inputs is secret, even
+* **Resilience**: A protocol's outputs will appear random to an adversary as long as one of the inputs is secret, even
   if the other inputs to the protocol are adversary-controlled.
 * **Forward Security**: A protocol's previous outputs will appear random to an adversary even if the protocol's state is
   disclosed at some point.
@@ -211,8 +216,8 @@ absorbed. Finally, the duplex's state is permuted again to prevent rollback.
 
 Three points bear mentioning about `Encrypt` and `Decrypt`:
 
-1. Unlike `Derive`, the output of an `Encrypt` operation does not depend on its input length, so `Encrypt('A')` and
-   `Encrypt('AB')` will share a prefix. This allows for fully streaming operations, but usages which require the
+1. Unlike `Derive`, the output of an `Encrypt` operation does not depend on its input length, therefore  `Encrypt('A')`
+   and `Encrypt('AB')` will share a prefix. This allows for fully streaming operations, but usages which require the
    ciphertext to depend on the plaintext length must include that as the input to a prior `Mix` operation.
 2. `Encrypt` operations offer EAV security (i.e., an entirely passive adversary will not be able to read plaintexts),
    but IND-CPA security (i.e., an adversary with an encryption oracle) requires a prior `Mix` operation to include a
