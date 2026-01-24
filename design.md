@@ -132,7 +132,7 @@ function Mix(duplex, label, input):
 
 `Mix` encodes the length of the label in bits and the length of the input in bits using the `left_encode` and
 `right_encode` functions from [NIST SP 800-185], respectively. The use of `right_encode` allows `Mix` operations to
-accept inputs of indeterminant length (i.e., streams).
+accept inputs of indeterminate length (i.e., streams).
 
 ### `Derive`
 
@@ -208,21 +208,20 @@ again to prevent rollback.
 
 `Decrypt` is identical but uses the duplex to decrypt the data.
 
-Two points bear mentioning about `Encrypt` and `Decrypt`:
+Three points bear mentioning about `Encrypt` and `Decrypt`:
 
 1. Both `Encrypt` and `Decrypt` use the same operation code to ensure protocols have the same state after both
    encrypting and decrypting data.
-2. `Encrypt` operations provide no authentication by themselves. An attacker can modify a ciphertext and the `Decrypt`
-   operation will return a plaintext which was never encrypted. A passive adversary will not be able to read the
-   plaintext without knowing the protocol's state (i.e., EAV secure). An active attacker with a decryption oracle will
-   be able to detect duplicate plaintexts (i.e., not IND-CPA secure) and produce modified ciphertexts which successfully
-   decrypt (i.e., not IND-CCA secure).
+2. `Encrypt` operations offer EAV security (i.e., an entirely passive adversary will not be able to read plaintexts),
+   but IND-CPA security (i.e., an adversary with an encryption oracle) requires a prior `Mix` operation to include a
+   value unique to the plaintext, like a nonce or a message ID.
+3. `Encrypt` operations provide no authentication by themselves. An attacker can modify a ciphertext and the `Decrypt`
+   operation will return a plaintext which was never encrypted.
 
    That said, the divergent ciphertext input will result in divergent protocol state, as the protocol's state after an
    `Encrypt`/`Decrypt` operation is cryptographically dependent on the plaintext of the operation.
 
-   For IND-CPA security, the protocol's state must include a probabilistic value (like a nonce) and for IND-CCA
-   security, use [`Seal`/`Open`](#sealopen).
+   For IND-CCA security, use [`Seal`/`Open`](#sealopen).
 
 ### `Seal`/`Open`
 
@@ -333,7 +332,7 @@ function AEADSeal(key, nonce, ad, plaintext):
   aead = Init("com.example.aead")                             // Initialize a protocol with a domain string.
   aead = Mix(aead, "key", key)                                // Mix the key into the protocol.
   aead = Mix(aead, "nonce", nonce)                            // Mix the nonce into the protocol.
-  aead = mix(aead, "ad", ad)                                  // Mix the associated data into the protocol.
+  aead = Mix(aead, "ad", ad)                                  // Mix the associated data into the protocol.
   (_, (ciphertext || tag)) = Seal(aead, "message", plaintext) // Seal the plaintext.
   return (ciphertext || tag)
 ```
@@ -348,12 +347,12 @@ without the risk of ambiguous inputs.
 
 ```text
 function AEADOpen(key, nonce, ad, ciphertext || tag):
-  aead = Init("com.example.aead")                         // Initialize a protocol with a domain string.
-  aead = Mix(aead, "key", key)                            // Mix the key into the protocol.
-  aead = Mix(aead, "nonce", nonce)                        // Mix the nonce into the protocol.
-  aead = Mix(aead, "ad", ad)                              // Mix the associated data into the protocol.
-  (_, plaintext) = Open(aead, "message", ciphertext, tag) // Open the ciphertext.
-  return plaintext                                        // Return the plaintext or an error.
+  aead = Init("com.example.aead")                           // Initialize a protocol with a domain string.
+  aead = Mix(aead, "key", key)                              // Mix the key into the protocol.
+  aead = Mix(aead, "nonce", nonce)                          // Mix the nonce into the protocol.
+  aead = Mix(aead, "ad", ad)                                // Mix the associated data into the protocol.
+  (_, plaintext) = Open(aead, "message", ciphertext || tag) // Open the ciphertext.
+  return plaintext                                          // Return the plaintext or an error.
 ```
 
 This construction is IND-CCA2-secure (i.e., both IND-CPA and INT-CTXT) under the following assumptions:
@@ -379,7 +378,7 @@ function HPKEEncrypt(receiver.pub, plaintext):
   hpke = Mix(hpke, "receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
   hpke = Mix(hpke, "ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
   hpke = Mix(hpke, "ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
-  (_, (ciphertext || tag) = Seal(hpke, "message", plaintext)  // Seal the plaintext.
+  (_, (ciphertext || tag) = Seal(hpke, "message", plaintext)   // Seal the plaintext.
   return (ephemeral.pub, ciphertext || tag)                    // Return the ephemeral public key, ciphertext, and tag.
 ```
 
@@ -389,7 +388,7 @@ function HPKEDecrypt(receiver, ephemeral.pub, ciphertext || tag):
   hpke = Mix(hpke, "receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
   hpke = Mix(hpke, "ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
   hpke = Mix(hpke, "ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ephemeral ECDH shared secret into the protocol.
-  (_, plaintext) = Open(hpke, "message", ciphertext, tag)      // Open the ciphertext.
+  (_, plaintext) = Open(hpke, "message", ciphertext || tag)    // Open the ciphertext.
   return plaintext
 ```
 
@@ -448,14 +447,14 @@ strong authentication in the public key setting:
 
 ```text
 function Signcrypt(sender, receiver.pub, plaintext):
-  ephemeral = P256::KeyGen()                              // Generate an ephemeral key pair.
+  ephemeral = P256::KeyGen()                               // Generate an ephemeral key pair.
   sc = Init("com.example.sc")                              // Initialize a protocol with a domain string.
   sc = Mix(sc, "receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
   sc = Mix(sc, "sender", sender.pub)                       // Mix the sender's public key into the protocol.
   sc = Mix(sc, "ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  sc = Mix(sc, "ecdh", ecdh(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
+  sc = Mix(sc, "ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
   (sc, ciphertext) = Encrypt(sc, "message", plaintext)     // Encrypt the plaintext.
-  (k, I) = P256::KeyGen()                                 // Generate a commitment scalar and point.
+  (k, I) = P256::KeyGen()                                  // Generate a commitment scalar and point.
   sc = Mix(sc, "commitment", I)                            // Mix the commitment point into the protocol.
   (_, r) = P256::Scalar(Derive(sc, "challenge", 256))      // Derive a challenge scalar.
   s = sender.priv * r + k                                  // Calculate the proof scalar.
@@ -463,12 +462,12 @@ function Signcrypt(sender, receiver.pub, plaintext):
 ```
 
 ```text
-function Unsigncrypt(receiver, sender.pub, ephemeral.pub, I, s):
+function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
   sc = Init("com.example.sc")                              // Initialize a protocol with a domain string.
   sc = Mix(sc, "receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
   sc = Mix(sc, "sender", sender.pub)                       // Mix the sender's public key into the protocol.
   sc = Mix(sc, "ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  sc = Mix(sc, "ecdh", ecdh(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
+  sc = Mix(sc, "ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
   (sc, plaintext) = Decrypt(sc, "message", ciphertext)     // Decrypt the ciphertext.
   sc = Mix(sc, "commitment", I)                            // Mix the commitment point into the protocol.
   (_, r') = P256::Scalar(Derive(sc, "challenge", 256))     // Derive a counterfactual challenge scalar.
