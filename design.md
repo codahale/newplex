@@ -156,7 +156,7 @@ function Derive(label, n):
 state is indistinguishable from random, and squeezes the requested output from the duplex. Finally, the duplex's state
 is permuted again to prevent rollback.
 
-**IMPORTANT:** A `Derive` operation's output depends on both the label and the output length.
+**N.B.:** A `Derive` operation's output depends on both the label and the output length.
 
 #### KDF Security
 
