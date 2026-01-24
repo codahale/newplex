@@ -101,9 +101,7 @@ An `Init` operation initializes a new, all-zero duplex, and absorbs a domain sep
 
 ```text
 function Init(domain):
-  duplex = [0b0; 1024]
-  duplex' = Absorb(duplex, 0x01 || left_encode(|domain|) || domain)
-  return duplex'
+  Absorb(0x01 || left_encode(|domain|) || domain)
 ``` 
 
 `Init` encodes the length of the domain in bits using the `left_encode` function from [NIST SP 800-185]. This ensures an
@@ -127,9 +125,8 @@ A `Mix` operation accepts a label and an input and makes the protocol's state (a
 dependent on them.
 
 ```text
-function Mix(duplex, label, input):
-  duplex' = Absorb(duplex, 0x02 || left_encode(|label|) || label || input || right_encode(|input|))
-  return duplex'
+function Mix(label, input):
+  Absorb(0x02 || left_encode(|label|) || label || input || right_encode(|input|))
 ```
 
 `Mix` encodes the length of the label in bits and the length of the input in bits using the `left_encode` and
@@ -142,12 +139,12 @@ A `Derive` operation accepts a label and an output length and returns pseudorand
 state, the label, and the output length.
 
 ```text
-function Derive(duplex, label, n):
-  duplex' = Absorb(duplex, 0x03 || left_encode(|label|) || label || right_encode(n))
-  duplex'' = Permute(duplex')
-  duplex''', prf = Squeeze(duplex'', n)
-  duplex'''' = Permute(duplex''')
-  return (duplex'''', prf)
+function Derive(label, n):
+  Absorb(0x03 || left_encode(|label|) || label || right_encode(n))
+  Permute()
+  prf = Squeeze(n)
+  Permute()
+  return prf
 ```
 
 `Derive` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
@@ -189,19 +186,19 @@ The `Encrypt` and `Decrypt` operations accept a label and an input and encrypts 
 state, the label, and the input length as a key.
 
 ```text
-function Encrypt(duplex, label, plaintext):
-  duplex' = Absorb(duplex, 0x04 || left_encode(|label|) || label || right_encode(|plaintext|))
-  duplex'' = Permute(duplex')
-  duplex''', ciphertext = Encrypt(duplex'', plaintext)
-  duplex'''' = Permute(duplex''')
-  return (duplex'''', ciphertext)
+function Encrypt(label, plaintext):
+  Absorb(0x04 || left_encode(|label|) || label || right_encode(|plaintext|))
+  Permute()
+  Encrypt(plaintext)
+  Permute()
+  return ciphertext
   
-function Decrypt(duplex, label, ciphertext):
-  duplex' = Absorb(duplex, 0x04 || left_encode(|label|) || label || right_encode(|ciphertext|))
-  duplex'' = Permute(duplex')
-  duplex''', plaintext = Decrypt(duplex'', ciphertext)
-  duplex'''' = Permute(duplex''')
-  return (duplex'''', plaintext)
+function Decrypt(label, ciphertext):
+  Absorb(0x04 || left_encode(|label|) || label || right_encode(|ciphertext|))
+  Permute()
+  Decrypt(ciphertext)
+  Permute()
+  return plaintext
 ```
 
 `Encrypt` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
@@ -231,25 +228,25 @@ Three points bear mentioning about `Encrypt` and `Decrypt`:
 authentication tag. The `Open` operation verifies the tag, returning an error if the tag is invalid.
 
 ```text
-function Seal(duplex, label, plaintext):
-  duplex' = Absorb(duplex, 0x05 || left_encode(|label|) || label || right_encode(|plaintext|))
-  duplex'' = Permute(duplex')
-  duplex''', ciphertext = Encrypt(duplex'', plaintext)
-  duplex'''' = Permute(duplex''')
-  duplex''''', tag = Squeeze(duplex'''', 128)
-  duplex'''''' = Permute(duplex''''')
-  return (duplex'''''', ciphertext || tag)
+function Seal(label, plaintext):
+  Absorb(0x05 || left_encode(|label|) || label || right_encode(|plaintext|))
+  Permute()
+  ciphertext = Encrypt(plaintext)
+  Permute()
+  tag = Squeeze(128)
+  Permute()
+  return ciphertext || tag
   
-function Open(duplex, label, ciphertext || tag):
-  duplex' = Absorb(duplex, 0x05 || left_encode(|label|) || label || right_encode(|ciphertext|))
-  duplex'' = Permute(duplex')
-  duplex''', plaintext = Decrypt(duplex'', ciphertext)
-  duplex'''' = Permute(duplex''')
-  duplex''''', tag' = Squeeze(duplex'''', 128)
-  duplex'''''' = Permute(duplex''''')
+function Open(label, ciphertext || tag):
+  Absorb(0x05 || left_encode(|label|) || label || right_encode(|ciphertext|))
+  Permute()
+  plaintext = Decrypt(ciphertext)
+  Permute()
+  tag' = Squeeze(128)
+  Permute()
   if tag != tag':
-    return (duplex'''''', "")
-  return (duplex'''''', plaintext)
+    return ErrInvalidCiphertext
+  return plaintext
 ```
 
 `Seal` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
@@ -257,8 +254,8 @@ state is indistinguishable from random, and encrypts the input with the duplex. 
 a 128-bit tag is squeezed from the duplex's state. Finally, the duplex's state is permuted a third time to prevent
 rollback.
 
-`Open` is identical but uses the duplex to decrypt the data and compares a counterfactual tag to the received tag. If
-the two are equal, the plaintext is returned. Otherwise, an error is returned.
+`Open` is identical but uses the duplex to decrypt the data and compares the received tag to an expected tag derived
+from the received plaintext. If the two are equal, the plaintext is returned. Otherwise, an error is returned.
 
 `Seal` and `Open` provide IND-CCA2 security if one of the protocol's inputs includes a probabilistic value, like a
 nonce.
@@ -273,9 +270,9 @@ Calculating a message digest is as simple as a `Mix` and a `Derive`:
 
 ```text
 function MessageDigest(message):
-  md = Init("com.example.md")             // Initialize a protocol with a domain string.
-  md = Mix(md, "message", data)           // Mix the message into the protocol.
-  (_, digest) = Derive(md, "digest", 256) // Derive 256 bits of output and return it.
+  Init("com.example.md")         // Initialize a protocol with a domain string.
+  Mix("message", data)           // Mix the message into the protocol.
+  digest = Derive("digest", 256) // Derive 256 bits of output and return it.
   return digest
 ```
 
@@ -288,10 +285,10 @@ Adding a key to the previous construction makes it a MAC:
 
 ```text
 function MAC(key, message):
-  mac = Init("com.example.mac")      // Initialize a protocol with a domain string.
-  mac = Mix(mac, "key", key)         // Mix the key into the protocol.
-  mac = Mix(mac, "message", message) // Mix the message into the protocol.
-  (_, tag) = Derive(mac, "tag", 128) // Derive 128 bits of output and return it.
+  Init("com.example.mac")  // Initialize a protocol with a domain string.
+  Mix("key", key)          // Mix the key into the protocol.
+  Mix("message", message)  // Mix the message into the protocol.
+  tag = Derive("tag", 128) // Derive 128 bits of output and return it.
   return tag
 ```
 
@@ -306,17 +303,17 @@ A protocol can be used to create a stream cipher:
 
 ```text
 function StreamEncrypt(key, nonce, plaintext):
-  stream = Init("com.example.stream")                         // Initialize a protocol with a domain string.
-  stream = Mix(stream, "key", key)                            // Mix the key into the protocol.
-  stream = Mix(stream, "nonce", nonce)                        // Mix the nonce into the protocol.
-  (_, ciphertext) = Encrypt(stream, "message", plaintext)     // Encrypt the plaintext.
+  Init("com.example.stream")                 // Initialize a protocol with a domain string.
+  Mix("key", key)                            // Mix the key into the protocol.
+  Mix("nonce", nonce)                        // Mix the nonce into the protocol.
+  ciphertext = Encrypt("message", plaintext) // Encrypt the plaintext.
   return ciphertext
 
 function StreamDecrypt(key, nonce, ciphertext):
-  stream = Init("com.example.stream")                         // Initialize a protocol with a domain string.
-  stream = Mix(stream, "key", key)                            // Mix the key into the protocol.
-  stream = Mix(stream, "nonce", nonce)                        // Mix the nonce into the protocol.
-  (_, plaintext) = Decrypt(stream, "message", ciphertext)     // Decrypt the ciphertext.
+  Init("com.example.stream")                 // Initialize a protocol with a domain string.
+  Mix("key", key)                            // Mix the key into the protocol.
+  Mix("nonce", nonce)                        // Mix the nonce into the protocol.
+  plaintext = Decrypt("message", ciphertext) // Decrypt the ciphertext.
   return plaintext
 ```
 
@@ -331,12 +328,12 @@ A protocol can be used to create an AEAD:
 
 ```text
 function AEADSeal(key, nonce, ad, plaintext):
-  aead = Init("com.example.aead")                             // Initialize a protocol with a domain string.
-  aead = Mix(aead, "key", key)                                // Mix the key into the protocol.
-  aead = Mix(aead, "nonce", nonce)                            // Mix the nonce into the protocol.
-  aead = Mix(aead, "ad", ad)                                  // Mix the associated data into the protocol.
-  (_, (ciphertext || tag)) = Seal(aead, "message", plaintext) // Seal the plaintext.
-  return (ciphertext || tag)
+  Init("com.example.aead")                       // Initialize a protocol with a domain string.
+  Mix("key", key)                                // Mix the key into the protocol.
+  Mix("nonce", nonce)                            // Mix the nonce into the protocol.
+  Mix("ad", ad)                                  // Mix the associated data into the protocol.
+  ciphertext || tag = Seal("message", plaintext) // Seal the plaintext.
+  return ciphertext || tag
 ```
 
 The introduction of a nonce makes the scheme probabilistic (which is required for IND-CCA security).
@@ -349,12 +346,12 @@ without the risk of ambiguous inputs.
 
 ```text
 function AEADOpen(key, nonce, ad, ciphertext || tag):
-  aead = Init("com.example.aead")                           // Initialize a protocol with a domain string.
-  aead = Mix(aead, "key", key)                              // Mix the key into the protocol.
-  aead = Mix(aead, "nonce", nonce)                          // Mix the nonce into the protocol.
-  aead = Mix(aead, "ad", ad)                                // Mix the associated data into the protocol.
-  (_, plaintext) = Open(aead, "message", ciphertext || tag) // Open the ciphertext.
-  return plaintext                                          // Return the plaintext or an error.
+  Init("com.example.aead")                       // Initialize a protocol with a domain string.
+  Mix("key", key)                                // Mix the key into the protocol.
+  Mix("nonce", nonce)                            // Mix the nonce into the protocol.
+  Mix("ad", ad)                                  // Mix the associated data into the protocol.
+  plaintext = Open("message", ciphertext || tag) // Open the ciphertext.
+  return plaintext                               // Return the plaintext or an error.
 ```
 
 This construction is IND-CCA2-secure (i.e., both IND-CPA and INT-CTXT) under the following assumptions:
@@ -375,22 +372,22 @@ A protocol can be used to build an integrated [ECIES]-style public key encryptio
 
 ```text
 function HPKEEncrypt(receiver.pub, plaintext):
-  ephemeral = P256::KeyGen()                                   // Generate an ephemeral key pair.
-  hpke = Init("com.example.hpke")                              // Initialize a protocol with a domain string.
-  hpke = Mix(hpke, "receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  hpke = Mix(hpke, "ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  hpke = Mix(hpke, "ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
-  (_, (ciphertext || tag) = Seal(hpke, "message", plaintext)   // Seal the plaintext.
-  return (ephemeral.pub, ciphertext || tag)                    // Return the ephemeral public key, ciphertext, and tag.
+  ephemeral = P256::KeyGen()                      // Generate an ephemeral key pair.
+  Init("com.example.hpke")                        // Initialize a protocol with a domain string.
+  Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
+  Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
+  Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
+  ciphertext || tag = Seal("message", plaintext)  // Seal the plaintext.
+  return (ephemeral.pub, ciphertext || tag)       // Return the ephemeral public key, ciphertext, and tag.
 ```
 
 ```text
 function HPKEDecrypt(receiver, ephemeral.pub, ciphertext || tag):
-  hpke = Init("com.example.hpke")                              // Initialize a protocol with a domain string.
-  hpke = Mix(hpke, "receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  hpke = Mix(hpke, "ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  hpke = Mix(hpke, "ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ephemeral ECDH shared secret into the protocol.
-  (_, plaintext) = Open(hpke, "message", ciphertext || tag)    // Open the ciphertext.
+  Init("com.example.hpke")                        // Initialize a protocol with a domain string.
+  Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
+  Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
+  Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ephemeral ECDH shared secret into the protocol.
+  plaintext = Open("message", ciphertext || tag)  // Open the ciphertext.
   return plaintext
 ```
 
@@ -412,14 +409,14 @@ A protocol can be used to implement EdDSA-style Schnorr digital signatures:
 
 ```text
 function Sign(signer, message):
-  schnorr = Init("com.example.eddsa")                      // Initialize a protocol with a domain string.
-  schnorr = Mix(schnorr, "signer", signer.pub)             // Mix the signer's public key into the protocol.
-  schnorr = Mix(schnorr, "message", message)               // Mix the message into the protocol.
-  (k, I) = P256::KeyGen()                                 // Generate a commitment scalar and point.
-  schnorr = Mix(schnorr, "commitment", I)                  // Mix the commitment point into the protocol.
-  (_, r) = P256::Scalar(Derive(schnorr, "challenge", 256)) // Derive a challenge scalar.
-  s = signer.priv * r + k                                  // Calculate the proof scalar.
-  return (I, s)                                            // Return the commitment point and proof scalar.
+  Init("com.example.eddsa")                       // Initialize a protocol with a domain string.
+  Mix("signer", signer.pub)                       // Mix the signer's public key into the protocol.
+  Mix("message", message)                         // Mix the message into the protocol.
+  (k, I) = P256::KeyGen()                         // Generate a commitment scalar and point.
+  Mix("commitment", I)                            // Mix the commitment point into the protocol.
+  (_, r) = P256::Scalar(Derive("challenge", 256)) // Derive a challenge scalar.
+  s = signer.priv * r + k                         // Calculate the proof scalar.
+  return (I, s)                                   // Return the commitment point and proof scalar.
 ```
 
 The resulting signature is strongly bound to both the message and the signer's public key, making it sUF-CMA secure. If
@@ -428,13 +425,13 @@ co-factors to be strongly unforgeable.
 
 ```text
 function Verify(signer.pub, message, I, s):
-  schnorr = Init("com.example.eddsa")                       // Initialize a protocol with a domain string.
-  schnorr = Mix(schnorr, "signer", signer.pub)              // Mix the signer's public key into the protocol.
-  schnorr = Mix(schnorr, "message", message)                // Mix the message into the protocol.
-  schnorr = Mix(schnorr, "commitment", I)                   // Mix the commitment point into the protocol.
-  (_, r') = P256::Scalar(Derive(schnorr, "challenge", 256)) // Derive a counterfactual challenge scalar.
-  I' = [s]G - [r']signer.pub                                // Calculate the counterfactual commitment point.
-  return I = I'                                             // The signature is valid if both points are equal.
+  Init("com.example.eddsa")                        // Initialize a protocol with a domain string.
+  Mix("signer", signer.pub)                        // Mix the signer's public key into the protocol.
+  Mix("message", message)                          // Mix the message into the protocol.
+  Mix("commitment", I)                             // Mix the commitment point into the protocol.
+  (_, r') = P256::Scalar(Derive("challenge", 256)) // Derive an expected challenge scalar.
+  I' = [s]G - [r']signer.pub                       // Calculate the expected commitment point.
+  return I = I'                                    // The signature is valid if both points are equal.
 ```
 
 An additional variation on this construction uses `Encrypt` instead of `Mix` to include the commitment point `I` in the
@@ -449,35 +446,35 @@ strong authentication in the public key setting:
 
 ```text
 function Signcrypt(sender, receiver.pub, plaintext):
-  ephemeral = P256::KeyGen()                               // Generate an ephemeral key pair.
-  sc = Init("com.example.sc")                              // Initialize a protocol with a domain string.
-  sc = Mix(sc, "receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  sc = Mix(sc, "sender", sender.pub)                       // Mix the sender's public key into the protocol.
-  sc = Mix(sc, "ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  sc = Mix(sc, "ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
-  (sc, ciphertext) = Encrypt(sc, "message", plaintext)     // Encrypt the plaintext.
-  (k, I) = P256::KeyGen()                                  // Generate a commitment scalar and point.
-  sc = Mix(sc, "commitment", I)                            // Mix the commitment point into the protocol.
-  (_, r) = P256::Scalar(Derive(sc, "challenge", 256))      // Derive a challenge scalar.
-  s = sender.priv * r + k                                  // Calculate the proof scalar.
-  return (ephemeral.pub, ciphertext, I, s)                 // Return the ephemeral public key, ciphertext, and signature.
+  ephemeral = P256::KeyGen()                      // Generate an ephemeral key pair.
+  Init("com.example.sc")                          // Initialize a protocol with a domain string.
+  Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
+  Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
+  Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
+  Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
+  ciphertext = Encrypt("message", plaintext)      // Encrypt the plaintext.
+  (k, I) = P256::KeyGen()                         // Generate a commitment scalar and point.
+  Mix("commitment", I)                            // Mix the commitment point into the protocol.
+  (_, r) = P256::Scalar(Derive("challenge", 256)) // Derive a challenge scalar.
+  s = sender.priv * r + k                         // Calculate the proof scalar.
+  return (ephemeral.pub, ciphertext, I, s)        // Return the ephemeral public key, ciphertext, and signature.
 ```
 
 ```text
 function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
-  sc = Init("com.example.sc")                              // Initialize a protocol with a domain string.
-  sc = Mix(sc, "receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  sc = Mix(sc, "sender", sender.pub)                       // Mix the sender's public key into the protocol.
-  sc = Mix(sc, "ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  sc = Mix(sc, "ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
-  (sc, plaintext) = Decrypt(sc, "message", ciphertext)     // Decrypt the ciphertext.
-  sc = Mix(sc, "commitment", I)                            // Mix the commitment point into the protocol.
-  (_, r') = P256::Scalar(Derive(sc, "challenge", 256))     // Derive a counterfactual challenge scalar.
-  I' = [s]G - [r']sender.pub                               // Calculate the counterfactual commitment point.
+  Init("com.example.sc")                           // Initialize a protocol with a domain string.
+  Mix("receiver", receiver.pub)                    // Mix the receiver's public key into the protocol.
+  Mix("sender", sender.pub)                        // Mix the sender's public key into the protocol.
+  Mix("ephemeral", ephemeral.pub)                  // Mix the ephemeral public key into the protocol.
+  Mix("ecdh", ECDH(receiver.priv, ephemeral.pub))  // Mix the ECDH shared secret into the protocol.
+  plaintext = Decrypt("message", ciphertext)       // Decrypt the ciphertext.
+  Mix("commitment", I)                             // Mix the commitment point into the protocol.
+  (_, r') = P256::Scalar(Derive("challenge", 256)) // Derive an expected challenge scalar.
+  I' = [s]G - [r']sender.pub                       // Calculate the expected commitment point.
   if I = I':
-    return plaintext                                       // If both points are equal, return the plaintext.
+    return plaintext                               // If both points are equal, return the plaintext.
   else:
-    return ""                                              // Otherwise, return an error.
+    return ErrInvalidCiphetext                     // Otherwise, return an error.
 ```
 
 Because a Newplex protocol is an incremental, stateful way of building a cryptographic construction, this integrated
