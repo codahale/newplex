@@ -49,9 +49,9 @@ func NewProtocol(domain string) Protocol {
 
 // Mix updates the protocol's state using the given label and input.
 func (p *Protocol) Mix(label string, input []byte) {
-	buf := p.absorbMetadata(opMix, label)
+	p.absorbMetadata(opMix, label)
 	p.duplex.Absorb(input)
-	p.duplex.Absorb(tuplehash.AppendRightEncode(buf, uint64(len(input))*bitsPerByte))
+	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(input))*bitsPerByte))
 }
 
 // MixWriter updates the protocol's state using the given label and whatever data is written to the wrapped io.Writer.
@@ -100,10 +100,10 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 // dst must not overlap plaintext.
 func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
-	buf := p.absorbMetadata(opCrypt, label)
+	p.absorbMetadata(opCrypt, label)
 	p.duplex.Permute()
 	p.duplex.Encrypt(ciphertext, plaintext)
-	p.duplex.Absorb(tuplehash.AppendRightEncode(buf, uint64(len(plaintext))*bitsPerByte))
+	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))*bitsPerByte))
 	p.duplex.Permute()
 	return ret
 }
@@ -137,10 +137,10 @@ func (p *Protocol) EncryptReader(label string, r io.Reader) io.ReadCloser {
 // of dst must not overlap ciphertext.
 func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
-	buf := p.absorbMetadata(opCrypt, label)
+	p.absorbMetadata(opCrypt, label)
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
-	p.duplex.Absorb(tuplehash.AppendRightEncode(buf, uint64(len(plaintext))*bitsPerByte))
+	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))*bitsPerByte))
 	p.duplex.Permute()
 	return ret
 }
@@ -237,15 +237,13 @@ func (p *Protocol) String() string {
 	return p.duplex.String()
 }
 
-func (p *Protocol) absorbMetadata(op byte, label string) []byte {
+func (p *Protocol) absorbMetadata(op byte, label string) {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
 	metadata[0] = op
 	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
 	metadata = append(metadata, label...)
 
 	p.duplex.Absorb(metadata)
-
-	return metadata[:0]
 }
 
 func (p *Protocol) absorbMetadataAndLen(op byte, label string, n int) {
