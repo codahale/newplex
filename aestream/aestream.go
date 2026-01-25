@@ -31,7 +31,7 @@ func NewWriter(p *newplex.Protocol, w io.Writer) io.WriteCloser {
 	return &sealWriter{
 		p:   p,
 		w:   w,
-		buf: make([]byte, 1024),
+		buf: make([]byte, 0, 1024),
 	}
 }
 
@@ -42,7 +42,7 @@ func NewReader(p *newplex.Protocol, r io.Reader) io.Reader {
 	return &openReader{
 		p:        p,
 		r:        r,
-		buf:      make([]byte, 1024),
+		buf:      make([]byte, 0, 1024),
 		blockBuf: make([]byte, 0, 1024),
 		closed:   false,
 	}
@@ -123,7 +123,7 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 	}
 
 	// Read and decrypt the header and decode the block length.
-	o.buf = slices.Grow(o.buf, 4)[:4]
+	o.buf = slices.Grow(o.buf[:0], 4)[:4]
 	header := o.buf[:4]
 	header[0] = 0 // Ensure the 24-bit length is correctly decoded.
 	_, err = io.ReadFull(o.r, header[1:])
@@ -140,8 +140,8 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 	}
 
 	// Read and open the block.
-	o.buf = slices.Grow(o.buf, messageLen+newplex.TagSize)
-	block := o.buf[:messageLen+newplex.TagSize]
+	o.buf = slices.Grow(o.buf[:0], messageLen+newplex.TagSize)[:messageLen+newplex.TagSize]
+	block := o.buf
 	_, err = io.ReadFull(o.r, block)
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
