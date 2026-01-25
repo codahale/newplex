@@ -132,6 +132,32 @@ func BenchmarkWriter(b *testing.B) {
 	}
 }
 
+func BenchmarkNewReader(b *testing.B) {
+	// This is really only useful for compensating for the inability to remove setup costs from BenchmarkReader.
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			p1 := newplex.NewProtocol("example")
+			p1.Mix("key", []byte("it's a key"))
+			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
+			w := aestream.NewWriter(&p1, ciphertext)
+			buf := make([]byte, length.n)
+			_, _ = w.Write(buf)
+			_ = w.Close()
+
+			p2 := newplex.NewProtocol("example")
+			p2.Mix("key", []byte("it's a key"))
+
+			var p3 newplex.Protocol
+			for b.Loop() {
+				p3 = p2.Clone()
+				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()))
+			}
+		})
+	}
+}
+
 func BenchmarkReader(b *testing.B) {
 	for _, length := range lengths {
 		b.Run(length.name, func(b *testing.B) {

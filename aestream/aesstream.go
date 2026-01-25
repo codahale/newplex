@@ -120,7 +120,8 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 	}
 
 	// Read and decrypt the header and decode the block length.
-	header := slices.Grow(o.buf, 4)[:4]
+	o.buf = slices.Grow(o.buf, 4)[:4]
+	header := o.buf[:4]
 	header[0] = 0 // Ensure the 24-bit length is correctly decoded.
 	_, err = io.ReadFull(o.r, header[1:])
 	if err != nil {
