@@ -60,12 +60,11 @@ func (d *Duplex) Squeeze(out []byte) {
 func (d *Duplex) Encrypt(ciphertext, plaintext []byte) {
 	for len(plaintext) > 0 {
 		remain := min(len(plaintext), rate-d.idx)
-		p := plaintext[:remain]
-		c := ciphertext[:remain]
 		k := d.state[d.idx : d.idx+remain]
 
-		subtle.XORBytes(k, k, p)
-		copy(c, k)
+		// C = K = K ^ P
+		subtle.XORBytes(k, k, plaintext[:remain])
+		copy(ciphertext[:remain], k)
 
 		d.idx += remain
 		if d.idx == rate {
@@ -85,14 +84,15 @@ func (d *Duplex) Encrypt(ciphertext, plaintext []byte) {
 func (d *Duplex) Decrypt(plaintext, ciphertext []byte) {
 	for len(ciphertext) > 0 {
 		remain := min(len(ciphertext), rate-d.idx)
+		k := d.state[d.idx : d.idx+remain]
+		// Make a copy of this block of ciphertext. If plaintext is the same slice as ciphertext, the decryption will
+		// overwrite the ciphertext, making it impossible to copy it to the state afterward.
 		var tmp [rate]byte
 		copy(tmp[:remain], ciphertext[:remain])
-		c := tmp[:remain]
-		p := plaintext[:remain]
-		k := d.state[d.idx : d.idx+remain]
 
-		subtle.XORBytes(p, k, c)
-		copy(k, c)
+		// P = C ^ K; K = C
+		subtle.XORBytes(plaintext[:remain], k, ciphertext[:remain])
+		copy(k, tmp[:remain])
 
 		d.idx += remain
 		if d.idx == rate {
