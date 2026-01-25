@@ -167,3 +167,78 @@ func BenchmarkAEAD(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkDuplex_Absorb(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			input := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Absorb(input)
+			}
+		})
+	}
+}
+
+func BenchmarkDuplex_Squeeze(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			output := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Squeeze(output)
+			}
+		})
+	}
+}
+
+func BenchmarkDuplex_Encrypt(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			d.Permute()
+
+			output := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Encrypt(output, output)
+			}
+		})
+	}
+}
+
+func BenchmarkDuplex_Decrypt(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			d.Permute()
+
+			output := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Decrypt(output, output)
+			}
+		})
+	}
+}
+
+//nolint:gochecknoglobals // this is fine
+var lengths = []struct {
+	name string
+	n    int
+}{
+	{"16B", 16},
+	{"32B", 32},
+	{"64B", 64},
+	{"128B", 128},
+	{"256B", 256},
+	{"1KiB", 1024},
+	{"16KiB", 16 * 1024},
+	{"1MiB", 1024 * 1024},
+}
