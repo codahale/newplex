@@ -584,7 +584,7 @@ function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
   if I = I':
     return plaintext                               // If both points are equal, return the plaintext.
   else:
-    return ErrInvalidCiphetext                     // Otherwise, return an error.
+    return ErrInvalidCiphertext                    // Otherwise, return an error.
 ```
 
 Because a Newplex protocol is an incremental, stateful way of building a cryptographic construction, this integrated

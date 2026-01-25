@@ -35,7 +35,7 @@ func (d *Duplex) Absorb(b []byte) {
 	}
 }
 
-// Squeeze fills the given slice with data from the duplex's state, running the permutaiton as the state becomes
+// Squeeze fills the given slice with data from the duplex's state, running the permutation as the state becomes
 // exhausted.
 //
 // Multiple Squeeze calls are effectively the same thing as a single Squeeze call with concatenated outputs.
