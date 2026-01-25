@@ -297,7 +297,7 @@ from the received plaintext. If the two are equal, the plaintext is returned. Ot
 nonce.
 
 **N.B.:** Unlike `Encrypt`, `Seal` does not support streaming operations. This is an intentional choice to mitigate the
-accidental disclosure of unauthenticated plaintext, and follows the generally recommended practices for API design of
+accidental disclosure of unauthenticated plaintext and follows the generally recommended practices for API design of
 authenticated encryption.
 
 ## Basic Protocols
@@ -456,7 +456,7 @@ For bidirectional communication, the sender and receiver should establish a shar
 agreement), then clone that protocol into two unidirectional protocols.
 
 ```text
-// On the initator's side:
+// On the initiator's side:
 send, recv = handshake.Clone(), handshake.Clone()
 send.Mix("sender", "initiator")
 recv.Mix("sender", "responder")
