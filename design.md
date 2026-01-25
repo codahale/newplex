@@ -1,5 +1,36 @@
 # The Design Of Newplex
 
+<!-- TOC -->
+* [The Design Of Newplex](#the-design-of-newplex)
+  * [What is Newplex?](#what-is-newplex)
+  * [The Duplex](#the-duplex)
+    * [`Permute`](#permute)
+    * [`Absorb`](#absorb)
+    * [`Squeeze`](#squeeze)
+    * [`Encrypt`/`Decrypt`](#encryptdecrypt)
+  * [The Protocol](#the-protocol)
+    * [`Init`](#init)
+    * [`Mix`](#mix)
+    * [`Derive`](#derive)
+      * [KDF Security](#kdf-security)
+      * [KDF Chains](#kdf-chains)
+    * [`Encrypt`/`Decrypt`](#encryptdecrypt-1)
+    * [`Seal`/`Open`](#sealopen)
+  * [Basic Protocols](#basic-protocols)
+    * [Message Digests](#message-digests)
+    * [Message Authentication Codes](#message-authentication-codes)
+    * [Stream Ciphers](#stream-ciphers)
+    * [Authenticated Encryption And Data (AEAD)](#authenticated-encryption-and-data-aead)
+    * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
+      * [Bidirectional Streaming](#bidirectional-streaming)
+  * [Complex Protocols](#complex-protocols)
+    * [Hybrid Public-Key Encryption](#hybrid-public-key-encryption)
+    * [Digital Signatures](#digital-signatures)
+    * [Signcryption](#signcryption)
+<!-- TOC -->
+
+## What is Newplex?
+
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
 hashing, encryption, message authentication codes, and authenticated encryption) in complex protocols. Inspired
 by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [SpongeWrap], and [Xoodyak]'s
@@ -367,6 +398,76 @@ This construction is IND-CCA2-secure (i.e., both IND-CPA and INT-CTXT) under the
 
 1. Simpira-1024 is indistinguishable from a random permutation.
 2. At least one of the inputs to the protocol is a nonce (i.e., not used for multiple messages).
+
+### Streaming Authenticated Encryption
+
+For streams of indeterminate length, authenticated encryption can be provided via a sequence of `Seal` calls. Each block
+is limited to `2^24-1` bytes (i.e., 16,777,215 bytes, or slightly less than 16MiB).
+
+```text
+function AEStreamSend(key, nonce, plaintext, ciphertext):
+  Init("com.example.aestream")           // Establish a shared protocol state.
+  Mix("key", key)
+  Mix("nonce", nonce)
+  while |plaintext| > 0:
+    pblock = Read(plaintext)             // Read a block of plaintext.
+    pheader = BE24Encode(|pblock|)       // Encode the block length as a 24-bit big endian integer.
+    cheader = Encrypt("header", pheader) // Encrypt the header.
+    cblock = Seal("block", pblock)       // Seal the block.
+    Write(ciphertext, cheader || cblock) // Write the encrypted header and sealed block.
+  pheader = BE24Encode(0)                // Encode a zero-length block header.
+  cheader = Encrypt("header", pheader)   // Encrypt the header.
+  cblock = Seal("block", "")             // Seal a zero-length block.
+  Write(ciphertext, cheader || cblock)   // Write the encrypted header and sealed block.
+
+
+function AEStreamRecv(key, nonce, ciphertext, plaintext):
+  Init("com.example.aestream")
+  Mix("key", key)
+  Mix("nonce", nonce)
+  while |ciphertext| > 0:
+    cheader = Read(ciphertext, 24)        // Read an encrypted header.
+    pheader = Decrypt("header", cheader)  // Decrypt the encrypted header.
+    msglen = BE24Decode(pheader)          // Decode the block length.
+    cblock = Read(ciphertext, msglen+128) // Read the sealed block and 128-bit tag.
+    pblock = Open("block", cblock)        // Open the sealed block.
+    if pblock == ErrInvalidCiphertext:    // Error if the ciphertext is not authenticated.
+      return ErrInvalidCiphertext
+    if |pblock| == 0:                     // Return an EOF if the block is empty.
+      return EOF
+    Write(plaintext, pblock)              // Otherwise, write the plaintext block.
+  return ErrInvalidCiphertext             // Error if the stream is truncated.
+```
+
+The sender encodes each block's length as a 24-bit big endian integer, encrypts that header, seals the block, and sends
+both to the receiver. An empty block is used to mark the end of the stream. The receiver reads the encrypted header,
+decrypts it, decodes it into a block length, reads an encrypted block of that length and its authentication tag, then
+opens the sealed block. When it encounters the empty block, it returns EOF. If the stream terminates before that, an
+invalid ciphertext error is returned.
+
+**N.B.:** Using a 24-bit header for block lengths limits the possibility of an attacker modifying the encrypted
+headers and causing memory utilization denial-of-service attacks to 16MB per block. However, because the header is
+encrypted but not authenticated, the receiver will not detect modifications to the block length until after it has
+attempted to read the indicated number of bytes and verify the block's tag.
+
+#### Bidirectional Streaming
+
+For bidirectional communication, the sender and receiver should establish a shared protocol state (e.g., via ECDH key
+agreement), then clone that protocol into two unidirectional protocols.
+
+```text
+// On the initator's side:
+send, recv = handshake.Clone(), handshake.Clone()
+send.Mix("sender", "initiator")
+recv.Mix("sender", "responder")
+
+// On the responder's side:
+send, recv = handshake.Clone(), handshake.Clone()
+send.Mix("sender", "responder")
+recv.Mix("sender", "initiator")
+```
+
+This ensures the protocols being used to send and receive data have different states and therefore different outputs.
 
 ## Complex Protocols
 
