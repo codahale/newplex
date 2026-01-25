@@ -35,6 +35,10 @@ go get github.com/codahale/newplex
 
 ## Usage
 
+On AMD64 and ARM64 architectures, newplex uses the AES-NI instruction set to achieve this level of performance. On other
+architectures, or if the `purego` build tag is used, it uses a much-slower Go implementation with a bitsliced,
+constant-time AES round implementation.
+
 ### Protocol
 
 `Protocol` is the high-level API, designed for constructing complex cryptographic protocols (e.g., transcripts,

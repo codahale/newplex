@@ -4,6 +4,10 @@
 // [Xoodyak]'s Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern
 // processors at a 128-bit security level.
 //
+// On AMD64 and ARM64 architectures, newplex uses the AES-NI instruction set to achieve this level of performance. On
+// other architectures, or if the purego build tag is used, it uses a much-slower Go implementation with a bitsliced,
+// constant-time AES round implementation.
+//
 // [TupleHash]: https://www.nist.gov/publications/sha-3-derived-functions-cshake-kmac-tuplehash-and-parallelhash
 // [STROBE]: https://strobe.sourceforge.io
 // [Noise Protocol]: http://www.noiseprotocol.org

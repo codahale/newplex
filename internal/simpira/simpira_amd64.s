@@ -1,4 +1,4 @@
-// +build amd64,!nosimd
+// +build amd64,!purego
 
 #include "textflag.h"
 
