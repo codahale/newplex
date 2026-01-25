@@ -55,6 +55,9 @@ type sealWriter struct {
 }
 
 func (s *sealWriter) Write(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
 	pLen := uint64(len(p))
 	if pLen > MaxBlockSize {
 		return 0, fmt.Errorf("oversized write: %d bytes, max = %d", pLen, MaxBlockSize)

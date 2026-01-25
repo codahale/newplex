@@ -201,3 +201,35 @@ var lengths = []struct {
 	{"16KiB", 16 * 1024},
 	{"1MiB", 1024 * 1024},
 }
+
+func TestEmptyWrite(t *testing.T) {
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("key", []byte("it's a key"))
+	buf := bytes.NewBuffer(nil)
+	w := aestream.NewWriter(&p1, buf)
+
+	if _, err := w.Write([]byte("first")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("second")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	p2 := newplex.NewProtocol("example")
+	p2.Mix("key", []byte("it's a key"))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := string(b), "firstsecond"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
