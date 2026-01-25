@@ -38,7 +38,7 @@ func NewWriter(p *newplex.Protocol, w io.Writer) io.WriteCloser {
 // NewReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption reader.
 //
 // If the stream has been modified or truncated, a newplex.ErrInvalidCiphertext is returned.
-func NewReader(p *newplex.Protocol, r io.Reader) io.Reader {
+func NewReader(p *newplex.Protocol, r io.Reader) io.ReadCloser {
 	return &openReader{
 		p:        p,
 		r:        r,
@@ -163,7 +163,14 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 	return o.Read(p)
 }
 
+func (o *openReader) Close() error {
+	if rc, ok := o.r.(io.ReadCloser); ok {
+		return rc.Close()
+	}
+	return nil
+}
+
 var (
 	_ io.WriteCloser = (*sealWriter)(nil)
-	_ io.Reader      = (*openReader)(nil)
+	_ io.ReadCloser  = (*openReader)(nil)
 )
