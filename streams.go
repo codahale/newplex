@@ -13,8 +13,8 @@ type mixWriter struct {
 }
 
 func (m *mixWriter) Write(p []byte) (n int, err error) {
-	m.p.duplex.Absorb(p)
 	n, err = m.w.Write(p)
+	m.p.duplex.Absorb(p[:n])
 	m.n += uint64(n) //nolint:gosec // n can't be <0
 	return n, err
 }
