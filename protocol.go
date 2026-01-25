@@ -111,11 +111,14 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 // EncryptWriter updates the protocol's state using the given label and encrypts whatever data is written to the wrapped
 // io.Writer.
 //
+// To avoid encrypting the written slices in-place, this writer copies the data before encrypting. As such, it is
+// slightly slower than its EncryptReader counterpart.
+//
 // N.B.: The returned io.WriteCloser must be closed for the Encrypt operation to be complete.
 func (p *Protocol) EncryptWriter(label string, w io.Writer) io.WriteCloser {
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.Permute()
-	return &cryptWriter{p: p, f: p.duplex.Encrypt, w: w, n: 0}
+	return &cryptWriter{p: p, f: p.duplex.Encrypt, w: w, n: 0, buf: nil}
 }
 
 // EncryptReader updates the protocol's state using the given label and encrypts whatever data is read from the wrapped
@@ -148,11 +151,14 @@ func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 // DecryptWriter updates the protocol's state using the given label and decrypts whatever data is written to the wrapped
 // io.Writer.
 //
+// To avoid decrypting the written slices in-place, this writer copies the data before decrypting. As such, it is
+// slightly slower than its DecryptReader counterpart.
+//
 // N.B.: The returned io.WriteCloser must be closed for the Decrypt operation to be complete.
 func (p *Protocol) DecryptWriter(label string, w io.Writer) io.WriteCloser {
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.Permute()
-	return &cryptWriter{p: p, f: p.duplex.Decrypt, w: w, n: 0}
+	return &cryptWriter{p: p, f: p.duplex.Decrypt, w: w, n: 0, buf: nil}
 }
 
 // DecryptReader updates the protocol's state using the given label and decrypts whatever data is read from the wrapped

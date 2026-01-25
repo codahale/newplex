@@ -49,15 +49,17 @@ func (m *mixReader) Close() error {
 }
 
 type cryptWriter struct {
-	p *Protocol
-	f func(dst, src []byte)
-	w io.Writer
-	n uint64
+	p   *Protocol
+	f   func(dst, src []byte)
+	w   io.Writer
+	n   uint64
+	buf []byte
 }
 
 func (c *cryptWriter) Write(p []byte) (n int, err error) {
-	c.f(p, p)
-	n, err = c.w.Write(p)
+	c.buf = append(c.buf[:0], p...)
+	c.f(c.buf, c.buf)
+	n, err = c.w.Write(c.buf)
 	c.n += uint64(n) //nolint:gosec // n can't be <0
 	return n, err
 }
