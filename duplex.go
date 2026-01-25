@@ -85,12 +85,14 @@ func (d *Duplex) Encrypt(ciphertext, plaintext []byte) {
 func (d *Duplex) Decrypt(plaintext, ciphertext []byte) {
 	for len(ciphertext) > 0 {
 		remain := min(len(ciphertext), rate-d.idx)
-		c := ciphertext[:remain]
+		var tmp [rate]byte
+		copy(tmp[:remain], ciphertext[:remain])
+		c := tmp[:remain]
 		p := plaintext[:remain]
 		k := d.state[d.idx : d.idx+remain]
 
 		subtle.XORBytes(p, k, c)
-		subtle.XORBytes(k, k, p)
+		copy(k, c)
 
 		d.idx += remain
 		if d.idx == rate {

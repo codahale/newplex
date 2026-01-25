@@ -290,6 +290,22 @@ func BenchmarkDuplex_Encrypt(b *testing.B) {
 	}
 }
 
+func BenchmarkDuplex_Decrypt(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			d.Permute()
+
+			output := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Decrypt(output, output)
+			}
+		})
+	}
+}
+
 //nolint:gochecknoglobals // this is fine
 var lengths = []struct {
 	name string
