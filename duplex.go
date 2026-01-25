@@ -120,7 +120,11 @@ func (d *Duplex) UnmarshalBinary(data []byte) error {
 	if len(data) != len(d.state)+2 {
 		return errors.New("newplex: invalid state length")
 	}
-	d.idx = int(binary.LittleEndian.Uint16(data[:2]))
+	idx := int(binary.LittleEndian.Uint16(data[:2]))
+	if idx >= rate {
+		return errors.New("newplex: invalid duplex state")
+	}
+	d.idx = idx
 	copy(d.state[:], data[2:])
 	return nil
 }

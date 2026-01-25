@@ -136,6 +136,13 @@ func TestDuplex_UnmarshalBinary_Invalid(t *testing.T) {
 	if err := d.UnmarshalBinary([]byte{0x01}); err == nil {
 		t.Error("UnmarshalBinary(short) should have failed")
 	}
+
+	// Test invalid idx
+	data := make([]byte, 130) // 2 + 128
+	data[0] = 96              // idx = 96, which is == rate
+	if err := d.UnmarshalBinary(data); err == nil {
+		t.Error("UnmarshalBinary(invalid idx) should have failed")
+	}
 }
 
 func TestDuplex_Decrypt_InPlace(t *testing.T) {
