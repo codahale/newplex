@@ -83,6 +83,8 @@ This repo contains implementations of the following permutations with full optim
 architectures:
 
 * Areion-512
+* Ascon-8
+* Ascon-12
 * Gimli-384
 * Haraka-512 V2
 * Keccak-f\[1600\]

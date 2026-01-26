@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/codahale/newplex/internal/areion"
+	"github.com/codahale/newplex/internal/ascon"
 	"github.com/codahale/newplex/internal/gimli"
 	"github.com/codahale/newplex/internal/haraka"
 	"github.com/codahale/newplex/internal/keccak"
@@ -16,6 +17,24 @@ func BenchmarkAreion512(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		areion.Permute512(&state)
+	}
+}
+
+func BenchmarkAscon12(b *testing.B) {
+	var state [40]byte
+	b.SetBytes(int64(len(state)))
+	b.ReportAllocs()
+	for b.Loop() {
+		ascon.Permute12(&state)
+	}
+}
+
+func BenchmarkAscon8(b *testing.B) {
+	var state [40]byte
+	b.SetBytes(int64(len(state)))
+	b.ReportAllocs()
+	for b.Loop() {
+		ascon.Permute8(&state)
 	}
 }
 
