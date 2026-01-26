@@ -8,23 +8,23 @@
 // R10: x2
 // R11: x3
 // R12: x4
-// RAX, RBX, RCX, RDX, R13: scratch for s-box
+// AX, BX, CX, DX, R13: scratch for s-box
 // R15: scratch for linear layer
 #define ASCON_ROUND(constant) \
 	XORQ $constant, R10 \
 	XORQ R12, R8 \
 	XORQ R11, R12 \
 	XORQ R9, R10 \
-	MOVQ R8, RAX; NOTQ RAX; ANDQ R9, RAX \
-	MOVQ R9, RBX; NOTQ RBX; ANDQ R10, RBX \
-	MOVQ R10, RCX; NOTQ RCX; ANDQ R11, RCX \
-	MOVQ R11, RDX; NOTQ RDX; ANDQ R12, RDX \
+	MOVQ R8, AX; NOTQ AX; ANDQ R9, AX \
+	MOVQ R9, BX; NOTQ BX; ANDQ R10, BX \
+	MOVQ R10, CX; NOTQ CX; ANDQ R11, CX \
+	MOVQ R11, DX; NOTQ DX; ANDQ R12, DX \
 	MOVQ R12, R13; NOTQ R13; ANDQ R8, R13 \
-	XORQ RBX, R8 \
-	XORQ RCX, R9 \
-	XORQ RDX, R10 \
+	XORQ BX, R8 \
+	XORQ CX, R9 \
+	XORQ DX, R10 \
 	XORQ R13, R11 \
-	XORQ RAX, R12 \
+	XORQ AX, R12 \
 	XORQ R8, R9 \
 	XORQ R12, R8 \
 	XORQ R10, R11 \
