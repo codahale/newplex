@@ -190,10 +190,37 @@ func TestProtocol_Encrypt_common_prefixes(t *testing.T) {
 }
 
 func TestProtocol_Encrypt_same_slice(t *testing.T) {
-	msg := make([]byte, 16)
-	p1 := newplex.NewProtocol("prefixes")
-	p1.Encrypt("message", msg, msg)
-	t.Log(msg)
+	t.Parallel()
+
+	plaintext := []byte("hello world")
+	p1 := newplex.NewProtocol("test")
+	ciphertext := p1.Encrypt("message", nil, plaintext)
+
+	p2 := newplex.NewProtocol("test")
+	msg := make([]byte, len(plaintext))
+	copy(msg, plaintext)
+	p2.Encrypt("message", msg[:0], msg)
+
+	if !bytes.Equal(msg, ciphertext) {
+		t.Errorf("In-place encryption failed: %x vs %x", msg, ciphertext)
+	}
+}
+
+func TestProtocol_Seal_same_slice(t *testing.T) {
+	t.Parallel()
+
+	plaintext := []byte("hello world")
+	p1 := newplex.NewProtocol("test")
+	ciphertext := p1.Seal("message", nil, plaintext)
+
+	p2 := newplex.NewProtocol("test")
+	msg := make([]byte, len(plaintext)+newplex.TagSize)
+	copy(msg, plaintext)
+	p2.Seal("message", msg[:0], msg[:len(plaintext)])
+
+	if !bytes.Equal(msg, ciphertext) {
+		t.Errorf("In-place seal failed: %x vs %x", msg, ciphertext)
+	}
 }
 
 func FuzzProtocol_Open_ciphertext_modification(f *testing.F) {
