@@ -1,7 +1,7 @@
 //go:build amd64 && !purego
 
-package gimli
+package simpira1024
 
 //go:noescape
 //goland:noinspection GoUnusedParameter
-func permute(state *[48]byte)
+func permute(state *[Width]byte)

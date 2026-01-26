@@ -3,6 +3,7 @@
 <!-- TOC -->
 * [The Design Of Newplex](#the-design-of-newplex)
   * [What is Newplex?](#what-is-newplex)
+  * [The Permutation](#the-permutation)
   * [The Duplex](#the-duplex)
     * [`Permute`](#permute)
     * [`Absorb`](#absorb)
@@ -50,6 +51,33 @@ Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/seco
 [Xoodyak]: https://keccak.team/xoodyak.html
 
 [Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
+
+## The Permutation
+
+[Simpira-1024] was chosen as the core of Newplex for a number of reasons:
+
+1. The designers claim security against structural distinguishers with complexity up to 2^128, which aligns with the
+   security level goals of this project.
+2. It has a width of 1024, allowing for a duplex with a 256-bit capacity to have 768 bits of rate. This significantly
+   improves throughput without increasing the latency on small inputs.
+3. It benefits from the nearly ubiquitous AES-NI instruction set, making it equally performant on both AMD64 and ARM64
+   architectures. The only faster permutation on modern ARM64 processors is Keccak-p\[1600,24\], which benefits from the
+   `FEAT_SHA3` extensions, but no such instruction set exists for AMD64 processors. Further, Simpira-1024 allows for up
+   to 8 pipelined `AESENC` instructions, maximizing throughput on modern processors.
+4. In the ten years since the publication of [Simpira V2][Simpira-1024], the main cryptanalytical results on it have
+   been on round-reduced versions of the smaller permutations:
+
+   | Variant     | Total Rounds | Max Rounds Attacked | % Rounds Broken | Security Margin       |
+   |-------------|--------------|---------------------|-----------------|-----------------------|
+   | Simpira-256 | 15           | 9                   | 60%             | Safe (6 rounds left)  |
+   | Simpira-384 | 21           | 10                  | 48%             | Safe (11 rounds left) |
+   | Simpira-512 | 15           | 8                   | 53%             | Safe (7 rounds left)  |
+   | Simpira-768 | 15           | 8                   | 53%             | Safe (7 rounds left)  |
+
+   No attacks have been found on the full-round specifications, and no attacks at all have been found for Simpira-1024.
+
+5. Its non-linear component is the AES round, which has been extensively studied, and its shuffling layer achieves full
+   diffusion after very few rounds.
 
 ## The Duplex
 
