@@ -34,7 +34,7 @@
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
 hashing, encryption, message authentication codes, and authenticated encryption) in complex protocols. Inspired
 by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [SpongeWrap], and [Xoodyak]'s
-Cyclist mode, Newplex uses the [Simpira-1536] permutation to provide 10+ Gb/second performance on modern processors at a
+Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern processors at a
 128-bit security level.
 
 [TupleHash]: https://www.nist.gov/publications/sha-3-derived-functions-cshake-kmac-tuplehash-and-parallelhash
@@ -49,12 +49,12 @@ Cyclist mode, Newplex uses the [Simpira-1536] permutation to provide 10+ Gb/seco
 
 [Xoodyak]: https://keccak.team/xoodyak.html
 
-[Simpira-1536]: https://eprint.iacr.org/2016/122.pdf
+[Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
 
 ## The Duplex
 
-The core of Newplex is a relatively basic [cryptographic duplex][duplex], with a width of 1536 bits, a capacity of 256
-bits, and a rate of 1280 bits (i.e. `b=1536`, `c=256`, `r=1280`).
+The core of Newplex is a relatively basic [cryptographic duplex][duplex], with a width of 1024 bits, a capacity of 256
+bits, and a rate of 768 bits (i.e. `b=1024`, `c=256`, `r=768`).
 
 [duplex]: https://keccak.team/sponge_duplex.html
 
@@ -72,7 +72,7 @@ rate. As such, it is a building block for higher level operations and should be 
 
 ### `Permute`
 
-The `Permute` operation runs the [Simpira-1536] permutation on the duplex's entire state and resets its rate index to
+The `Permute` operation runs the [Simpira-1024] permutation on the duplex's entire state and resets its rate index to
 zero.
 
 ### `Absorb`
@@ -190,7 +190,7 @@ is permuted again to prevent rollback.
 
 A sequence of `Mix` operations followed by an operation which produces output (e.g., `Derive`, `Encrypt`, `Seal`, etc.)
 is equivalent to constructing a string using a recoverable encoding, absorbing it into a duplex, then squeezing an
-output string. [As long as the Simpira-1536 permutation is indistinguishable from a random permutation, the duplex is
+output string. [As long as the Simpira-1024 permutation is indistinguishable from a random permutation, the duplex is
 indistinguishable from a random oracle.][duplex security] Therefore, the `Absorb`/`Permute`/`Squeeze` sequence maps
 directly to [Backendal et al.'s RO-KDF construction][n-KDFs] and is a KDF-secure XOF-n-KDF (for 0 < ℓ <= 16).
 
@@ -316,7 +316,7 @@ function MessageDigest(message):
   return digest
 ```
 
-This construction is indistinguishable from a random oracle if Simpira-1536 is indistinguishable from a random
+This construction is indistinguishable from a random oracle if Simpira-1024 is indistinguishable from a random
 permutation.
 
 ### Message Authentication Codes
@@ -335,7 +335,7 @@ function MAC(key, message):
 The use of labels and the encoding of [`Mix` inputs](#mix) ensures that the key and the message will never overlap, even
 if their lengths vary.
 
-This construction is sUF-CMA secure if Simpira-1536 is indistinguishable from a random permutation.
+This construction is sUF-CMA secure if Simpira-1024 is indistinguishable from a random permutation.
 
 ### Stream Ciphers
 
@@ -359,7 +359,7 @@ function StreamDecrypt(key, nonce, ciphertext):
 
 This construction is IND-CPA-secure under the following assumptions:
 
-1. Simpira-1536 is indistinguishable from a random permutation.
+1. Simpira-1024 is indistinguishable from a random permutation.
 2. At least one of the inputs to the protocol is a nonce (i.e., not used for multiple messages).
 
 ### Authenticated Encryption And Data (AEAD)
@@ -396,7 +396,7 @@ function AEADOpen(key, nonce, ad, ciphertext || tag):
 
 This construction is IND-CCA2-secure (i.e., both IND-CPA and INT-CTXT) under the following assumptions:
 
-1. Simpira-1536 is indistinguishable from a random permutation.
+1. Simpira-1024 is indistinguishable from a random permutation.
 2. At least one of the inputs to the protocol is a nonce (i.e., not used for multiple messages).
 
 ### Streaming Authenticated Encryption

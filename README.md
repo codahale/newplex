@@ -3,7 +3,7 @@
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
 hashing, encryption, message authentication codes, and authenticated encryption) in complex protocols. Inspired
 by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [SpongeWrap], and [Xoodyak]'s
-Cyclist mode, Newplex uses the [Simpira-1536] permutation to provide 10+ Gb/second performance on modern processors at a
+Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern processors at a
 128-bit security level.
 
 [TupleHash]: https://www.nist.gov/publications/sha-3-derived-functions-cshake-kmac-tuplehash-and-parallelhash
@@ -18,7 +18,7 @@ Cyclist mode, Newplex uses the [Simpira-1536] permutation to provide 10+ Gb/seco
 
 [Xoodyak]: https://keccak.team/xoodyak.html
 
-[Simpira-1536]: https://eprint.iacr.org/2016/122.pdf
+[Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
 
 ## ⚠️ Security Warning
 
@@ -65,7 +65,7 @@ tag := p.Derive("tag", nil, 32)
 
 ### Duplex
 
-`Duplex` is the low-level primitive using the Simpira-1536 V2 permutation. It supports `Absorb`, `Squeeze`, `Encrypt`,
+`Duplex` is the low-level primitive using the Simpira-1024 V2 permutation. It supports `Absorb`, `Squeeze`, `Encrypt`,
 and `Decrypt` operations directly on the state.
 
 ```go
@@ -97,9 +97,9 @@ architectures:
 * Simpira-2048 V2
 * Xoodoo
 
-Of these, Simpira-1536 provides the best performance across both platforms. Areion-512 has better performance as a pure
-permutation, but its small width means a 256-bit capacity duplex can only process 256 bits at a time, vs. 1280 with
-Simpira-1536.
+Of these, Simpira-1024 provides the best performance across both platforms. Areion-512 has better performance as a pure
+permutation, but its small width means a 256-bit capacity duplex can only process 256 bits at a time, vs. 768 with
+Simpira-1024.
 
 ### arm64
 

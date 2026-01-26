@@ -26,7 +26,7 @@ func ExampleProtocol_mac() {
 	tag := mac.Derive("tag", nil, 16)
 
 	fmt.Printf("%x\n", tag)
-	// Output: fc044f852e64d6574b7a41e4e164d782
+	// Output: d389fa15b67663731325ff2d410dc0e4
 }
 
 func ExampleProtocol_stream() {
@@ -67,7 +67,7 @@ func ExampleProtocol_stream() {
 	}
 
 	// Output:
-	// 117d03b700a1ef2d7d8102
+	// affed4b00fb8cb19fe3b34
 	// hello world
 }
 
@@ -112,7 +112,7 @@ func ExampleProtocol_aead() {
 	}
 
 	// Output:
-	// bc0305c590e6fbc16ce1e261f9baf126d2b8422079ad7bcc9b3c93
+	// bc4b7bcc256e7be3420f9ff3e587c3b2ac13f9ed20536a1b4414ef
 	// hello world
 }
 
@@ -159,6 +159,6 @@ func Example_hpke() {
 		fmt.Printf("%s\n", plaintext)
 	}
 	// Output:
-	// 672e904ba78b50b56f896d4b9c2f8018aecfd34038523a6faa4e82e37be4281fc98f601a7a9db2c2c5d75ead3633e88bd706a08fbe0b972e12129b
+	// 672e904ba78b50b56f896d4b9c2f8018aecfd34038523a6faa4e82e37be4281f596dc142472d519b2fdcd11004ee9435447ac88aa9c422abc95d11
 	// hello world
 }
