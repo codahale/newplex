@@ -35,7 +35,7 @@ func TestDuplex_Encrypt(t *testing.T) {
 	}
 }
 
-func TestDuplex_Encrypt_in_place(t *testing.T) {
+func TestDuplex_Encrypt_same_slice(t *testing.T) {
 	t.Parallel()
 
 	a := []byte("hello world")
@@ -129,7 +129,7 @@ func TestDuplex_MarshalBinary(t *testing.T) {
 	}
 }
 
-func TestDuplex_UnmarshalBinary_Invalid(t *testing.T) {
+func TestDuplex_UnmarshalBinary_invalid(t *testing.T) {
 	t.Parallel()
 
 	var d newplex.Duplex
@@ -145,7 +145,7 @@ func TestDuplex_UnmarshalBinary_Invalid(t *testing.T) {
 	}
 }
 
-func TestDuplex_Decrypt_InPlace(t *testing.T) {
+func TestDuplex_Decrypt_same_slice(t *testing.T) {
 	t.Parallel()
 
 	key := []byte("key")
@@ -188,7 +188,7 @@ func TestDuplex_Decrypt_InPlace(t *testing.T) {
 	}
 }
 
-func TestDuplex_Encrypt_MultiBlock(t *testing.T) {
+func TestDuplex_Encrypt_multiblock(t *testing.T) {
 	t.Parallel()
 
 	// rate is 96, so we need > 96 bytes to trigger multi-block logic
