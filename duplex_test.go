@@ -224,7 +224,7 @@ func ExampleDuplex_Absorb() {
 	d.Squeeze(out)
 
 	fmt.Printf("%x\n", out)
-	// Output: f358635df728f485fdd3165bc369fa7c
+	// Output: adf6ca611e9c79de69ad1140f68a3532
 }
 
 func ExampleDuplex_Encrypt() {
@@ -249,6 +249,6 @@ func ExampleDuplex_Encrypt() {
 	fmt.Printf("%s\n", decrypted)
 
 	// Output:
-	// 5d369b4ce12f16bbb778f5
+	// 7f0a6eb906deb5790e7577
 	// hello world
 }

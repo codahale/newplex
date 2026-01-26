@@ -11,8 +11,8 @@ import (
 	"github.com/codahale/newplex/internal/simpira"
 )
 
-// Duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-1024 permutation, has a width
-// of 1024 bits, a capacity of 256 bits, and a rate of 768 bits. This offers 128 bits of security for collision
+// Duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-1536 permutation, has a width
+// of 1536 bits, a capacity of 256 bits, and a rate of 1280 bits. This offers 128 bits of security for collision
 // resistance, 256 bits of security for state recovery, and 128 bits of security for birthday-bound
 // indistinguishability.
 type Duplex struct {
@@ -103,9 +103,9 @@ func (d *Duplex) Decrypt(plaintext, ciphertext []byte) {
 	}
 }
 
-// Permute resets the duplex's state index and applies the Simpira-1024 permutation to its 1024-bit state.
+// Permute resets the duplex's state index and applies the Simpira-1536 permutation to its 1536-bit state.
 func (d *Duplex) Permute() {
-	simpira.Permute1024(&d.state)
+	simpira.Permute1536(&d.state)
 	d.idx = 0
 }
 
@@ -132,7 +132,7 @@ func (d *Duplex) UnmarshalBinary(data []byte) error {
 // AppendBinary appends the binary representation of the duplex's state to the given slice. It implements
 // encoding.BinaryAppender.
 func (d *Duplex) AppendBinary(b []byte) ([]byte, error) {
-	return append(binary.LittleEndian.AppendUint16(b, uint16(d.idx)), d.state[:]...), nil //nolint:gosec // idx < 1024
+	return append(binary.LittleEndian.AppendUint16(b, uint16(d.idx)), d.state[:]...), nil //nolint:gosec // idx < 1536
 }
 
 // MarshalBinary returns the binary representation of the duplex's state. It implements encoding.BinaryMarshaler.
@@ -148,7 +148,7 @@ var (
 )
 
 const (
-	width    = simpira.Permute1024Width // The width of the permutation in bytes.
+	width    = simpira.Permute1536Width // The width of the permutation in bytes.
 	capacity = 32                       // The duplex's capacity in bytes.
 	rate     = width - capacity         // The rate of the duplex as determined by its width and capacity.
 )
