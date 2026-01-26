@@ -120,15 +120,6 @@ func BenchmarkSimpira1536(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpira2048(b *testing.B) {
-	var state [256]byte
-	b.ReportAllocs()
-	b.SetBytes(int64(len(state)))
-	for b.Loop() {
-		simpira.Permute2048(&state)
-	}
-}
-
 func BenchmarkXoodoo(b *testing.B) {
 	var state [48]byte
 	b.SetBytes(int64(len(state)))

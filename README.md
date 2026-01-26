@@ -94,7 +94,6 @@ architectures:
 * Simpira-768 V2
 * Simpira-1024 V2
 * Simpira-1536 V2
-* Simpira-2048 V2
 * Xoodoo
 
 Of these, Simpira-1024 provides the best performance across both platforms. Areion-512 has better performance as a pure
@@ -120,7 +119,6 @@ BenchmarkSimpira512-14          34415426                34.59 ns/op     1850.27 
 BenchmarkSimpira768-14          34143124                34.75 ns/op     2762.43 MB/s           0 B/op          0 allocs/op
 BenchmarkSimpira1024-14         27120942                43.66 ns/op     2931.59 MB/s           0 B/op          0 allocs/op
 BenchmarkSimpira1536-14         19912922                60.16 ns/op     3191.31 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira2048-14         14362534                83.62 ns/op     3061.37 MB/s           0 B/op          0 allocs/op
 BenchmarkXoodoo-14              33420055                36.29 ns/op     1322.66 MB/s           0 B/op          0 allocs/op
 ```
 
@@ -143,7 +141,6 @@ BenchmarkSimpira512-4    	27757052	        43.05 ns/op	1486.63 MB/s	       0 B/o
 BenchmarkSimpira768-4    	27291609	        44.12 ns/op	2175.75 MB/s	       0 B/op	       0 allocs/op
 BenchmarkSimpira1024-4   	20610908	        58.13 ns/op	2201.86 MB/s	       0 B/op	       0 allocs/op
 BenchmarkSimpira1536-4   	11461620	       104.4 ns/op	1838.92 MB/s	       0 B/op	       0 allocs/op
-BenchmarkSimpira2048-4   	    2901	    412728 ns/op	   0.62 MB/s	       0 B/op	       0 allocs/op
 BenchmarkXoodoo-4        	11781493	       100.2 ns/op	 478.93 MB/s	       0 B/op	       0 allocs/op
 ```
 
