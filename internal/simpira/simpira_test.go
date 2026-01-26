@@ -47,6 +47,24 @@ func TestPermute1024(t *testing.T) {
 	}
 }
 
+func TestPermute1536(t *testing.T) {
+	var state [192]byte
+	Permute1536(&state)
+
+	if got, want := hex.EncodeToString(state[:]), "6a8eb4fbe5176447d2c317efa3f1a847f3353cdbb4923c13e91477f5abdf14892e97ee6a96721f2a2dc2b8166f16f886d66250d12588c92a62df3fecf7047605119fafac8c74a1aab7f2f463277df2c92903671ebd1351e6e2e6c95f6d9827b82b7acef3b626eb684fed1c6435c2716917eda93eb5df312527ca58c726fe45b5e9a57a376a97e5705bf5689c35c106c4e5787efb3d8705be728b07d501c53554f1130d5c1a2ec70014b935923af4cc8715c9c502657d26093d5e931786e5bdbe"; got != want {
+		t.Errorf("Permute1536(0x00) = %s, want = %s", got, want)
+	}
+}
+
+func TestPermute2048(t *testing.T) {
+	var state [256]byte
+	Permute2048(&state)
+
+	if got, want := hex.EncodeToString(state[:]), "085bfe50c91fef830db23fd0b1b26310f512b2e016f8b63cede55469c61a37418ec769175c62f41710530b4905307c1541aeb0be7e39587715c223ca4b954449a5eeb32b55635b1268e6a3491896a29e20b40b6634ca1fcc51073deab8ae0db1e18d65a0567b3bc6082f0e06c1df54dfd835e248f123ab932cce0a6683cea63bd61adcc310e8e1e755c5ced9fd2e2276c67d27ef2e757bd0b395581d20143c5412649c165e3ef6a0d1c342f94a37770f15060bb0fa949f4c556e2ce6cbb4514d868242aec3c31043238407c9d111019df239b337f27183958440025008d0f936f5b9d198a0311e3454891db7336109d7561edb9d7eeeea03d22aede1747afda5"; got != want {
+		t.Errorf("Permute2048(0x00) = %s, want = %s", got, want)
+	}
+}
+
 func FuzzPermute256(f *testing.F) {
 	const width = 32
 
@@ -155,6 +173,62 @@ func FuzzPermute1024(f *testing.F) {
 
 		if got, want := state2[:], state1[:]; !bytes.Equal(got, want) {
 			t.Errorf("Permute1024-ASM(%x) = %x, want = %x", data, got, want)
+		}
+	})
+}
+
+func FuzzPermute1536(f *testing.F) {
+	const width = 192
+
+	drbg := sha3.NewSHAKE128()
+	_, _ = drbg.Write([]byte("simpira-1536-v2"))
+	for range 10 {
+		state := make([]byte, width)
+		_, _ = drbg.Read(state)
+		f.Add(state)
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) != width {
+			t.Skip()
+		}
+
+		var state1, state2 [width]byte
+		copy(state1[:], data)
+		copy(state2[:], data)
+		Permute1536(&state1)
+		permute1536Generic(&state2)
+
+		if got, want := state2[:], state1[:]; !bytes.Equal(got, want) {
+			t.Errorf("Permute1536-ASM(%x) = %x, want = %x", data, got, want)
+		}
+	})
+}
+
+func FuzzPermute2048(f *testing.F) {
+	const width = 256
+
+	drbg := sha3.NewSHAKE128()
+	_, _ = drbg.Write([]byte("simpira-2048-v2"))
+	for range 10 {
+		state := make([]byte, width)
+		_, _ = drbg.Read(state)
+		f.Add(state)
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) != width {
+			t.Skip()
+		}
+
+		var state1, state2 [width]byte
+		copy(state1[:], data)
+		copy(state2[:], data)
+		Permute2048(&state1)
+		permute2048Generic(&state2)
+
+		if got, want := state2[:], state1[:]; !bytes.Equal(got, want) {
+			t.Errorf("Permute2048-ASM(%x) = %x, want = %x", data, got, want)
 		}
 	})
 }

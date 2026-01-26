@@ -93,6 +93,8 @@ architectures:
 * Simpira-512 V2
 * Simpira-768 V2
 * Simpira-1024 V2
+* Simpira-1536 V2
+* Simpira-2048 V2
 * Xoodoo
 
 Of these, Simpira-1024 provides the best performance across both platforms. Areion-512 has better performance as a pure
@@ -142,7 +144,8 @@ BenchmarkSimpira768-4    	27450266	        43.70 ns/op	2196.67 MB/s	       0 B/o
 BenchmarkSimpira1024-4   	21049959	        57.63 ns/op	2220.99 MB/s	       0 B/op	       0 allocs/op
 BenchmarkXoodoo-4        	12119104	        99.15 ns/op	 484.10 MB/s	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/codahale/newplex/internal/benchmarks	14.377s```
+ok  	github.com/codahale/newplex/internal/benchmarks	14.377s
+```
 
 ## License
 

@@ -171,3 +171,107 @@ func permute1024Generic(state *[128]byte) {
 		copy(state[i*16:(i+1)*16], blocks[i][:])
 	}
 }
+
+func permute1536Generic(state *[192]byte) {
+	c := uint32(1)
+	b := uint32(12)
+	s := [10]int{0, 1, 10, 9, 8, 7, 6, 5, 4, 3}
+	t := [2]int{2, 11}
+
+	var blocks [12][16]byte
+	for i := range 12 {
+		copy(blocks[i][:], state[i*16:(i+1)*16])
+	}
+
+	for r := range 24 {
+		// Six F-functions per round
+		f1 := fFunction(blocks[s[r%10]], c, b)
+		c++
+		f2 := fFunction(blocks[t[r%2]], c, b)
+		c++
+		f3 := fFunction(blocks[s[(r+8)%10]], c, b)
+		c++
+		f4 := fFunction(blocks[s[(r+6)%10]], c, b)
+		c++
+		f5 := fFunction(blocks[s[(r+4)%10]], c, b)
+		c++
+		f6 := fFunction(blocks[s[(r+2)%10]], c, b)
+		c++
+
+		dst1 := s[(r+1)%10]
+		dst2 := s[(r+9)%10]
+		dst3 := s[(r+7)%10]
+		dst4 := s[(r+5)%10]
+		dst5 := s[(r+3)%10]
+		dst6 := t[(r+1)%2]
+
+		for i := range 16 {
+			blocks[dst1][i] ^= f1[i]
+			blocks[dst2][i] ^= f2[i]
+			blocks[dst3][i] ^= f3[i]
+			blocks[dst4][i] ^= f4[i]
+			blocks[dst5][i] ^= f5[i]
+			blocks[dst6][i] ^= f6[i]
+		}
+	}
+
+	for i := range 12 {
+		copy(state[i*16:(i+1)*16], blocks[i][:])
+	}
+}
+
+func permute2048Generic(state *[256]byte) {
+	c := uint32(1)
+	b := uint32(16)
+	s := [14]int{0, 1, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3}
+	t := [2]int{2, 15}
+
+	var blocks [16][16]byte
+	for i := range 16 {
+		copy(blocks[i][:], state[i*16:(i+1)*16])
+	}
+
+	for r := range 30 {
+		// Eight F-functions per round
+		f1 := fFunction(blocks[s[r%14]], c, b)
+		c++
+		f2 := fFunction(blocks[t[r%2]], c, b)
+		c++
+		f3 := fFunction(blocks[s[(r+12)%14]], c, b)
+		c++
+		f4 := fFunction(blocks[s[(r+10)%14]], c, b)
+		c++
+		f5 := fFunction(blocks[s[(r+8)%14]], c, b)
+		c++
+		f6 := fFunction(blocks[s[(r+6)%14]], c, b)
+		c++
+		f7 := fFunction(blocks[s[(r+4)%14]], c, b)
+		c++
+		f8 := fFunction(blocks[s[(r+2)%14]], c, b)
+		c++
+
+		dst1 := s[(r+1)%14]
+		dst2 := s[(r+13)%14]
+		dst3 := s[(r+11)%14]
+		dst4 := s[(r+9)%14]
+		dst5 := s[(r+7)%14]
+		dst6 := s[(r+5)%14]
+		dst7 := s[(r+3)%14]
+		dst8 := t[(r+1)%2]
+
+		for i := range 16 {
+			blocks[dst1][i] ^= f1[i]
+			blocks[dst2][i] ^= f2[i]
+			blocks[dst3][i] ^= f3[i]
+			blocks[dst4][i] ^= f4[i]
+			blocks[dst5][i] ^= f5[i]
+			blocks[dst6][i] ^= f6[i]
+			blocks[dst7][i] ^= f7[i]
+			blocks[dst8][i] ^= f8[i]
+		}
+	}
+
+	for i := range 16 {
+		copy(state[i*16:(i+1)*16], blocks[i][:])
+	}
+}

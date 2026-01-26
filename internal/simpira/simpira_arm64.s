@@ -1600,3 +1600,154 @@ TEXT ·permute1024(SB), NOSPLIT, $0
 	VST1 [V7.B16], (R3)
 	RET
 
+// func permute1536(state *[192]byte)
+TEXT ·permute1536(SB), NOSPLIT, $0
+	MOVD state+0(FP), R0
+
+	VLD1 (R0), [V0.B16, V1.B16, V2.B16, V3.B16]
+	ADD $64, R0, R3
+	VLD1 (R3), [V4.B16, V5.B16, V6.B16, V7.B16]
+	ADD $64, R3, R3
+	VLD1 (R3), [V8.B16, V9.B16, V10.B16, V11.B16]
+
+	VEOR V12.B16, V12.B16, V12.B16 // zero
+	VEOR V13.B16, V13.B16, V13.B16 // constInc
+	MOVW $1, R1 // c
+	MOVW $12, R2 // b
+
+	MOVD $0x10, R3; VMOV R3, V13.S[1]
+	MOVD $0x20, R3; VMOV R3, V13.S[2]
+	MOVD $0x30, R3; VMOV R3, V13.S[3]
+
+#define F_STEP_ARM64(src, dst) \
+	EOR R1, R2, R4; \
+	VMOV R4, V14.S4; \
+	VEOR V13.B16, V14.B16, V14.B16; \
+	VORR src.B16, src.B16, V15.B16; \
+	AESE V12.B16, V15.B16; \
+	AESMC V15.B16, V15.B16; \
+	VEOR V14.B16, V15.B16, V15.B16; \
+	AESE V12.B16, V15.B16; \
+	AESMC V15.B16, V15.B16; \
+	VEOR V15.B16, dst.B16, dst.B16; \
+	ADD $1, R1
+
+#define ROUND_1536(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, t0, t1) \
+	F_STEP_ARM64(s0, s1); \
+	F_STEP_ARM64(t0, s9); \
+	F_STEP_ARM64(s8, s7); \
+	F_STEP_ARM64(s6, s5); \
+	F_STEP_ARM64(s4, s3); \
+	F_STEP_ARM64(s2, t1)
+
+	// Unroll 24 rounds
+	ROUND_1536(V0, V1, V10, V9, V8, V7, V6, V5, V4, V3, V2, V11) // 0
+	ROUND_1536(V1, V10, V9, V8, V7, V6, V5, V4, V3, V0, V11, V2) // 1
+	ROUND_1536(V10, V9, V8, V7, V6, V5, V4, V3, V0, V1, V2, V11) // 2
+	ROUND_1536(V9, V8, V7, V6, V5, V4, V3, V0, V1, V10, V11, V2) // 3
+	ROUND_1536(V8, V7, V6, V5, V4, V3, V0, V1, V10, V9, V2, V11) // 4
+	ROUND_1536(V7, V6, V5, V4, V3, V0, V1, V10, V9, V8, V11, V2) // 5
+	ROUND_1536(V6, V5, V4, V3, V0, V1, V10, V9, V8, V7, V2, V11) // 6
+	ROUND_1536(V5, V4, V3, V0, V1, V10, V9, V8, V7, V6, V11, V2) // 7
+	ROUND_1536(V4, V3, V0, V1, V10, V9, V8, V7, V6, V5, V2, V11) // 8
+	ROUND_1536(V3, V0, V1, V10, V9, V8, V7, V6, V5, V4, V11, V2) // 9
+
+	ROUND_1536(V0, V1, V10, V9, V8, V7, V6, V5, V4, V3, V2, V11) // 10
+	ROUND_1536(V1, V10, V9, V8, V7, V6, V5, V4, V3, V0, V11, V2) // 11
+	ROUND_1536(V10, V9, V8, V7, V6, V5, V4, V3, V0, V1, V2, V11) // 12
+	ROUND_1536(V9, V8, V7, V6, V5, V4, V3, V0, V1, V10, V11, V2) // 13
+	ROUND_1536(V8, V7, V6, V5, V4, V3, V0, V1, V10, V9, V2, V11) // 14
+	ROUND_1536(V7, V6, V5, V4, V3, V0, V1, V10, V9, V8, V11, V2) // 15
+	ROUND_1536(V6, V5, V4, V3, V0, V1, V10, V9, V8, V7, V2, V11) // 16
+	ROUND_1536(V5, V4, V3, V0, V1, V10, V9, V8, V7, V6, V11, V2) // 17
+	ROUND_1536(V4, V3, V0, V1, V10, V9, V8, V7, V6, V5, V2, V11) // 18
+	ROUND_1536(V3, V0, V1, V10, V9, V8, V7, V6, V5, V4, V11, V2) // 19
+
+	ROUND_1536(V0, V1, V10, V9, V8, V7, V6, V5, V4, V3, V2, V11) // 20
+	ROUND_1536(V1, V10, V9, V8, V7, V6, V5, V4, V3, V0, V11, V2) // 21
+	ROUND_1536(V10, V9, V8, V7, V6, V5, V4, V3, V0, V1, V2, V11) // 22
+	ROUND_1536(V9, V8, V7, V6, V5, V4, V3, V0, V1, V10, V11, V2) // 23
+
+	MOVD state+0(FP), R0
+	VST1 [V0.B16, V1.B16, V2.B16, V3.B16], (R0)
+	ADD $64, R0, R3
+	VST1 [V4.B16, V5.B16, V6.B16, V7.B16], (R3)
+	ADD $64, R3, R3
+	VST1 [V8.B16, V9.B16, V10.B16, V11.B16], (R3)
+	RET
+
+// func permute2048(state *[256]byte)
+TEXT ·permute2048(SB), NOSPLIT, $0
+	MOVD state+0(FP), R0
+
+	VLD1 (R0), [V0.B16, V1.B16, V2.B16, V3.B16]
+	ADD $64, R0, R3
+	VLD1 (R3), [V4.B16, V5.B16, V6.B16, V7.B16]
+	ADD $64, R3, R3
+	VLD1 (R3), [V8.B16, V9.B16, V10.B16, V11.B16]
+	ADD $64, R3, R3
+	VLD1 (R3), [V12.B16, V13.B16, V14.B16, V15.B16]
+
+	VEOR V16.B16, V16.B16, V16.B16 // zero
+	VEOR V17.B16, V17.B16, V17.B16 // constInc
+	MOVW $1, R1 // c
+	MOVW $16, R2 // b
+
+	MOVD $0x10, R3; VMOV R3, V17.S[1]
+	MOVD $0x20, R3; VMOV R3, V17.S[2]
+	MOVD $0x30, R3; VMOV R3, V17.S[3]
+
+#define F_STEP_2048(src, dst) \
+	EOR R1, R2, R4; \
+	VMOV R4, V18.S4; \
+	VEOR V17.B16, V18.B16, V18.B16; \
+	VORR src.B16, src.B16, V19.B16; \
+	AESE V16.B16, V19.B16; \
+	AESMC V19.B16, V19.B16; \
+	VEOR V18.B16, V19.B16, V19.B16; \
+	AESE V16.B16, V19.B16; \
+	AESMC V19.B16, V19.B16; \
+	VEOR V19.B16, dst.B16, dst.B16; \
+	ADD $1, R1
+
+#define ROUND_2048(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, t0, t1) \
+	F_STEP_2048(s0, s1); \
+	F_STEP_2048(t0, s13); \
+	F_STEP_2048(s12, s11); \
+	F_STEP_2048(s10, s9); \
+	F_STEP_2048(s8, s7); \
+	F_STEP_2048(s6, s5); \
+	F_STEP_2048(s4, s3); \
+	F_STEP_2048(s2, t1)
+
+#define ROUNDS_2048_14(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, t0, t1) \
+	ROUND_2048(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, t0, t1) \
+	ROUND_2048(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s0, t1, t0) \
+	ROUND_2048(s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s0, s1, t0, t1) \
+	ROUND_2048(s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s0, s1, s2, t1, t0) \
+	ROUND_2048(s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s0, s1, s2, s3, t0, t1) \
+	ROUND_2048(s5, s6, s7, s8, s9, s10, s11, s12, s13, s0, s1, s2, s3, s4, t1, t0) \
+	ROUND_2048(s6, s7, s8, s9, s10, s11, s12, s13, s0, s1, s2, s3, s4, s5, t0, t1) \
+	ROUND_2048(s7, s8, s9, s10, s11, s12, s13, s0, s1, s2, s3, s4, s5, s6, t1, t0) \
+	ROUND_2048(s8, s9, s10, s11, s12, s13, s0, s1, s2, s3, s4, s5, s6, s7, t0, t1) \
+	ROUND_2048(s9, s10, s11, s12, s13, s0, s1, s2, s3, s4, s5, s6, s7, s8, t1, t0) \
+	ROUND_2048(s10, s11, s12, s13, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, t0, t1) \
+	ROUND_2048(s11, s12, s13, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, t1, t0) \
+	ROUND_2048(s12, s13, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, t0, t1) \
+	ROUND_2048(s13, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, t1, t0)
+
+	ROUNDS_2048_14(V0, V1, V14, V13, V12, V11, V10, V9, V8, V7, V6, V5, V4, V3, V2, V15) // 0-13
+	ROUNDS_2048_14(V0, V1, V14, V13, V12, V11, V10, V9, V8, V7, V6, V5, V4, V3, V2, V15) // 14-27
+	ROUND_2048(V0, V1, V14, V13, V12, V11, V10, V9, V8, V7, V6, V5, V4, V3, V2, V15) // 28
+	ROUND_2048(V1, V14, V13, V12, V11, V10, V9, V8, V7, V6, V5, V4, V3, V0, V15, V2) // 29
+
+	MOVD state+0(FP), R0
+	VST1 [V0.B16, V1.B16, V2.B16, V3.B16], (R0)
+	ADD $64, R0, R3
+	VST1 [V4.B16, V5.B16, V6.B16, V7.B16], (R3)
+	ADD $64, R3, R3
+	VST1 [V8.B16, V9.B16, V10.B16, V11.B16], (R3)
+	ADD $64, R3, R3
+	VST1 [V12.B16, V13.B16, V14.B16, V15.B16], (R3)
+	RET
+

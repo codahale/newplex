@@ -255,6 +255,78 @@ TEXT ·permute1024(SB), NOSPLIT, $0
 	MOVOU X7, 112(DI)
 	RET
 
+// func permute1536(state *[192]byte)
+TEXT ·permute1536(SB), NOSPLIT, $0
+	MOVQ state+0(FP), DI
+
+	MOVOU 0(DI), X0
+	MOVOU 16(DI), X1
+	MOVOU 32(DI), X2
+	MOVOU 48(DI), X3
+	MOVOU 64(DI), X4
+	MOVOU 80(DI), X5
+	MOVOU 96(DI), X6
+	MOVOU 112(DI), X7
+	MOVOU 128(DI), X8
+	MOVOU 144(DI), X9
+	MOVOU 160(DI), X10
+	MOVOU 176(DI), X11
+
+	PXOR X15, X15     // zero
+	MOVL $1, AX       // c = 1
+	MOVL $12, BX      // b = 12
+
+	// ROUND_12_STEP: s0..s9 are S-registers, t0, t1 are T-registers
+#define ROUND_12_STEP(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, t0, t1) \
+	F_STEP(s0, s1); \
+	F_STEP(t0, s9); \
+	F_STEP(s8, s7); \
+	F_STEP(s6, s5); \
+	F_STEP(s4, s3); \
+	F_STEP(s2, t1)
+
+	// Reg mapping:
+	// S: X0, X1, X10, X9, X8, X7, X6, X5, X4, X3
+	// T: X2, X11
+
+	// Unroll 24 rounds
+	// We need 24 rounds, which is 2.4 * 10... let's just do it in a loop or unroll 10 rounds.
+	// Since 24 is not a multiple of 10, let's unroll 24 rounds manually or use a loop.
+	// Manual unroll is safer for performance and register mapping.
+
+#define ROUNDS_12_10(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, t0, t1) \
+	ROUND_12_STEP(s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, t0, t1) \
+	ROUND_12_STEP(s1, s2, s3, s4, s5, s6, s7, s8, s9, s0, t1, t0) \
+	ROUND_12_STEP(s2, s3, s4, s5, s6, s7, s8, s9, s0, s1, t0, t1) \
+	ROUND_12_STEP(s3, s4, s5, s6, s7, s8, s9, s0, s1, s2, t1, t0) \
+	ROUND_12_STEP(s4, s5, s6, s7, s8, s9, s0, s1, s2, s3, t0, t1) \
+	ROUND_12_STEP(s5, s6, s7, s8, s9, s0, s1, s2, s3, s4, t1, t0) \
+	ROUND_12_STEP(s6, s7, s8, s9, s0, s1, s2, s3, s4, s5, t0, t1) \
+	ROUND_12_STEP(s7, s8, s9, s0, s1, s2, s3, s4, s5, s6, t1, t0) \
+	ROUND_12_STEP(s8, s9, s0, s1, s2, s3, s4, s5, s6, s7, t0, t1) \
+	ROUND_12_STEP(s9, s0, s1, s2, s3, s4, s5, s6, s7, s8, t1, t0)
+
+	ROUNDS_12_10(X0, X1, X10, X9, X8, X7, X6, X5, X4, X3, X2, X11) // Rounds 0-9
+	ROUNDS_12_10(X0, X1, X10, X9, X8, X7, X6, X5, X4, X3, X2, X11) // Rounds 10-19
+	ROUND_12_STEP(X0, X1, X10, X9, X8, X7, X6, X5, X4, X3, X2, X11) // Round 20
+	ROUND_12_STEP(X1, X10, X9, X8, X7, X6, X5, X4, X3, X0, X11, X2) // Round 21
+	ROUND_12_STEP(X10, X9, X8, X7, X6, X5, X4, X3, X0, X1, X2, X11) // Round 22
+	ROUND_12_STEP(X9, X8, X7, X6, X5, X4, X3, X0, X1, X10, X11, X2) // Round 23
+
+	MOVOU X0, 0(DI)
+	MOVOU X1, 16(DI)
+	MOVOU X2, 32(DI)
+	MOVOU X3, 48(DI)
+	MOVOU X4, 64(DI)
+	MOVOU X5, 80(DI)
+	MOVOU X6, 96(DI)
+	MOVOU X7, 112(DI)
+	MOVOU X8, 128(DI)
+	MOVOU X9, 144(DI)
+	MOVOU X10, 160(DI)
+	MOVOU X11, 176(DI)
+	RET
+
 GLOBL ·constInc(SB), (NOPTR+RODATA), $16
 DATA ·constInc+0(SB)/4, $0x00
 DATA ·constInc+4(SB)/4, $0x10
