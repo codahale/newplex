@@ -100,11 +100,11 @@ The `Encrypt` operation XORs the duplex's remaining rate with the input in block
 result as the ciphertext. When the duplex's rate is exhausted, it calls `Permute`.
 
 The `Decrypt` operation XORs the ciphertext with the duplex's remaining rate in blocks of up to 768 bits, returning the
-result as the plaintext. It then XORs the duplex's rate with the plaintext. When the duplex's rate is exhausted, it
+result as the plaintext. It then replaces the duplex's rate with the ciphertext. When the duplex's rate is exhausted, it
 calls `Permute`.
 
-This is functionally the same as the [SpongeWrap] construction, combining an `Absorb` call of the plaintext with a
-`Squeeze` call for encryption.
+This is functionally the same as the [SpongeWrap] construction, combining an `Absorb` operation of the plaintext with a
+`Squeeze` operation for a keystream.
 
 **N.B.:** Neither `Encrypt` nor `Decrypt` call `Permute` at the end of the operation, therefore a sequence of `Encrypt`
 operations are equivalent to a single `Encrypt` operation with the concatenation of the sequence's outputs (e.g.

@@ -51,8 +51,8 @@ func (d *Duplex) Squeeze(out []byte) {
 	}
 }
 
-// Encrypt XORs the given plaintext slice with the duplex's state, copies the result to the given ciphertext slice, then
-// XORs the duplex's state with the plaintext.
+// Encrypt XORs the given plaintext slice with the duplex's state, copies the result to the given ciphertext slice, and
+// updates the duplex's state with the ciphertext.
 //
 // Multiple Encrypt calls are effectively the same thing as a single Encrypt call with concatenated inputs.
 //
@@ -75,8 +75,8 @@ func (d *Duplex) Encrypt(ciphertext, plaintext []byte) {
 	}
 }
 
-// Decrypt XORs the given ciphertext slice with the duplex's state, copies the result to the given plaintext slice, then
-// XORs the duplex's state with the plaintext.
+// Decrypt XORs the given ciphertext slice with the duplex's state, copies the result to the given plaintext slice, and
+// updates the duplex's state with the ciphertext.
 //
 // Multiple Decrypt calls are effectively the same thing as a single Decrypt call with concatenated inputs.
 //
