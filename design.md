@@ -17,14 +17,14 @@
       * [KDF Chains](#kdf-chains)
     * [`Encrypt`/`Decrypt`](#encryptdecrypt-1)
     * [`Seal`/`Open`](#sealopen)
-  * [Basic Protocols](#basic-protocols)
+  * [Basic Constructions](#basic-constructions-)
     * [Message Digests](#message-digests)
     * [Message Authentication Codes](#message-authentication-codes)
     * [Stream Ciphers](#stream-ciphers)
     * [Authenticated Encryption And Data (AEAD)](#authenticated-encryption-and-data-aead)
     * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
       * [Bidirectional Streaming](#bidirectional-streaming)
-  * [Complex Protocols](#complex-protocols)
+  * [Complex Constructions](#complex-constructions)
     * [Hybrid Public-Key Encryption](#hybrid-public-key-encryption)
     * [Digital Signatures](#digital-signatures)
     * [Signcryption](#signcryption)
@@ -33,7 +33,7 @@
 ## What is Newplex?
 
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
-hashing, encryption, message authentication codes, and authenticated encryption) in complex protocols. Inspired
+hashing, encryption, message authentication codes, and authenticated encryption) in complex constructions. Inspired
 by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [SpongeWrap], and [Xoodyak]'s
 Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern processors at a
 128-bit security level.
@@ -328,7 +328,7 @@ nonce.
 accidental disclosure of unauthenticated plaintext and follows the generally recommended practices for API design of
 authenticated encryption.
 
-## Basic Protocols
+## Basic Constructions 
 
 By combining operations, we can construct a wide variety of cryptographic schemes using a single protocol.
 
@@ -497,7 +497,7 @@ recv.Mix("sender", "initiator")
 
 This ensures the protocols being used to send and receive data have different states and therefore different outputs.
 
-## Complex Protocols
+## Complex Constructions
 
 Given an elliptic curve group like NIST P-256, a protocol can be used to build complex constructions which integrate
 public- and symmetric-key operations.
