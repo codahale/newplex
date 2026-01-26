@@ -106,17 +106,20 @@ goos: darwin
 goarch: arm64
 pkg: github.com/codahale/newplex/internal/benchmarks
 cpu: Apple M4 Pro
-BenchmarkAreion512-14           52033636                22.56 ns/op     2836.91 MB/s           0 B/op          0 allocs/op
-BenchmarkGimli384-14            17204002                68.57 ns/op      700.03 MB/s           0 B/op          0 allocs/op
-BenchmarkHaraka512-14           48473830                23.71 ns/op     2699.46 MB/s           0 B/op          0 allocs/op
-BenchmarkKeccakF1600-14         10313076               116.2 ns/op      1721.23 MB/s           0 B/op          0 allocs/op
-BenchmarkKeccakP1600-14         19886576                59.85 ns/op     3341.83 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira256-14          34086267                34.62 ns/op      924.35 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira512-14          34091756                34.66 ns/op     1846.25 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira768-14          33838640                34.77 ns/op     2760.77 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira1024-14         27197598                43.55 ns/op     2938.97 MB/s           0 B/op          0 allocs/op
+BenchmarkAreion512-14           52679250                22.40 ns/op     2857.00 MB/s           0 B/op          0 allocs/op
+BenchmarkAscon12-14             42512047                27.18 ns/op     1471.61 MB/s           0 B/op          0 allocs/op
+BenchmarkAscon8-14              61347211                18.81 ns/op     2126.69 MB/s           0 B/op          0 allocs/op
+BenchmarkGimli384-14            17059296                69.27 ns/op      692.97 MB/s           0 B/op          0 allocs/op
+BenchmarkHaraka512-14           47788773                23.80 ns/op     2688.52 MB/s           0 B/op          0 allocs/op
+BenchmarkKeccakF1600-14         10146657               119.3 ns/op      1676.13 MB/s           0 B/op          0 allocs/op
+BenchmarkKeccakP1600-14         19530189                60.14 ns/op     3325.64 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira256-14          33790996                34.69 ns/op      922.38 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira512-14          33207919                34.81 ns/op     1838.79 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira768-14          33497368                34.91 ns/op     2750.22 MB/s           0 B/op          0 allocs/op
+BenchmarkSimpira1024-14         26684974                43.91 ns/op     2915.01 MB/s           0 B/op          0 allocs/op
+BenchmarkXoodoo-14              33025855                36.70 ns/op     1307.82 MB/s           0 B/op          0 allocs/op
 PASS
-ok      github.com/codahale/newplex/internal/benchmarks 10.828s
+ok      github.com/codahale/newplex/internal/benchmarks 14.340s
 ```
 
 ### amd64
@@ -126,18 +129,20 @@ goos: linux
 goarch: amd64
 pkg: github.com/codahale/newplex/internal/benchmarks
 cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
-BenchmarkAreion512-4            55425592                21.76 ns/op     2941.06 MB/s           0 B/op          0 allocs/op
-BenchmarkGimli384-4             15715965                76.63 ns/op      626.40 MB/s           0 B/op          0 allocs/op
-BenchmarkHaraka512-4            40959205                29.44 ns/op     2173.84 MB/s           0 B/op          0 allocs/op
-BenchmarkKeccakF1600-4           3677113               327.6 ns/op       610.42 MB/s           0 B/op          0 allocs/op
-BenchmarkKeccakP1600-4           7366798               163.0 ns/op      1227.36 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira256-4           29939313                40.29 ns/op      794.22 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira512-4           29543602                40.77 ns/op     1569.60 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira768-4           28870940                41.90 ns/op     2291.35 MB/s           0 B/op          0 allocs/op
-BenchmarkSimpira1024-4          21799807                55.25 ns/op     2316.78 MB/s           0 B/op          0 allocs/op
+BenchmarkAreion512-4     	52504920	        22.76 ns/op	2811.70 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAscon12-4       	19433097	        61.16 ns/op	 654.05 MB/s	       0 B/op	       0 allocs/op
+BenchmarkAscon8-4        	26815138	        44.47 ns/op	 899.47 MB/s	       0 B/op	       0 allocs/op
+BenchmarkGimli384-4      	14961410	        80.40 ns/op	 597.01 MB/s	       0 B/op	       0 allocs/op
+BenchmarkHaraka512-4     	38832696	        31.02 ns/op	2063.41 MB/s	       0 B/op	       0 allocs/op
+BenchmarkKeccakF1600-4   	 3504847	       341.0 ns/op	 586.58 MB/s	       0 B/op	       0 allocs/op
+BenchmarkKeccakP1600-4   	 7024897	       171.4 ns/op	1166.77 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSimpira256-4    	28116415	        42.20 ns/op	 758.33 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSimpira512-4    	27862384	        42.65 ns/op	1500.66 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSimpira768-4    	27450266	        43.70 ns/op	2196.67 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSimpira1024-4   	21049959	        57.63 ns/op	2220.99 MB/s	       0 B/op	       0 allocs/op
+BenchmarkXoodoo-4        	12119104	        99.15 ns/op	 484.10 MB/s	       0 B/op	       0 allocs/op
 PASS
-ok      github.com/codahale/newplex/internal/benchmarks 10.851s
-```
+ok  	github.com/codahale/newplex/internal/benchmarks	14.377s```
 
 ## License
 
