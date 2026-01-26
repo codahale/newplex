@@ -9,6 +9,7 @@ import (
 	"github.com/codahale/newplex/internal/haraka"
 	"github.com/codahale/newplex/internal/keccak"
 	"github.com/codahale/newplex/internal/simpira"
+	"github.com/codahale/newplex/internal/xoodoo"
 )
 
 func BenchmarkAreion512(b *testing.B) {
@@ -107,5 +108,14 @@ func BenchmarkSimpira1024(b *testing.B) {
 	b.SetBytes(int64(len(state)))
 	for b.Loop() {
 		simpira.Permute1024(&state)
+	}
+}
+
+func BenchmarkXoodoo(b *testing.B) {
+	var state [48]byte
+	b.SetBytes(int64(len(state)))
+	b.ReportAllocs()
+	for b.Loop() {
+		xoodoo.Permute(&state)
 	}
 }
