@@ -2,7 +2,34 @@
 
 #include "textflag.h"
 
-// func permute(state *[Width]byte)
+// Helper macro for F function
+// Uses X14, X13 as temps. X15 is zero.
+// Updates AX (c).
+// Usage: F_STEP(src, dst)
+#define F_STEP(src, dst) \
+	MOVL AX, DX; \
+	XORL BX, DX; \
+	MOVD DX, X14; \
+	PSHUFD $0, X14, X14; \
+	PXOR ·constInc(SB), X14; \
+	MOVOU src, X13; \
+	AESENC X14, X13; \
+	AESENC X15, X13; \
+	PXOR X13, dst; \
+	INCL AX
+
+// ROUND_8_STEP: s0..s5 are S-registers, t0, t1 are T-registers
+// Op 1: s0 -> s1
+// Op 2: t0 -> s5
+// Op 3: s4 -> s3
+// Op 4: s2 -> t1
+#define ROUND_8_STEP(s0, s1, s2, s3, s4, s5, t0, t1) \
+	F_STEP(s0, s1); \
+	F_STEP(t0, s5); \
+	F_STEP(s4, s3); \
+	F_STEP(s2, t1)
+
+// func permute(state *[128]byte)
 TEXT ·permute(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
@@ -19,16 +46,6 @@ TEXT ·permute(SB), NOSPLIT, $0
 	MOVL $1, AX       // c = 1
 	MOVL $8, BX       // b = 8
 	
-	// ROUND_8_STEP: s0..s5 are S-registers, t0, t1 are T-registers
-	// Op 1: s0 -> s1
-	// Op 2: t0 -> s5
-	// Op 3: s4 -> s3
-	// Op 4: s2 -> t1
-#define ROUND_8_STEP(s0, s1, s2, s3, s4, s5, t0, t1) \
-	F_STEP(s0, s1); \
-	F_STEP(t0, s5); \
-	F_STEP(s4, s3); \
-	F_STEP(s2, t1)
 
 	// Reg mapping:
 	// S: X0, X1, X6, X5, X4, X3
