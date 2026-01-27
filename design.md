@@ -334,9 +334,20 @@ from the received plaintext. If the two are equal, the plaintext is returned. Ot
 `Seal` and `Open` provide IND-CCA2 security if one of the protocol's inputs includes a probabilistic value, like a
 nonce.
 
+**N.B.:** An attacker presenting a modified ciphertext will, as part of the duplex's `Decrypt` operation, be able to
+insert data into the duplex's rate. This does not present a security problem, as the duplex's capacity remains
+inaccessible. Any attack that successfully biases the duplex's state post-permutation would completely invalidate all
+of [Simpira-1024]'s security claims.
+
+**N.B.:** A modified ciphertext will result in the protocol having an entirely different state  after an `Open`
+operation. All future operations will result in different outputs and the inability to decrypt or open ciphertexts. This
+is intentional. Because an active attacker is unable to control the duplex's post-permutation state, this does not
+present an avenue for influence.
+
 **N.B.:** Unlike `Encrypt`, `Seal` does not support streaming operations. This is an intentional choice to mitigate the
 accidental disclosure of unauthenticated plaintext and follows the generally recommended practices for API design of
-authenticated encryption.
+authenticated encryption. See the [Streaming Authenticated Encryption](#streaming-authenticated-encryption) construction
+for details on how to handle streaming data.
 
 ## Basic Constructions 
 
