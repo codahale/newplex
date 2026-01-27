@@ -8,6 +8,7 @@
     * [`Permute`](#permute)
     * [`Absorb`](#absorb)
     * [`Squeeze`](#squeeze)
+    * [`Ratchet`](#ratchet)
     * [`Encrypt`/`Decrypt`](#encryptdecrypt)
   * [The Protocol](#the-protocol)
     * [`Init`](#init)
@@ -94,9 +95,10 @@ This provides the following security levels:
 | State/Key Recovery   | 256          | `c`     | (assuming K≥256) |
 | Indistinguishability | 128          | `c/2`   | birthday bound   |
 
-The duplex provides a small number of operations: `Permute`, `Absorb`, `Squeeze`, and `Encrypt`/`Decrypt`. It provides
-no padding or framing scheme and only permutes its state when an operation's input is larger than the duplex's remaining
-rate. As such, it is a building block for higher level operations and should be considered cryptographic hazmat.
+The duplex provides a small number of operations: `Permute`, `Absorb`, `Squeeze`, `Ratchet`, and `Encrypt`/`Decrypt`. It
+provides no padding or framing scheme and only permutes its state when an operation's input is larger than the duplex's
+remaining rate. As such, it is a building block for higher level operations and should be considered cryptographic
+hazmat.
 
 ### `Permute`
 
@@ -118,9 +120,15 @@ The `Squeeze` operation returns the duplex's remaining rate in blocks of up to 7
 exhausted, it calls `Permute`.
 
 **N.B.:** `Squeeze` does not call `Permute` at the end of the operation, therefore a sequence of `Squeeze` operations
-are
-equivalent to a single `Squeeze` operation with the concatenation of the sequence's outputs (e.g.
+are equivalent to a single `Squeeze` operation with the concatenation of the sequence's outputs (e.g.
 `Squeeze(10); Squeeze(6)` is equivalent to `Squeeze(16)`).
+
+### `Ratchet`
+
+The `Ratchet` operation zeroes out the duplex's rate, leaving the capacity intact, then calls `Permute`. This
+irreversibly modifies the duplex's state, preventing potential rollback attacks and establishing forward secrecy. An
+attacker in possession of the duplex's full post-ratchet state is only able to recover the capacity of the duplex's
+pre-ratchet state and is unable to recover any of the duplex's prior output.
 
 ### `Encrypt`/`Decrypt`
 
@@ -204,13 +212,13 @@ function Derive(label, n):
   Absorb(0x03 || left_encode(|label|) || label || right_encode(n))
   Permute()
   prf = Squeeze(n)
-  Permute()
+  Ratchet()
   return prf
 ```
 
 `Derive` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
 state is indistinguishable from random, and squeezes the requested output from the duplex. Finally, the duplex's state
-is permuted again to prevent rollback.
+is ratcheted to prevent rollback.
 
 **N.B.:** A `Derive` operation's output depends on both the label and the output length.
 
@@ -253,6 +261,7 @@ function Encrypt(label, plaintext):
   ciphertext = Encrypt(plaintext)
   Absorb(right_encode(|plaintext|))
   Permute()
+  Ratchet()
   return ciphertext
   
 function Decrypt(label, ciphertext):
@@ -261,12 +270,14 @@ function Decrypt(label, ciphertext):
   plaintext = Decrypt(ciphertext)
   Absorb(right_encode(|plaintext|))
   Permute()
+  Ratchet()
   return plaintext
 ```
 
 `Encrypt` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
 state is indistinguishable from random, and encrypts the input with the duplex. The total length of the plaintext is
-absorbed. Finally, the duplex's state is permuted again to prevent rollback.
+absorbed, and the duplex's state is permuted to ensure the duplex's capacity is dependent on the plaintext length.
+Finally, the duplex's state is ratcheted to prevent rollback.
 
 `Decrypt` is identical but uses the duplex to decrypt the data.
 
@@ -298,7 +309,7 @@ function Seal(label, plaintext):
   ciphertext = Encrypt(plaintext)
   Permute()
   tag = Squeeze(128)
-  Permute()
+  Ratchet()
   return ciphertext || tag
   
 function Open(label, ciphertext || tag):
@@ -307,7 +318,7 @@ function Open(label, ciphertext || tag):
   plaintext = Decrypt(ciphertext)
   Permute()
   tag' = Squeeze(128)
-  Permute()
+  Ratchet()
   if tag != tag':
     return ErrInvalidCiphertext
   return plaintext
@@ -315,8 +326,7 @@ function Open(label, ciphertext || tag):
 
 `Seal` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
 state is indistinguishable from random, and encrypts the input with the duplex. Next, the duplex is permuted again, and
-a 128-bit tag is squeezed from the duplex's state. Finally, the duplex's state is permuted a third time to prevent
-rollback.
+a 128-bit tag is squeezed from the duplex's state. Finally, the duplex's state ratcheted to prevent rollback.
 
 `Open` is identical but uses the duplex to decrypt the data and compares the received tag to an expected tag derived
 from the received plaintext. If the two are equal, the plaintext is returned. Otherwise, an error is returned.

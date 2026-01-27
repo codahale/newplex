@@ -88,7 +88,7 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 	ret, prf := sliceForAppend(dst, n)
 	p.duplex.Permute()
 	p.duplex.Squeeze(prf)
-	p.duplex.Permute()
+	p.duplex.Ratchet()
 	return ret
 }
 
@@ -109,6 +109,7 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 	p.duplex.Encrypt(ciphertext, plaintext)
 	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))*bitsPerByte))
 	p.duplex.Permute()
+	p.duplex.Ratchet()
 	return ret
 }
 
@@ -149,6 +150,7 @@ func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 	p.duplex.Decrypt(plaintext, ciphertext)
 	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))*bitsPerByte))
 	p.duplex.Permute()
+	p.duplex.Ratchet()
 	return ret
 }
 
@@ -191,7 +193,7 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	p.duplex.Encrypt(ciphertext, plaintext)
 	p.duplex.Permute()
 	p.duplex.Squeeze(tag)
-	p.duplex.Permute()
+	p.duplex.Ratchet()
 	return ret
 }
 
@@ -212,7 +214,7 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	p.duplex.Decrypt(plaintext, ciphertext)
 	p.duplex.Permute()
 	p.duplex.Squeeze(expectedTag[:])
-	p.duplex.Permute()
+	p.duplex.Ratchet()
 
 	if subtle.ConstantTimeCompare(receivedTag, expectedTag[:]) == 0 {
 		clear(plaintext)

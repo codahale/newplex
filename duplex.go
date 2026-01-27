@@ -109,6 +109,12 @@ func (d *Duplex) Permute() {
 	d.idx = 0
 }
 
+// Ratchet zeroes out the duplex's rate and applies the Simpira-1024 permutation.
+func (d *Duplex) Ratchet() {
+	clear(d.state[:rate])
+	d.Permute()
+}
+
 // String returns the hexadecimal representation of the duplex's state.
 func (d *Duplex) String() string {
 	return hex.EncodeToString(d.state[:])
