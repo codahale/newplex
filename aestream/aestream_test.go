@@ -38,33 +38,6 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestLargeBlock(t *testing.T) {
-	p1 := newplex.NewProtocol("example")
-	p1.Mix("key", []byte("it's a key"))
-	buf := bytes.NewBuffer(nil)
-	w := aestream.NewWriter(&p1, buf)
-
-	data := make([]byte, aestream.MaxBlockSize)
-	if _, err := w.Write(data); err != nil {
-		t.Fatal(err)
-	}
-	if err := w.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	p2 := newplex.NewProtocol("example")
-	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
-	b, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(b) != len(data) {
-		t.Errorf("len(b) = %d, want %d", len(b), len(data))
-	}
-}
-
 func TestTruncation(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("key", []byte("it's a key"))
