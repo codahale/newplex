@@ -252,3 +252,63 @@ func ExampleDuplex_Encrypt() {
 	// 5d369b4ce12f16bbb778f5
 	// hello world
 }
+
+func BenchmarkDuplex_Absorb(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			input := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Absorb(input)
+			}
+		})
+	}
+}
+
+func BenchmarkDuplex_Squeeze(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			output := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Squeeze(output)
+			}
+		})
+	}
+}
+
+func BenchmarkDuplex_Encrypt(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			d.Permute()
+
+			output := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Encrypt(output, output)
+			}
+		})
+	}
+}
+
+func BenchmarkDuplex_Decrypt(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			var d newplex.Duplex
+			d.Permute()
+
+			output := make([]byte, length.n)
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+			for b.Loop() {
+				d.Decrypt(output, output)
+			}
+		})
+	}
+}

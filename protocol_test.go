@@ -260,3 +260,79 @@ func TestProtocol_Open_unauthenticated_plaintext(t *testing.T) {
 		t.Fatalf("Open(invalid) left reachable unauthenticated plaintext: %x vs %x", got, plaintext)
 	}
 }
+
+func BenchmarkNewProtocol(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		newplex.NewProtocol("mix")
+	}
+}
+
+func BenchmarkProtocol_Mix(b *testing.B) {
+	p := newplex.NewProtocol("mix")
+	label := "label"
+	input := []byte("input")
+
+	b.ReportAllocs()
+	for b.Loop() {
+		p.Mix(label, input)
+	}
+}
+
+func BenchmarkProtocol_Derive(b *testing.B) {
+	p := newplex.NewProtocol("derive")
+	label := "label"
+	output := make([]byte, 32)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		p.Derive(label, output[:0], len(output))
+	}
+}
+
+func BenchmarkProtocol_Encrypt(b *testing.B) {
+	p := newplex.NewProtocol("encrypt")
+	label := "label"
+	output := make([]byte, 32)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		p.Encrypt(label, output[:0], output)
+	}
+}
+
+func BenchmarkProtocol_Decrypt(b *testing.B) {
+	p := newplex.NewProtocol("decrypt")
+	label := "label"
+	output := make([]byte, 32)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		p.Decrypt(label, output[:0], output)
+	}
+}
+
+func BenchmarkProtocol_Seal(b *testing.B) {
+	p := newplex.NewProtocol("seal")
+	label := "label"
+	output := make([]byte, 32+newplex.TagSize)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		p.Seal(label, output[:0], output[:32])
+	}
+}
+
+func BenchmarkProtocol_Open(b *testing.B) {
+	output := make([]byte, 32)
+	p := newplex.NewProtocol("open")
+	ciphertext := p.Seal("label", nil, output)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		p := newplex.NewProtocol("open")
+		if _, err := p.Open("label", output[:0], ciphertext); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
