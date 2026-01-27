@@ -41,8 +41,8 @@ constant-time AES round implementation.
 
 ### Protocol
 
-`Protocol` is the high-level API, designed for constructing complex cryptographic protocols (e.g., transcripts,
-sessions) with domain separation and state management.
+`Protocol` is the high-level API, designed for easily building complex cryptographic constructions (e.g., hash
+functions, MACs, stream ciphers, AEADs, sessions) with domain separation and state management.
 
 ```go
 // Initialize a protocol with a domain separation string.
@@ -65,13 +65,14 @@ tag := p.Derive("tag", nil, 32)
 
 ### Duplex
 
-`Duplex` is the low-level primitive using the Simpira-1024 V2 permutation. It supports `Absorb`, `Squeeze`, `Encrypt`,
-and `Decrypt` operations directly on the state.
+`Duplex` is the low-level primitive using the Simpira-1024 V2 permutation. It supports `Permute`, `Absorb`, `Squeeze`,
+`Encrypt`, and `Decrypt` operations directly on the state.
 
 ```go
 var d newplex.Duplex
 d.Absorb([]byte("input data"))
 output := make([]byte, 32)
+d.Permute()
 d.Squeeze(output)
 ```
 
