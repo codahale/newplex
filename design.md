@@ -275,9 +275,9 @@ Three points bear mentioning about `Encrypt` and `Decrypt`:
 1. Unlike `Derive`, the output of an `Encrypt` operation does not depend on its input length, therefore  `Encrypt('A')`
    and `Encrypt('AB')` will share a prefix. This allows for fully streaming operations, but usages which require the
    ciphertext to depend on the plaintext length must include that as the input to a prior `Mix` operation.
-2. `Encrypt` operations offer EAV security (i.e., an entirely passive adversary will not be able to read plaintexts),
-   but IND-CPA security (i.e., an adversary with an encryption oracle) requires a prior `Mix` operation to include a
-   value unique to the plaintext, like a nonce or a message ID.
+2. `Encrypt` operations offer EAV security (i.e., an entirely passive adversary will not be able to read plaintexts).
+   IND-CPA security (i.e., an adversary with an encryption oracle) requires a prior `Mix` operation to include a value
+   unique to the plaintext, like a nonce or a message ID.
 3. `Encrypt` operations provide no authentication by themselves. An attacker can modify a ciphertext and the `Decrypt`
    operation will return a plaintext which was never encrypted.
 
