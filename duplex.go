@@ -109,10 +109,10 @@ func (d *Duplex) Permute() {
 	d.idx = 0
 }
 
-// Ratchet zeroes out the duplex's rate and applies the Simpira-1024 permutation.
+// Ratchet applies the Simpira-1024 permutation, then zeros out 256 bits of the rate, preventing rollback.
 func (d *Duplex) Ratchet() {
-	clear(d.state[:rate])
 	d.Permute()
+	clear(d.state[:ratchetSize])
 }
 
 // String returns the hexadecimal representation of the duplex's state.
@@ -154,7 +154,8 @@ var (
 )
 
 const (
-	width    = simpira1024.Width // The width of the permutation in bytes.
-	capacity = 32                // The duplex's capacity in bytes.
-	rate     = width - capacity  // The rate of the duplex as determined by its width and capacity.
+	width       = simpira1024.Width // The width of the permutation in bytes.
+	capacity    = 32                // The duplex's capacity in bytes.
+	rate        = width - capacity  // The rate of the duplex as determined by its width and capacity.
+	ratchetSize = capacity          // The size of the rate to be overwritten during a ratchet.
 )

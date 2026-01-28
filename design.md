@@ -130,10 +130,10 @@ are equivalent to a single `Squeeze` operation with the concatenation of the seq
 
 ### `Ratchet`
 
-The `Ratchet` operation zeroes out the duplex's rate, leaving the capacity intact, then calls `Permute`. This
+The `Ratchet` operation calls `Permute`, then overwrites the first 256 bits of the duplex's rate with zeros. This
 irreversibly modifies the duplex's state, preventing potential rollback attacks and establishing forward secrecy. An
-attacker in possession of the duplex's full post-ratchet state is only able to recover the capacity of the duplex's
-pre-ratchet state and is unable to recover any of the duplex's prior output.
+attacker who recovers the post-ratchet state will be unable to reconstruct the missing 256 bits and thus unable to
+invert the permutation to recover prior states.
 
 ### `Encrypt`/`Decrypt`
 
@@ -268,7 +268,6 @@ function Encrypt(label, plaintext):
   Permute()
   ciphertext = Encrypt(plaintext)
   Absorb(right_encode(|plaintext|))
-  Permute()
   Ratchet()
   return ciphertext
   
@@ -277,7 +276,6 @@ function Decrypt(label, ciphertext):
   Permute()
   plaintext = Decrypt(ciphertext)
   Absorb(right_encode(|plaintext|))
-  Permute()
   Ratchet()
   return plaintext
 ```

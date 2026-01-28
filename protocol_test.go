@@ -21,16 +21,16 @@ func TestKnownAnswers(t *testing.T) {
 
 	plaintext := []byte("this is an example")
 	ciphertext := protocol.Encrypt("fourth", nil, plaintext)
-	if got, want := hex.EncodeToString(ciphertext), "9a93fb922a30dd658a100e6653f8835f3a71"; got != want {
+	if got, want := hex.EncodeToString(ciphertext), "6a69dd9ad77ecab09888ef68a3a2cd6a89a7"; got != want {
 		t.Errorf("Encrypt('fourth') = %v, want = %v", got, want)
 	}
 
 	ciphertext = protocol.Seal("fifth", nil, []byte("this is an example"))
-	if got, want := hex.EncodeToString(ciphertext), "cd380ece04cde2c5c3e7b2e9125ed9606ed50b16c7228d96891ff634de0440589fbb"; got != want {
+	if got, want := hex.EncodeToString(ciphertext), "f00f6a94182eaaf43341c9ed60e335702df97fbe3fda82c119c48fa0bbe477f26fbd"; got != want {
 		t.Errorf("Seal('fifth') = %v, want = %v", got, want)
 	}
 
-	if got, want := hex.EncodeToString(protocol.Derive("sixth", nil, 8)), "c99fbc8bf02f60c5"; got != want {
+	if got, want := hex.EncodeToString(protocol.Derive("sixth", nil, 8)), "22d28f822730f6d1"; got != want {
 		t.Errorf("Derive('sixth') = %v, want = %v", got, want)
 	}
 }

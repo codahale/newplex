@@ -108,7 +108,6 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 	p.duplex.Permute()
 	p.duplex.Encrypt(ciphertext, plaintext)
 	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))*bitsPerByte))
-	p.duplex.Permute()
 	p.duplex.Ratchet()
 	return ret
 }
@@ -149,7 +148,6 @@ func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
 	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))*bitsPerByte))
-	p.duplex.Permute()
 	p.duplex.Ratchet()
 	return ret
 }
