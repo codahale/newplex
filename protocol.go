@@ -118,6 +118,9 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 // To avoid encrypting the written slices in-place, this writer copies the data before encrypting. As such, it is
 // slightly slower than its EncryptReader counterpart.
 //
+// If the underlying io.Writer returns an io.ErrShortWrite from a Write call, then the Protocol will be out of sync and
+// must be discarded.
+//
 // N.B.: The returned io.WriteCloser must be closed for the Encrypt operation to be complete.
 func (p *Protocol) EncryptWriter(label string, w io.Writer) io.WriteCloser {
 	p.absorbMetadata(opCrypt, label)
@@ -157,6 +160,9 @@ func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 //
 // To avoid decrypting the written slices in-place, this writer copies the data before decrypting. As such, it is
 // slightly slower than its DecryptReader counterpart.
+//
+// If the underlying io.Writer returns an io.ErrShortWrite from a Write call, then the Protocol will be out of sync and
+// must be discarded.
 //
 // N.B.: The returned io.WriteCloser must be closed for the Decrypt operation to be complete.
 func (p *Protocol) DecryptWriter(label string, w io.Writer) io.WriteCloser {
