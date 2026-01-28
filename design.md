@@ -59,12 +59,15 @@ Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/seco
 
 1. The designers claim security against structural distinguishers with complexity up to 2^128, which aligns with the
    security level goals of this project.
-2. It has a width of 1024, allowing for a duplex with a 256-bit capacity to have 768 bits of rate. This significantly
-   improves throughput without increasing the latency on small inputs.
+
+2. It has a width of 1024 bits, allowing for a duplex with a 256-bit capacity to have 768 bits of rate. This
+   significantly improves throughput without increasing the latency on small inputs.
+
 3. It benefits from the nearly ubiquitous AES-NI instruction set, making it equally performant on both AMD64 and ARM64
    architectures. The only faster permutation on modern ARM64 processors is Keccak-p\[1600,24\], which benefits from the
    `FEAT_SHA3` extensions, but no such instruction set exists for AMD64 processors. Further, Simpira-1024 allows for up
    to 8 pipelined `AESENC` instructions, maximizing throughput on modern processors.
+
 4. In the ten years since the publication of [Simpira V2][Simpira-1024], the main cryptanalytical results on it have
    been on round-reduced versions of the smaller permutations:
 
@@ -181,8 +184,8 @@ function Init(domain):
   Absorb(0x01 || left_encode(|domain|) || domain)
 ``` 
 
-`Init` encodes the length of the domain in bits using the `left_encode` function from [NIST SP 800-185][TupleHash]. This
-ensures an unambiguous and recoverable encoding for the data absorbed by the duplex. The `Init` operation is only
+`Init` encodes the length of the domain in bytes using the `left_encode` function from [NIST SP 800-185][TupleHash].
+This ensures an unambiguous and recoverable encoding for the data absorbed by the duplex. The `Init` operation is only
 performed once, when a protocol is initialized.
 
 The BLAKE3 recommendations for KDF context strings apply equally to Newplex protocol domains:
@@ -192,9 +195,6 @@ The BLAKE3 recommendations for KDF context strings apply equally to Newplex prot
 > mixed with the derived key afterwards.) … The purpose of this requirement is to ensure that there is no way for an
 > attacker in any scenario to cause two different applications or components to inadvertently use the same context
 > string. The safest way to guarantee this is to prevent the context string from including input of any kind.
-
-**N.B.:** Unless otherwise noted, all sizes in this document are in bits. Most practical implementations, however, will
-use byte-oriented APIs.
 
 ### `Mix`
 
@@ -206,7 +206,7 @@ function Mix(label, input):
   Absorb(0x02 || left_encode(|label|) || label || input || right_encode(|input|))
 ```
 
-`Mix` encodes the length of the label in bits and the length of the input in bits using the `left_encode` and
+`Mix` encodes the length of the label in bytes and the length of the input in bytes using the `left_encode` and
 `right_encode` functions from [NIST SP 800-185], respectively. The use of `right_encode` allows `Mix` operations to
 accept inputs of indeterminate length (i.e., streams).
 
@@ -305,7 +305,7 @@ Three points bear mentioning about `Encrypt` and `Decrypt`:
 
 ### `Seal`/`Open`
 
-`Seal` and `Open` operations extend the `Encrypt` and `Decrypt` operations with the inclusion of a 128-bit
+`Seal` and `Open` operations extend the `Encrypt` and `Decrypt` operations with the inclusion of a 16-byte
 authentication tag. The `Open` operation verifies the tag, returning an error if the tag is invalid.
 
 ```text
@@ -332,7 +332,7 @@ function Open(label, ciphertext || tag):
 
 `Seal` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
 state is indistinguishable from random, and encrypts the input with the duplex. Next, the duplex is permuted again, and
-a 128-bit tag is squeezed from the duplex's state. Finally, the duplex's state ratcheted to prevent rollback.
+a 16-byte tag is squeezed from the duplex's state. Finally, the duplex's state ratcheted to prevent rollback.
 
 `Open` is identical but uses the duplex to decrypt the data and compares the received tag to an expected tag derived
 from the received plaintext. If the two are equal, the plaintext is returned. Otherwise, an error is returned.
@@ -365,9 +365,9 @@ Calculating a message digest is as simple as a `Mix` and a `Derive`:
 
 ```text
 function MessageDigest(message):
-  Init("com.example.md")         // Initialize a protocol with a domain string.
-  Mix("message", data)           // Mix the message into the protocol.
-  digest = Derive("digest", 256) // Derive 256 bits of output and return it.
+  Init("com.example.md")        // Initialize a protocol with a domain string.
+  Mix("message", data)          // Mix the message into the protocol.
+  digest = Derive("digest", 32) // Derive 32 bytes of output and return it.
   return digest
 ```
 
@@ -380,10 +380,10 @@ Adding a key to the previous construction makes it a MAC:
 
 ```text
 function MAC(key, message):
-  Init("com.example.mac")  // Initialize a protocol with a domain string.
-  Mix("key", key)          // Mix the key into the protocol.
-  Mix("message", message)  // Mix the message into the protocol.
-  tag = Derive("tag", 128) // Derive 128 bits of output and return it.
+  Init("com.example.mac") // Initialize a protocol with a domain string.
+  Mix("key", key)         // Mix the key into the protocol.
+  Mix("message", message) // Mix the message into the protocol.
+  tag = Derive("tag", 16) // Derive 16 bytes of output and return it.
   return tag
 ```
 
@@ -466,7 +466,7 @@ function AEStreamSend(key, nonce, plaintext, ciphertext):
   Mix("nonce", nonce)
   while |plaintext| > 0:
     pblock = Read(plaintext)             // Read a block of plaintext.
-    pheader = BEU32(|pblock|)            // Encode the block length as a 32-bit unsigned big endian integer.
+    pheader = BEU32(|pblock|)            // Encode the block length as a 4-byte unsigned big endian integer.
     cheader = Seal("header", pheader)    // Seal the header.
     cblock = Seal("block", pblock)       // Seal the block.
     Write(ciphertext, cheader || cblock) // Write the sealed header and sealed block.
@@ -481,12 +481,12 @@ function AEStreamRecv(key, nonce, ciphertext, plaintext):
   Mix("key", key)
   Mix("nonce", nonce)
   while |ciphertext| > 0:
-    cheader = Read(ciphertext, 32+128)    // Read a sealed 32-bit header and 128-bit tag.
+    cheader = Read(ciphertext, 4+16)      // Read a sealed 4-byte header and 16-byte tag.
     pheader = Open("header", cheader)     // Open the sealed header.
     if pheader == ErrInvalidCiphertext:   // Error if the header is not authenticated.
       return ErrInvalidCiphertext
     msglen = BEU32(pheader)               // Decode the block length.
-    cblock = Read(ciphertext, msglen+128) // Read the sealed block and 128-bit tag.
+    cblock = Read(ciphertext, msglen+16)  // Read the sealed block and 16-byte tag.
     pblock = Open("block", cblock)        // Open the sealed block.
     if pblock == ErrInvalidCiphertext:    // Error if the ciphertext is not authenticated.
       return ErrInvalidCiphertext
@@ -496,7 +496,7 @@ function AEStreamRecv(key, nonce, ciphertext, plaintext):
   return ErrInvalidCiphertext             // Error if the stream is truncated.
 ```
 
-The sender encodes each block's length as a 32-bit big endian integer, seals that header, seals the block, and sends
+The sender encodes each block's length as a 4-byte big endian integer, seals that header, seals the block, and sends
 both to the receiver. An empty block is used to mark the end of the stream. The receiver reads the encrypted header,
 decrypts it, decodes it into a block length, reads an encrypted block of that length and its authentication tag, then
 opens the sealed block. When it encounters the empty block, it returns EOF. If the stream terminates before that, an
@@ -571,14 +571,14 @@ A protocol can be used to implement EdDSA-style Schnorr digital signatures:
 
 ```text
 function Sign(signer, message):
-  Init("com.example.eddsa")                       // Initialize a protocol with a domain string.
-  Mix("signer", signer.pub)                       // Mix the signer's public key into the protocol.
-  Mix("message", message)                         // Mix the message into the protocol.
-  (k, I) = P256::KeyGen()                         // Generate a commitment scalar and point.
-  Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  (_, r) = P256::Scalar(Derive("challenge", 320)) // Derive a challenge scalar.
-  s = signer.priv * r + k                         // Calculate the proof scalar.
-  return (I, s)                                   // Return the commitment point and proof scalar.
+  Init("com.example.eddsa")                 // Initialize a protocol with a domain string.
+  Mix("signer", signer.pub)                 // Mix the signer's public key into the protocol.
+  Mix("message", message)                   // Mix the message into the protocol.
+  (k, I) = P256::KeyGen()                   // Generate a commitment scalar and point.
+  Mix("commitment", I)                      // Mix the commitment point into the protocol.
+  r = P256::Scalar(Derive("challenge", 40)) // Derive a challenge scalar.
+  s = signer.priv * r + k                   // Calculate the proof scalar.
+  return (I, s)                             // Return the commitment point and proof scalar.
 ```
 
 The resulting signature is strongly bound to both the message and the signer's public key, making it sUF-CMA secure. If
@@ -587,13 +587,13 @@ co-factors to be strongly unforgeable.
 
 ```text
 function Verify(signer.pub, message, I, s):
-  Init("com.example.eddsa")                        // Initialize a protocol with a domain string.
-  Mix("signer", signer.pub)                        // Mix the signer's public key into the protocol.
-  Mix("message", message)                          // Mix the message into the protocol.
-  Mix("commitment", I)                             // Mix the commitment point into the protocol.
-  (_, r') = P256::Scalar(Derive("challenge", 320)) // Derive an expected challenge scalar.
-  I' = [s]G - [r']signer.pub                       // Calculate the expected commitment point.
-  return I = I'                                    // The signature is valid if both points are equal.
+  Init("com.example.eddsa")                  // Initialize a protocol with a domain string.
+  Mix("signer", signer.pub)                  // Mix the signer's public key into the protocol.
+  Mix("message", message)                    // Mix the message into the protocol.
+  Mix("commitment", I)                       // Mix the commitment point into the protocol.
+  r' = P256::Scalar(Derive("challenge", 40)) // Derive an expected challenge scalar.
+  I' = [s]G - [r']signer.pub                 // Calculate the expected commitment point.
+  return I = I'                              // The signature is valid if both points are equal.
 ```
 
 An additional variation on this construction uses `Encrypt` instead of `Mix` to include the commitment point `I` in the
@@ -607,7 +607,7 @@ function using a cloned protocol:
 function DetCommitment(signer):
   clone = Clone()
   clone.Mix("signer-private", signer.priv)
-  k = P256::Scalar(clone.Derive("scalar", 320))
+  k = P256::Scalar(clone.Derive("scalar", 40))
   I = [k]G 
   return (k, I)
 ```
@@ -634,26 +634,26 @@ function Signcrypt(sender, receiver.pub, plaintext):
   ciphertext = Encrypt("message", plaintext)      // Encrypt the plaintext.
   (k, I) = P256::KeyGen()                         // Generate a commitment scalar and point.
   Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  r = P256::Scalar(Derive("challenge", 320))      // Derive a challenge scalar.
+  r = P256::Scalar(Derive("challenge", 40))       // Derive a challenge scalar.
   s = sender.priv * r + k                         // Calculate the proof scalar.
   return (ephemeral.pub, ciphertext, I, s)        // Return the ephemeral public key, ciphertext, and signature.
 ```
 
 ```text
 function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
-  Init("com.example.sc")                           // Initialize a protocol with a domain string.
-  Mix("receiver", receiver.pub)                    // Mix the receiver's public key into the protocol.
-  Mix("sender", sender.pub)                        // Mix the sender's public key into the protocol.
-  Mix("ephemeral", ephemeral.pub)                  // Mix the ephemeral public key into the protocol.
-  Mix("ecdh", ECDH(receiver.priv, ephemeral.pub))  // Mix the ECDH shared secret into the protocol.
-  plaintext = Decrypt("message", ciphertext)       // Decrypt the ciphertext.
-  Mix("commitment", I)                             // Mix the commitment point into the protocol.
-   r' = P256::Scalar(Derive("challenge", 320))     // Derive an expected challenge scalar.
-  I' = [s]G - [r']sender.pub                       // Calculate the expected commitment point.
+  Init("com.example.sc")                          // Initialize a protocol with a domain string.
+  Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
+  Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
+  Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
+  Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
+  plaintext = Decrypt("message", ciphertext)      // Decrypt the ciphertext.
+  Mix("commitment", I)                            // Mix the commitment point into the protocol.
+   r' = P256::Scalar(Derive("challenge", 40))     // Derive an expected challenge scalar.
+  I' = [s]G - [r']sender.pub                      // Calculate the expected commitment point.
   if I == I':
-    return plaintext                               // If both points are equal, return the plaintext.
+    return plaintext                              // If both points are equal, return the plaintext.
   else:
-    return ErrInvalidCiphertext                    // Otherwise, return an error.
+    return ErrInvalidCiphertext                   // Otherwise, return an error.
 ```
 
 Because a Newplex protocol is an incremental, stateful way of building a cryptographic construction, this integrated

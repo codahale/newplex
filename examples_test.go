@@ -21,12 +21,11 @@ func ExampleProtocol_mac() {
 	mac.Mix("message", message)
 
 	// Derive 16 bytes of output.
-	// Note: The output length (128 bits) is encoded into the derivation, so
-	// changing the length will change the output.
+	// Note: The output length is encoded into the derivation, so changing the length will change the output.
 	tag := mac.Derive("tag", nil, 16)
 
 	fmt.Printf("%x\n", tag)
-	// Output: d389fa15b67663731325ff2d410dc0e4
+	// Output: c68835e914b0c010ca2fa83be90972a6
 }
 
 func ExampleProtocol_stream() {
@@ -67,7 +66,7 @@ func ExampleProtocol_stream() {
 	}
 
 	// Output:
-	// affed4b00fb8cb19fe3b34
+	// f2cb9b510444679accc92d
 	// hello world
 }
 
@@ -112,7 +111,7 @@ func ExampleProtocol_aead() {
 	}
 
 	// Output:
-	// bc4b7bcc256e7be3420f9ff3e587c3b2ac13f9ed20536a1b4414ef
+	// fec32aa0b372b9a2d288474a5352f921e21f7727a4181255c09c2a
 	// hello world
 }
 
@@ -159,6 +158,6 @@ func Example_hpke() {
 		fmt.Printf("%s\n", plaintext)
 	}
 	// Output:
-	// 672e904ba78b50b56f896d4b9c2f8018aecfd34038523a6faa4e82e37be4281f596dc142472d519b2fdcd11004ee9435447ac88aa9c422abc95d11
+	// 672e904ba78b50b56f896d4b9c2f8018aecfd34038523a6faa4e82e37be4281fb503e7fbc35792545a5b650c208300ac9a4f31b9740ab0758f4c0f
 	// hello world
 }

@@ -55,7 +55,7 @@ func NewProtocol(domain string) Protocol {
 func (p *Protocol) Mix(label string, input []byte) {
 	p.absorbMetadata(opMix, label)
 	p.duplex.Absorb(input)
-	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(input))*bitsPerByte))
+	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(input))))
 }
 
 // MixWriter updates the protocol's state using the given label and whatever data is written to the wrapped io.Writer.
@@ -107,7 +107,7 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.Permute()
 	p.duplex.Encrypt(ciphertext, plaintext)
-	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))*bitsPerByte))
+	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))))
 	p.duplex.Ratchet()
 	return ret
 }
@@ -147,7 +147,7 @@ func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
-	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))*bitsPerByte))
+	p.duplex.Absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))))
 	p.duplex.Ratchet()
 	return ret
 }
@@ -250,7 +250,7 @@ func (p *Protocol) String() string {
 func (p *Protocol) absorbMetadata(op byte, label string) {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
 	metadata[0] = op
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
+	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label)))
 	metadata = append(metadata, label...)
 
 	p.duplex.Absorb(metadata)
@@ -259,9 +259,9 @@ func (p *Protocol) absorbMetadata(op byte, label string) {
 func (p *Protocol) absorbMetadataAndLen(op byte, label string, n int) {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
 	metadata[0] = op
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label))*bitsPerByte)
+	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label)))
 	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(n)*bitsPerByte) //nolint:gosec // unlikely to see 18 EB outputs
+	metadata = tuplehash.AppendRightEncode(metadata, uint64(n)) //nolint:gosec // n > 0
 
 	p.duplex.Absorb(metadata)
 }
@@ -278,8 +278,6 @@ const (
 	opDerive    = 0x03 // Derive pseudorandom data from the protocol's state.
 	opCrypt     = 0x04 // Encrypt or decrypt an input value.
 	opAuthCrypt = 0x05 // Seal or open an input value.
-
-	bitsPerByte = 8 // The number of bits in one byte.
 )
 
 // sliceForAppend takes a slice and a requested number of bytes. It returns a slice with the contents of the given slice

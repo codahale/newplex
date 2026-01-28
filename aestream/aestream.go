@@ -1,6 +1,6 @@
 // Package aestream provides a streaming authenticated encryption scheme on top of a newplex.Protocol.
 //
-// The writer encodes each block's length as a 32-bit big endian integer, seals that header, seals the block, and
+// The writer encodes each block's length as a 4-byte big endian integer, seals that header, seals the block, and
 // writes both to the wrapped writer. An empty block is used to mark the end of the stream when the writer is closed.
 //
 // The reader reads the sealed header, opens it, decodes it into a block length, reads an encrypted block of that
