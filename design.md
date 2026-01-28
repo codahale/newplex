@@ -76,9 +76,14 @@ Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/seco
    | Simpira-768 | 15           | 8                   | 53%             | Safe (7 rounds left)  |
 
    No attacks have been found on the full-round specifications, and no attacks at all have been found for Simpira-1024.
+   It should be noted that Simpira-1024 has not received the same degree of scrutiny as the smaller Simpira variants.
+   This design would accommodate Keccak-f\[1600\] for contexts which require a higher security margin or where
+   Keccak-f\[1600\] or Keccak-p\[1600,12\] would yield better performance (e.g., ARM64 processors with `FEAT_SHA3`
+   instructions or low-powered processors without `AES-NI` instructions).
 
 5. Its non-linear component is the AES round, which has been extensively studied, and its shuffling layer achieves full
    diffusion after very few rounds.
+
 
 ## The Duplex
 
