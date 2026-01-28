@@ -602,6 +602,23 @@ An additional variation on this construction uses `Encrypt` instead of `Mix` to 
 protocol's state. This makes it impossible to recover the signer's public key from a message and signature (which may be
 desirable for privacy in some contexts) at the expense of making batch verification impossible.
 
+To make this scheme deterministic (or hedged), the P-256 commitment generation can be replaced with a derivation
+function using a cloned protocol:
+
+```text
+function DetCommitment(signer):
+  clone = Clone()
+  clone.Mix("signer-private", signer.priv)
+  k = P256::Scalar(clone.Derive("scalar", 320))
+  I = [k]G 
+  return (k, I)
+```
+
+This results in a commitment scalar which is derived from both the original protocol's state (i.e., domain string,
+signer's public key, message) and the clone's later state (i.e., signer's private key).
+
+A hedged variant would mix in a random value into the clone before derivation.
+
 ### Signcryption
 
 A protocol can be used to integrate a [HPKE](#hybrid-public-key-encryption) scheme and
