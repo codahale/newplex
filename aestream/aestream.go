@@ -47,7 +47,7 @@ func NewReader(p *newplex.Protocol, r io.Reader) io.ReadCloser {
 		p:        p,
 		r:        r,
 		buf:      make([]byte, 0, 1024),
-		blockBuf: make([]byte, 0, 1024),
+		blockBuf: nil,
 		closed:   false,
 	}
 }
