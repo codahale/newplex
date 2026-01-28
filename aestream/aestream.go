@@ -9,6 +9,9 @@
 //
 // For maximum throughput and transmission efficiency, the use of bufio.Reader and bufio.Writer wrappers is strongly
 // recommended.
+//
+// N.B.: For compatibility with 32-bit systems, this implementation has a maximum block size of 2^31-1-16
+// (2,147,483,631) bytes. The construction has a theoretical maximum block size of 2^32-1 bytes.
 package aestream
 
 import (
@@ -23,7 +26,7 @@ import (
 )
 
 // MaxBlockSize is the maximum size of an aestream block, in bytes. Writes larger than this will be rejected.
-const MaxBlockSize = math.MaxUint32
+const MaxBlockSize = math.MaxInt32 - newplex.TagSize
 
 // NewWriter wraps the given newplex.Protocol and io.Writer with a streaming authenticated encryption writer.
 //
@@ -59,9 +62,31 @@ func (s *sealWriter) Write(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
+
+	err = s.sealAndWrite(p)
+	if err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+func (s *sealWriter) Close() error {
+	// Encode and seal a header for a zero-length block.
+	if err := s.sealAndWrite(nil); err != nil {
+		return err
+	}
+
+	// Close the writer.
+	if wc, ok := s.w.(io.WriteCloser); ok {
+		return wc.Close()
+	}
+	return nil
+}
+
+func (s *sealWriter) sealAndWrite(p []byte) error {
 	pLen := uint64(len(p))
 	if pLen > MaxBlockSize {
-		return 0, fmt.Errorf("oversized write: %d bytes, max = %d", pLen, MaxBlockSize)
+		return fmt.Errorf("oversized write: %d bytes, max = %d", pLen, MaxBlockSize)
 	}
 
 	// Encode a header with a 4-byte big endian block length and seal it.
@@ -73,27 +98,7 @@ func (s *sealWriter) Write(p []byte) (n int, err error) {
 	// Seal the block, append it to the header, and send it.
 	block := s.p.Seal("block", encryptedHeader, p)
 	if _, err := s.w.Write(block); err != nil {
-		return 0, err
-	}
-
-	return len(p), nil
-}
-
-func (s *sealWriter) Close() error {
-	// Encode and seal a header for a zero-length block.
-	s.buf = slices.Grow(s.buf[:0], headerSize+newplex.TagSize+newplex.TagSize)
-	header := s.buf[:headerSize]
-	binary.BigEndian.PutUint32(header, 0)
-	encryptedHeader := s.p.Seal("header", header[:0], header)
-
-	// Seal an empty block, append it to the header, and send it.
-	block := s.p.Seal("block", encryptedHeader, nil)
-	if _, err := s.w.Write(block); err != nil {
 		return err
-	}
-
-	if wc, ok := s.w.(io.WriteCloser); ok {
-		return wc.Close()
 	}
 	return nil
 }
@@ -124,39 +129,18 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 	}
 
 	// Read and open the header and decode the block length.
-	o.buf = slices.Grow(o.buf[:0], headerSize+newplex.TagSize)
-	header := o.buf[:headerSize+newplex.TagSize]
-	_, err = io.ReadFull(o.r, header)
-	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			return 0, newplex.ErrInvalidCiphertext
-		}
-		return 0, err
-	}
-	header, err = o.p.Open("header", header[:0], header)
+	header, err := o.readAndOpen("header", headerSize)
 	if err != nil {
 		return 0, err
 	}
-	messageLen := int(binary.BigEndian.Uint32(header))
-	if messageLen > MaxBlockSize {
+	uLen := binary.BigEndian.Uint32(header)
+	if uLen > MaxBlockSize {
 		return 0, newplex.ErrInvalidCiphertext
 	}
 
 	// Read and open the block.
-	o.buf = slices.Grow(o.buf[:0], messageLen+newplex.TagSize)
-	block := o.buf[:messageLen+newplex.TagSize]
-	_, err = io.ReadFull(o.r, block)
+	block, err := o.readAndOpen("block", int(uLen))
 	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			return 0, newplex.ErrInvalidCiphertext
-		}
-		return 0, err
-	}
-	block, err = o.p.Open("block", block[:0], block)
-	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			return 0, newplex.ErrInvalidCiphertext
-		}
 		return 0, err
 	}
 	o.closed = len(block) == 0
@@ -171,6 +155,23 @@ func (o *openReader) Close() error {
 		return rc.Close()
 	}
 	return nil
+}
+
+func (o *openReader) readAndOpen(label string, n int) ([]byte, error) {
+	o.buf = slices.Grow(o.buf[:0], n+newplex.TagSize)
+	data := o.buf[:n+newplex.TagSize]
+	_, err := io.ReadFull(o.r, data)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return nil, newplex.ErrInvalidCiphertext
+		}
+		return nil, err
+	}
+	data, err = o.p.Open(label, data[:0], data)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 const headerSize = 4
