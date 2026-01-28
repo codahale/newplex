@@ -570,7 +570,7 @@ function Sign(signer, message):
   Mix("message", message)                         // Mix the message into the protocol.
   (k, I) = P256::KeyGen()                         // Generate a commitment scalar and point.
   Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  (_, r) = P256::Scalar(Derive("challenge", 256)) // Derive a challenge scalar.
+  (_, r) = P256::Scalar(Derive("challenge", 320)) // Derive a challenge scalar.
   s = signer.priv * r + k                         // Calculate the proof scalar.
   return (I, s)                                   // Return the commitment point and proof scalar.
 ```
@@ -585,7 +585,7 @@ function Verify(signer.pub, message, I, s):
   Mix("signer", signer.pub)                        // Mix the signer's public key into the protocol.
   Mix("message", message)                          // Mix the message into the protocol.
   Mix("commitment", I)                             // Mix the commitment point into the protocol.
-  (_, r') = P256::Scalar(Derive("challenge", 256)) // Derive an expected challenge scalar.
+  (_, r') = P256::Scalar(Derive("challenge", 320)) // Derive an expected challenge scalar.
   I' = [s]G - [r']signer.pub                       // Calculate the expected commitment point.
   return I = I'                                    // The signature is valid if both points are equal.
 ```
@@ -611,7 +611,7 @@ function Signcrypt(sender, receiver.pub, plaintext):
   ciphertext = Encrypt("message", plaintext)      // Encrypt the plaintext.
   (k, I) = P256::KeyGen()                         // Generate a commitment scalar and point.
   Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  (_, r) = P256::Scalar(Derive("challenge", 256)) // Derive a challenge scalar.
+  (_, r) = P256::Scalar(Derive("challenge", 320)) // Derive a challenge scalar.
   s = sender.priv * r + k                         // Calculate the proof scalar.
   return (ephemeral.pub, ciphertext, I, s)        // Return the ephemeral public key, ciphertext, and signature.
 ```
@@ -625,7 +625,7 @@ function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
   Mix("ecdh", ECDH(receiver.priv, ephemeral.pub))  // Mix the ECDH shared secret into the protocol.
   plaintext = Decrypt("message", ciphertext)       // Decrypt the ciphertext.
   Mix("commitment", I)                             // Mix the commitment point into the protocol.
-  (_, r') = P256::Scalar(Derive("challenge", 256)) // Derive an expected challenge scalar.
+  (_, r') = P256::Scalar(Derive("challenge", 320)) // Derive an expected challenge scalar.
   I' = [s]G - [r']sender.pub                       // Calculate the expected commitment point.
   if I = I':
     return plaintext                               // If both points are equal, return the plaintext.
