@@ -193,6 +193,9 @@ The BLAKE3 recommendations for KDF context strings apply equally to Newplex prot
 > attacker in any scenario to cause two different applications or components to inadvertently use the same context
 > string. The safest way to guarantee this is to prevent the context string from including input of any kind.
 
+**N.B.:** Unless otherwise noted, all sizes in this document are in bits. Most practical implementations, however, will
+use byte-oriented APIs.
+
 ### `Mix`
 
 A `Mix` operation accepts a label and an input and makes the protocol's state (and all future output) cryptographically
