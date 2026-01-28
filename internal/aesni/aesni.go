@@ -1,4 +1,34 @@
+// Package aesni provides a portable, constant-time software implementation of AES rounds (equivalent to AESENC and
+// AESENCLAST instructions from AES-NI).
+//
+// This is a constant-time, bitsliced implementation that is slow but does not leak information via secret lookup
+// tables. It is used for non-AMD64, non-ARM64, or pure Go builds.
 package aesni
+
+// AESENC performs one round of AES encryption.
+func AESENC(state, key [16]byte) [16]byte {
+	q := pack(state)
+	q = sbox(q)
+	q = shiftRows(q)
+	q = mixColumns(q)
+	state = unpack(q)
+	for i := range 16 {
+		state[i] ^= key[i]
+	}
+	return state
+}
+
+// AESENCLAST performs the last round of AES encryption.
+func AESENCLAST(state, key [16]byte) [16]byte {
+	q := pack(state)
+	q = sbox(q)
+	q = shiftRows(q)
+	state = unpack(q)
+	for i := range 16 {
+		state[i] ^= key[i]
+	}
+	return state
+}
 
 func pack(s [16]byte) (q [8]uint16) {
 	for i := range 16 {
@@ -30,31 +60,6 @@ func unpack(q [8]uint16) (s [16]byte) {
 		s[i] = byte(b)
 	}
 	return s
-}
-
-// AESENC performs one round of AES encryption.
-func AESENC(state, key [16]byte) [16]byte {
-	q := pack(state)
-	q = sbox(q)
-	q = shiftRows(q)
-	q = mixColumns(q)
-	state = unpack(q)
-	for i := range 16 {
-		state[i] ^= key[i]
-	}
-	return state
-}
-
-// AESENCLAST performs the last round of AES encryption.
-func AESENCLAST(state, key [16]byte) [16]byte {
-	q := pack(state)
-	q = sbox(q)
-	q = shiftRows(q)
-	state = unpack(q)
-	for i := range 16 {
-		state[i] ^= key[i]
-	}
-	return state
 }
 
 func shiftRows(q [8]uint16) [8]uint16 {
@@ -105,19 +110,7 @@ func mul(a, b [8]uint16) [8]uint16 {
 			p[i+j] ^= a[i] & b[j]
 		}
 	}
-	// Reduce modulo x^8 + x^4 + x^3 + x + 1
-	for i := 14; i >= 8; i-- {
-		v := p[i]
-		p[i-4] ^= v
-		p[i-5] ^= v
-		p[i-7] ^= v
-		p[i-8] ^= v
-	}
-	var res [8]uint16
-	for i := range 8 {
-		res[i] = p[i]
-	}
-	return res
+	return reduce(&p)
 }
 
 func sq(a [8]uint16) [8]uint16 {
@@ -125,7 +118,11 @@ func sq(a [8]uint16) [8]uint16 {
 	for i := range 8 {
 		p[2*i] = a[i]
 	}
-	// Reduce
+	return reduce(&p)
+}
+
+func reduce(p *[15]uint16) [8]uint16 {
+	// Reduce modulo x^8 + x^4 + x^3 + x + 1
 	for i := 14; i >= 8; i-- {
 		v := p[i]
 		p[i-4] ^= v
