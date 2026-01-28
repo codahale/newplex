@@ -202,6 +202,9 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 // To reuse ciphertext's storage for the decrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
 func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, error) {
+	if len(ciphertextAndTag) < TagSize {
+		return nil, ErrInvalidCiphertext
+	}
 	ret, plaintext := sliceForAppend(dst, len(ciphertextAndTag)-TagSize)
 	ciphertext, receivedTag := ciphertextAndTag[:len(plaintext)], ciphertextAndTag[len(plaintext):]
 	var expectedTag [TagSize]byte

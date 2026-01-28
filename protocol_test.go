@@ -261,6 +261,16 @@ func TestProtocol_Open_unauthenticated_plaintext(t *testing.T) {
 	}
 }
 
+func TestProtocol_Open_short_ciphertext(t *testing.T) {
+	t.Parallel()
+
+	p := newplex.NewProtocol("example")
+	_, err := p.Open("message", nil, make([]byte, newplex.TagSize-1))
+	if err == nil {
+		t.Error("Open(short) should have failed")
+	}
+}
+
 func BenchmarkNewProtocol(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
