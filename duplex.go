@@ -113,6 +113,7 @@ func (d *Duplex) Permute() {
 func (d *Duplex) Ratchet() {
 	d.Permute()
 	clear(d.state[:ratchetSize])
+	d.idx = ratchetSize
 }
 
 // String returns the hexadecimal representation of the duplex's state.
