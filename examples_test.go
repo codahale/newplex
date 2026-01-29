@@ -8,44 +8,6 @@ import (
 	"github.com/codahale/newplex"
 )
 
-func ExampleDuplex_Absorb() {
-	var d newplex.Duplex
-	d.Absorb([]byte("example input"))
-	d.Permute()
-
-	out := make([]byte, 16)
-	d.Squeeze(out)
-
-	fmt.Printf("%x\n", out)
-	// Output: f358635df728f485fdd3165bc369fa7c
-}
-
-func ExampleDuplex_Encrypt() {
-	var d newplex.Duplex
-	d.Absorb([]byte("key"))
-	d.Permute()
-
-	plaintext := []byte("hello world")
-	ciphertext := make([]byte, len(plaintext))
-	d.Encrypt(ciphertext, plaintext)
-
-	fmt.Printf("%x\n", ciphertext)
-
-	// To decrypt, we need a fresh duplex state with the same key.
-	var d2 newplex.Duplex
-	d2.Absorb([]byte("key"))
-	d2.Permute()
-
-	decrypted := make([]byte, len(ciphertext))
-	d2.Decrypt(decrypted, ciphertext)
-
-	fmt.Printf("%s\n", decrypted)
-
-	// Output:
-	// 5d369b4ce12f16bbb778f5
-	// hello world
-}
-
 func ExampleProtocol_mac() {
 	// Initialize a protocol with a domain string.
 	mac := newplex.NewProtocol("com.example.mac")
@@ -153,7 +115,7 @@ func ExampleProtocol_aead() {
 	// hello world
 }
 
-func Example_hpke() {
+func ExampleProtocol_hpke() {
 	receiverPrivBuf, _ := hex.DecodeString("c3a9b89b9a9a15da3c7a7e8ce9c96a828744abf52c0239f4180b0948fa3b1c74")
 	receiver, _ := ecdh.X25519().NewPrivateKey(receiverPrivBuf)
 
