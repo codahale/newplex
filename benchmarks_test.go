@@ -6,7 +6,7 @@ import (
 	"github.com/codahale/newplex"
 )
 
-func BenchmarkHash(b *testing.B) {
+func BenchmarkHashConstruction(b *testing.B) {
 	hash := func(message, dst []byte) []byte {
 		protocol := newplex.NewProtocol("hash")
 		protocol.Mix("message", message)
@@ -26,7 +26,7 @@ func BenchmarkHash(b *testing.B) {
 	}
 }
 
-func BenchmarkPRF(b *testing.B) {
+func BenchmarkPRFConstruction(b *testing.B) {
 	key := make([]byte, 32)
 	prf := func(output []byte) []byte {
 		protocol := newplex.NewProtocol("prf")
@@ -46,7 +46,7 @@ func BenchmarkPRF(b *testing.B) {
 	}
 }
 
-func BenchmarkStream(b *testing.B) {
+func BenchmarkStreamConstruction(b *testing.B) {
 	key := make([]byte, 32)
 	nonce := make([]byte, 16)
 	stream := func(message []byte) []byte {
@@ -68,7 +68,7 @@ func BenchmarkStream(b *testing.B) {
 	}
 }
 
-func BenchmarkAEAD(b *testing.B) {
+func BenchmarkAEADConstruction(b *testing.B) {
 	key := make([]byte, 32)
 	nonce := make([]byte, 16)
 	ad := make([]byte, 32)
