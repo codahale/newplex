@@ -137,11 +137,11 @@ func TestDuplex_UnmarshalBinary_invalid(t *testing.T) {
 		t.Error("UnmarshalBinary(short) should have failed")
 	}
 
-	// Test invalid idx
+	// Test invalid pos
 	data := make([]byte, 130) // 2 + 128
-	data[0] = 96              // idx = 96, which is == rate
+	data[0] = 96              // pos = 96, which is == rate
 	if err := d.UnmarshalBinary(data); err == nil {
-		t.Error("UnmarshalBinary(invalid idx) should have failed")
+		t.Error("UnmarshalBinary(invalid pos) should have failed")
 	}
 }
 

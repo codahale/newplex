@@ -17,7 +17,7 @@ import (
 // indistinguishability.
 type Duplex struct {
 	state [width]byte
-	idx   int
+	pos   int
 }
 
 // Absorb updates the duplex's state with the given data, running the permutation as the state becomes fully updated.
@@ -25,10 +25,10 @@ type Duplex struct {
 // Multiple Absorb calls are effectively the same thing as a single Absorb call with concatenated inputs.
 func (d *Duplex) Absorb(b []byte) {
 	for len(b) > 0 {
-		remain := min(len(b), rate-d.idx)
-		subtle.XORBytes(d.state[d.idx:], d.state[d.idx:], b[:remain])
-		d.idx += remain
-		if d.idx == rate {
+		remain := min(len(b), rate-d.pos)
+		subtle.XORBytes(d.state[d.pos:], d.state[d.pos:], b[:remain])
+		d.pos += remain
+		if d.pos == rate {
 			d.Permute()
 		}
 		b = b[remain:]
@@ -41,10 +41,10 @@ func (d *Duplex) Absorb(b []byte) {
 // Multiple Squeeze calls are effectively the same thing as a single Squeeze call with concatenated outputs.
 func (d *Duplex) Squeeze(out []byte) {
 	for len(out) > 0 {
-		remain := min(len(out), rate-d.idx)
-		copy(out[:remain], d.state[d.idx:d.idx+remain])
-		d.idx += remain
-		if d.idx == rate {
+		remain := min(len(out), rate-d.pos)
+		copy(out[:remain], d.state[d.pos:d.pos+remain])
+		d.pos += remain
+		if d.pos == rate {
 			d.Permute()
 		}
 		out = out[remain:]
@@ -59,15 +59,15 @@ func (d *Duplex) Squeeze(out []byte) {
 //goland:noinspection DuplicatedCode
 func (d *Duplex) Encrypt(ciphertext, plaintext []byte) {
 	for len(plaintext) > 0 {
-		remain := min(len(plaintext), rate-d.idx)
-		k := d.state[d.idx : d.idx+remain]
+		remain := min(len(plaintext), rate-d.pos)
+		k := d.state[d.pos : d.pos+remain]
 
 		// C = K = K ^ P
 		subtle.XORBytes(k, k, plaintext[:remain])
 		copy(ciphertext[:remain], k)
 
-		d.idx += remain
-		if d.idx == rate {
+		d.pos += remain
+		if d.pos == rate {
 			d.Permute()
 		}
 		plaintext = plaintext[remain:]
@@ -83,8 +83,8 @@ func (d *Duplex) Encrypt(ciphertext, plaintext []byte) {
 //goland:noinspection DuplicatedCode
 func (d *Duplex) Decrypt(plaintext, ciphertext []byte) {
 	for len(ciphertext) > 0 {
-		remain := min(len(ciphertext), rate-d.idx)
-		k := d.state[d.idx : d.idx+remain]
+		remain := min(len(ciphertext), rate-d.pos)
+		k := d.state[d.pos : d.pos+remain]
 		// Make a copy of this block of ciphertext. If plaintext is the same slice as ciphertext, the decryption will
 		// overwrite the ciphertext, making it impossible to copy it to the state afterward.
 		var tmp [rate]byte
@@ -94,8 +94,8 @@ func (d *Duplex) Decrypt(plaintext, ciphertext []byte) {
 		subtle.XORBytes(plaintext[:remain], k, ciphertext[:remain])
 		copy(k, tmp[:remain])
 
-		d.idx += remain
-		if d.idx == rate {
+		d.pos += remain
+		if d.pos == rate {
 			d.Permute()
 		}
 		ciphertext = ciphertext[remain:]
@@ -106,7 +106,7 @@ func (d *Duplex) Decrypt(plaintext, ciphertext []byte) {
 // Permute resets the duplex's state index and applies the Simpira-1024 permutation to its 1024-bit state.
 func (d *Duplex) Permute() {
 	simpira1024.Permute(&d.state)
-	d.idx = 0
+	d.pos = 0
 }
 
 // Ratchet applies the Simpira-1024 permutation, then zeros out 256 bits of the rate, preventing rollback.
@@ -115,7 +115,7 @@ func (d *Duplex) Ratchet() {
 	// Zero out a portion of the rate equal to the size of the capacity. This ensures the security margin for state
 	// recovery (i.e., the size of the capacity) applies to rollback attacks as well.
 	clear(d.state[:capacity])
-	d.idx = capacity
+	d.pos = capacity
 }
 
 // String returns the hexadecimal representation of the duplex's state.
@@ -133,7 +133,7 @@ func (d *Duplex) UnmarshalBinary(data []byte) error {
 	if idx >= rate {
 		return errors.New("newplex: invalid duplex state")
 	}
-	d.idx = idx
+	d.pos = idx
 	copy(d.state[:], data[2:])
 	return nil
 }
@@ -141,7 +141,7 @@ func (d *Duplex) UnmarshalBinary(data []byte) error {
 // AppendBinary appends the binary representation of the duplex's state to the given slice. It implements
 // encoding.BinaryAppender.
 func (d *Duplex) AppendBinary(b []byte) ([]byte, error) {
-	return append(binary.LittleEndian.AppendUint16(b, uint16(d.idx)), d.state[:]...), nil //nolint:gosec // idx < 1024
+	return append(binary.LittleEndian.AppendUint16(b, uint16(d.pos)), d.state[:]...), nil //nolint:gosec // pos < 1024
 }
 
 // MarshalBinary returns the binary representation of the duplex's state. It implements encoding.BinaryMarshaler.
