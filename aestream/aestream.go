@@ -33,9 +33,10 @@ const MaxBlockSize = math.MaxInt32 - newplex.TagSize
 // The returned io.WriteCloser MUST be closed for the encrypted stream to be valid.
 func NewWriter(p *newplex.Protocol, w io.Writer) io.WriteCloser {
 	return &sealWriter{
-		p:   p,
-		w:   w,
-		buf: make([]byte, 0, 1024),
+		p:      p,
+		w:      w,
+		buf:    make([]byte, 0, 1024),
+		closed: false,
 	}
 }
 
@@ -53,9 +54,10 @@ func NewReader(p *newplex.Protocol, r io.Reader) io.Reader {
 }
 
 type sealWriter struct {
-	p   *newplex.Protocol
-	w   io.Writer
-	buf []byte
+	p      *newplex.Protocol
+	w      io.Writer
+	buf    []byte
+	closed bool
 }
 
 func (s *sealWriter) Write(p []byte) (n int, err error) {
@@ -71,6 +73,11 @@ func (s *sealWriter) Write(p []byte) (n int, err error) {
 }
 
 func (s *sealWriter) Close() error {
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+
 	// Encode and seal a header for a zero-length block.
 	return s.sealAndWrite(nil)
 }
