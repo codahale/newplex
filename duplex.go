@@ -4,9 +4,7 @@ import (
 	"crypto/subtle"
 	"encoding"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
-	"fmt"
 
 	"github.com/codahale/newplex/internal/simpira1024"
 )
@@ -118,11 +116,6 @@ func (d *Duplex) Ratchet() {
 	d.pos = capacity
 }
 
-// String returns the hexadecimal representation of the duplex's state.
-func (d *Duplex) String() string {
-	return hex.EncodeToString(d.state[:])
-}
-
 // UnmarshalBinary restores the duplex's state from the given binary representation. It implements
 // encoding.BinaryUnmarshaler.
 func (d *Duplex) UnmarshalBinary(data []byte) error {
@@ -150,7 +143,6 @@ func (d *Duplex) MarshalBinary() (data []byte, err error) {
 }
 
 var (
-	_ fmt.Stringer               = (*Duplex)(nil)
 	_ encoding.BinaryAppender    = (*Duplex)(nil)
 	_ encoding.BinaryMarshaler   = (*Duplex)(nil)
 	_ encoding.BinaryUnmarshaler = (*Duplex)(nil)

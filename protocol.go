@@ -250,10 +250,6 @@ func (p *Protocol) UnmarshalBinary(data []byte) error {
 	return p.duplex.UnmarshalBinary(data)
 }
 
-func (p *Protocol) String() string {
-	return p.duplex.String()
-}
-
 func (p *Protocol) absorbMetadata(op byte, label string) {
 	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
 	metadata[0] = op
