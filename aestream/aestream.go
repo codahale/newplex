@@ -42,7 +42,7 @@ func NewWriter(p *newplex.Protocol, w io.Writer) io.WriteCloser {
 // NewReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption reader.
 //
 // If the stream has been modified or truncated, a newplex.ErrInvalidCiphertext is returned.
-func NewReader(p *newplex.Protocol, r io.Reader) io.ReadCloser {
+func NewReader(p *newplex.Protocol, r io.Reader) io.Reader {
 	return &openReader{
 		p:        p,
 		r:        r,
@@ -72,15 +72,7 @@ func (s *sealWriter) Write(p []byte) (n int, err error) {
 
 func (s *sealWriter) Close() error {
 	// Encode and seal a header for a zero-length block.
-	if err := s.sealAndWrite(nil); err != nil {
-		return err
-	}
-
-	// Close the writer.
-	if wc, ok := s.w.(io.WriteCloser); ok {
-		return wc.Close()
-	}
-	return nil
+	return s.sealAndWrite(nil)
 }
 
 func (s *sealWriter) sealAndWrite(p []byte) error {
@@ -152,13 +144,6 @@ readBuffered:
 	goto readBuffered
 }
 
-func (o *openReader) Close() error {
-	if rc, ok := o.r.(io.ReadCloser); ok {
-		return rc.Close()
-	}
-	return nil
-}
-
 func (o *openReader) readAndOpen(label string, n int) ([]byte, error) {
 	o.buf = slices.Grow(o.buf[:0], n+newplex.TagSize)
 	data := o.buf[:n+newplex.TagSize]
@@ -180,5 +165,5 @@ const headerSize = 4
 
 var (
 	_ io.WriteCloser = (*sealWriter)(nil)
-	_ io.ReadCloser  = (*openReader)(nil)
+	_ io.Reader      = (*openReader)(nil)
 )

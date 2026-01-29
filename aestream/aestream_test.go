@@ -206,26 +206,3 @@ func TestEmptyWrite(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
-
-type closeCounter struct {
-	io.Reader
-
-	closed bool
-}
-
-func (c *closeCounter) Close() error {
-	c.closed = true
-	return nil
-}
-
-func TestReaderClose(t *testing.T) {
-	p1 := newplex.NewProtocol("example")
-	cc := &closeCounter{Reader: bytes.NewReader(nil), closed: false}
-	r := aestream.NewReader(&p1, cc)
-	if err := r.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if !cc.closed {
-		t.Error("underlying reader was not closed")
-	}
-}
