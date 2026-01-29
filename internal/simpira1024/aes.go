@@ -1,28 +1,13 @@
-// Package aesni provides a portable, constant-time software implementation of AES rounds (equivalent to AESENC and
-// AESENCLAST instructions from AES-NI).
-//
-// This is a constant-time, bitsliced implementation that is slow but does not leak information via secret lookup
-// tables. It is used for non-AMD64, non-ARM64, or pure Go builds.
-package aesni
+package simpira1024
 
-// AESENC performs one round of AES encryption.
-func AESENC(state, key [16]byte) [16]byte {
+// aesEnc is an implementation of Algorithm 1 of the Simpira V2 paper.
+//
+// It is equivalent to the AESENC instruction from AES-NI, but uses a bitsliced, pure Go implementation.
+func aesEnc(state, key [16]byte) [16]byte {
 	q := pack(state)
 	q = sbox(q)
 	q = shiftRows(q)
 	q = mixColumns(q)
-	state = unpack(q)
-	for i := range 16 {
-		state[i] ^= key[i]
-	}
-	return state
-}
-
-// AESENCLAST performs the last round of AES encryption.
-func AESENCLAST(state, key [16]byte) [16]byte {
-	q := pack(state)
-	q = sbox(q)
-	q = shiftRows(q)
 	state = unpack(q)
 	for i := range 16 {
 		state[i] ^= key[i]

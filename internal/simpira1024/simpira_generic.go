@@ -2,11 +2,11 @@ package simpira1024
 
 import (
 	"encoding/binary"
-
-	"github.com/codahale/newplex/internal/aesni"
 )
 
+// fCB is an implementation of Algorithm 2 from the Simpira V2 paper.
 func fCB(x [16]byte, c uint32) [16]byte {
+	// SETR_EPI32(0x00 ⊕ c ⊕ b, 0x10 ⊕ c ⊕ b, 0x20 ⊕ c ⊕ b, 0x30 ⊕ c ⊕ b)
 	const b = 8
 	var constant [16]byte
 	binary.LittleEndian.PutUint32(constant[0:4], 0x00^b^c)
@@ -14,11 +14,12 @@ func fCB(x [16]byte, c uint32) [16]byte {
 	binary.LittleEndian.PutUint32(constant[8:12], 0x20^b^c)
 	binary.LittleEndian.PutUint32(constant[12:16], 0x30^b^c)
 
-	x = aesni.AESENC(x, constant)
-	x = aesni.AESENC(x, [16]byte{}) // XOR 0
+	x = aesEnc(x, constant)
+	x = aesEnc(x, [16]byte{}) // XOR 0
 	return x
 }
 
+// permuteGeneric is an implementation of Algorithm 9 from the Simpira V2 paper.
 func permuteGeneric(state *[Width]byte) {
 	const R = 18 //nolint:gocritic // for clarity
 	c := uint32(1)
