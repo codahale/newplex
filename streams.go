@@ -1,6 +1,7 @@
 package newplex
 
 import (
+	"errors"
 	"io"
 
 	"github.com/codahale/newplex/internal/tuplehash"
@@ -59,9 +60,15 @@ type cryptWriter struct {
 func (c *cryptWriter) Write(p []byte) (n int, err error) {
 	c.buf = append(c.buf[:0], p...)
 	c.f(c.buf, c.buf)
-	n, err = c.w.Write(c.buf)
-	c.n += uint64(n) //nolint:gosec // n can't be <0
-	return n, err
+	for n < len(c.buf) {
+		nn, err := c.w.Write(c.buf[n:])
+		n += nn
+		c.n += uint64(nn) //nolint:gosec // n can't be <0
+		if err != nil && !errors.Is(err, io.ErrShortWrite) {
+			return n, err
+		}
+	}
+	return n, nil
 }
 
 func (c *cryptWriter) Close() error {

@@ -129,6 +129,40 @@ func TestProtocol_EncryptWriter(t *testing.T) {
 	}
 }
 
+func TestProtocol_EncryptWriter_short_write(t *testing.T) {
+	msg := []byte("hello world")
+
+	// 1. Successful write in one go
+	p1 := newplex.NewProtocol("example")
+	buf1 := bytes.NewBuffer(nil)
+	w1 := p1.EncryptWriter("msg", buf1)
+	_, _ = w1.Write(msg)
+	_ = w1.Close()
+
+	// 2. Short write handled internally by cryptWriter
+	p2 := newplex.NewProtocol("example")
+	buf2 := bytes.NewBuffer(nil)
+	sw := &shortWriter{w: buf2, n: 5}
+	w2 := p2.EncryptWriter("msg", sw)
+
+	n, err := w2.Write(msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n != len(msg) {
+		t.Fatalf("expected n=%d, got %d", len(msg), n)
+	}
+	_ = w2.Close()
+
+	if !bytes.Equal(buf1.Bytes(), buf2.Bytes()) {
+		t.Errorf("Ciphertexts differ!\nWant: %x\nGot:  %x", buf1.Bytes(), buf2.Bytes())
+	}
+
+	if got, want := p2.Derive("next", nil, 8), p1.Derive("next", nil, 8); !bytes.Equal(got, want) {
+		t.Errorf("Final states differ!\nGot:  %x\nWant: %x", got, want)
+	}
+}
+
 func TestProtocol_DecryptReader(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("key", []byte("it's a key"))
@@ -179,4 +213,19 @@ func TestProtocol_DecryptWriter(t *testing.T) {
 	if got, want := p2.Derive("third", nil, 8), p1.Derive("third", nil, 8); !bytes.Equal(got, want) {
 		t.Errorf("Derive('third') = %x, want = %x", got, want)
 	}
+}
+
+type shortWriter struct {
+	w io.Writer
+	n int
+}
+
+func (s *shortWriter) Write(p []byte) (n int, err error) {
+	if s.n > 0 {
+		limit := min(len(p), s.n)
+		n, _ = s.w.Write(p[:limit])
+		s.n = 0
+		return n, io.ErrShortWrite
+	}
+	return s.w.Write(p)
 }
