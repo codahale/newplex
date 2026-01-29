@@ -115,6 +115,8 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 		return 0, nil
 	}
 
+readBuffered:
+
 	// If a block is buffer, satisfy the read with that.
 	if len(o.blockBuf) > 0 {
 		n = min(len(o.blockBuf), len(p))
@@ -147,7 +149,7 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 	o.blockBuf = block
 
 	// Satisfy the read with the buffered contents.
-	return o.Read(p)
+	goto readBuffered
 }
 
 func (o *openReader) Close() error {
