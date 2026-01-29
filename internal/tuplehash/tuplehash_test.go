@@ -8,8 +8,6 @@ import (
 )
 
 func TestAppendLeftEncode(t *testing.T) {
-	t.Parallel()
-
 	for _, test := range []struct {
 		value uint64
 		want  []byte
@@ -28,8 +26,6 @@ func TestAppendLeftEncode(t *testing.T) {
 }
 
 func TestAppendRightEncode(t *testing.T) {
-	t.Parallel()
-
 	for _, test := range []struct {
 		value uint64
 		want  []byte

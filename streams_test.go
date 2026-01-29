@@ -9,8 +9,6 @@ import (
 )
 
 func TestProtocol_MixReader(t *testing.T) {
-	t.Parallel()
-
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("key", []byte("onetwothree"))
 
@@ -36,8 +34,6 @@ func TestProtocol_MixReader(t *testing.T) {
 }
 
 func TestProtocol_MixWriter(t *testing.T) {
-	t.Parallel()
-
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("key", []byte("onetwothree"))
 
@@ -68,8 +64,6 @@ func TestProtocol_MixWriter(t *testing.T) {
 }
 
 func TestProtocol_EncryptReader(t *testing.T) {
-	t.Parallel()
-
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("key", []byte("onetwothree"))
 	r := p1.EncryptReader("message", bytes.NewBufferString("onetwothree"))
@@ -96,8 +90,6 @@ func TestProtocol_EncryptReader(t *testing.T) {
 }
 
 func TestProtocol_EncryptWriter(t *testing.T) {
-	t.Parallel()
-
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("key", []byte("onetwothree"))
 	buf := bytes.NewBuffer(nil)

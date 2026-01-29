@@ -9,8 +9,6 @@ import (
 )
 
 func TestKnownAnswers(t *testing.T) {
-	t.Parallel()
-
 	protocol := newplex.NewProtocol("com.example.kat")
 	protocol.Mix("first", []byte("one"))
 	protocol.Mix("second", []byte("two"))
@@ -36,8 +34,6 @@ func TestKnownAnswers(t *testing.T) {
 }
 
 func TestProtocol_EmptyInputs(t *testing.T) {
-	t.Parallel()
-
 	p := newplex.NewProtocol("empty-test")
 	p.Mix("", nil)
 	p.Mix("label", nil)
@@ -81,8 +77,6 @@ func TestProtocol_EmptyInputs(t *testing.T) {
 }
 
 func TestProtocol_Clone(t *testing.T) {
-	t.Parallel()
-
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("a thing", []byte("another thing"))
 	p2 := p1.Clone()
@@ -93,8 +87,6 @@ func TestProtocol_Clone(t *testing.T) {
 }
 
 func TestProtocol_MarshalBinary(t *testing.T) {
-	t.Parallel()
-
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("a thing", []byte("another thing"))
 
@@ -114,8 +106,6 @@ func TestProtocol_MarshalBinary(t *testing.T) {
 }
 
 func TestProtocol_UnmarshalBinary(t *testing.T) {
-	t.Parallel()
-
 	p := newplex.NewProtocol("example")
 	if err := p.UnmarshalBinary([]byte{}); err == nil {
 		t.Error("UnmarshalBinary(initialized) should have failed")
@@ -123,8 +113,6 @@ func TestProtocol_UnmarshalBinary(t *testing.T) {
 }
 
 func TestProtocol_AppendBinary(t *testing.T) {
-	t.Parallel()
-
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("a thing", []byte("another thing"))
 
@@ -144,8 +132,6 @@ func TestProtocol_AppendBinary(t *testing.T) {
 }
 
 func TestProtocol_Derive_nonzero_output_slices(t *testing.T) {
-	t.Parallel()
-
 	zero := make([]byte, 10)
 	nonZero := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}
 
@@ -158,8 +144,6 @@ func TestProtocol_Derive_nonzero_output_slices(t *testing.T) {
 }
 
 func TestProtocol_Derive_negative_length(t *testing.T) {
-	t.Parallel()
-
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("The code did not panic")
@@ -190,8 +174,6 @@ func TestProtocol_Encrypt_common_prefixes(t *testing.T) {
 }
 
 func TestProtocol_Encrypt_same_slice(t *testing.T) {
-	t.Parallel()
-
 	plaintext := []byte("hello world")
 	p1 := newplex.NewProtocol("test")
 	ciphertext := p1.Encrypt("message", nil, plaintext)
@@ -207,8 +189,6 @@ func TestProtocol_Encrypt_same_slice(t *testing.T) {
 }
 
 func TestProtocol_Seal_same_slice(t *testing.T) {
-	t.Parallel()
-
 	plaintext := []byte("hello world")
 	p1 := newplex.NewProtocol("test")
 	ciphertext := p1.Seal("message", nil, plaintext)
@@ -243,8 +223,6 @@ func FuzzProtocol_Open_ciphertext_modification(f *testing.F) {
 }
 
 func TestProtocol_Open_unauthenticated_plaintext(t *testing.T) {
-	t.Parallel()
-
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("key", []byte("I'm a key."))
 	plaintext := []byte("I'm a message.")
@@ -262,8 +240,6 @@ func TestProtocol_Open_unauthenticated_plaintext(t *testing.T) {
 }
 
 func TestProtocol_Open_short_ciphertext(t *testing.T) {
-	t.Parallel()
-
 	p := newplex.NewProtocol("example")
 	_, err := p.Open("message", nil, make([]byte, newplex.TagSize-1))
 	if err == nil {
