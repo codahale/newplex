@@ -6,14 +6,13 @@ import (
 	"github.com/codahale/newplex/internal/aesni"
 )
 
-const b = 8
-
-func fFunction(x [16]byte, c uint32) [16]byte {
+func fCB(x [16]byte, c uint32) [16]byte {
+	const b = 8
 	var constant [16]byte
-	xb := c ^ b
-	for j := range uint32(4) {
-		binary.LittleEndian.PutUint32(constant[j*4:], xb^(j<<4))
-	}
+	binary.LittleEndian.PutUint32(constant[0:4], 0x00^b^c)
+	binary.LittleEndian.PutUint32(constant[4:8], 0x10^b^c)
+	binary.LittleEndian.PutUint32(constant[8:12], 0x20^b^c)
+	binary.LittleEndian.PutUint32(constant[12:16], 0x30^b^c)
 
 	x = aesni.AESENC(x, constant)
 	x = aesni.AESENC(x, [16]byte{}) // XOR 0
@@ -21,6 +20,7 @@ func fFunction(x [16]byte, c uint32) [16]byte {
 }
 
 func permuteGeneric(state *[Width]byte) {
+	const R = 18 //nolint:gocritic // for clarity
 	c := uint32(1)
 	s := [6]int{0, 1, 6, 5, 4, 3}
 	t := [2]int{2, 7}
@@ -30,7 +30,7 @@ func permuteGeneric(state *[Width]byte) {
 		copy(blocks[i][:], state[i*16:(i+1)*16])
 	}
 
-	for r := range 18 {
+	for r := range R {
 		// Four F-functions per round
 		src1 := s[r%6]
 		dst1 := s[(r+1)%6]
@@ -44,13 +44,13 @@ func permuteGeneric(state *[Width]byte) {
 		src4 := s[(r+2)%6]
 		dst4 := t[(r+1)%2]
 
-		f1 := fFunction(blocks[src1], c)
+		f1 := fCB(blocks[src1], c)
 		c++
-		f2 := fFunction(blocks[src2], c)
+		f2 := fCB(blocks[src2], c)
 		c++
-		f3 := fFunction(blocks[src3], c)
+		f3 := fCB(blocks[src3], c)
 		c++
-		f4 := fFunction(blocks[src4], c)
+		f4 := fCB(blocks[src4], c)
 		c++
 
 		for i := range 16 {
