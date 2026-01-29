@@ -43,13 +43,14 @@ func NewWriter(p *newplex.Protocol, w io.Writer) io.WriteCloser {
 // NewReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption reader.
 //
 // If the stream has been modified or truncated, a newplex.ErrInvalidCiphertext is returned.
-func NewReader(p *newplex.Protocol, r io.Reader) io.Reader {
+func NewReader(p *newplex.Protocol, r io.Reader, maxBlockSize int) io.Reader {
 	return &openReader{
-		p:        p,
-		r:        r,
-		buf:      make([]byte, 0, 1024),
-		blockBuf: nil,
-		closed:   false,
+		p:            p,
+		r:            r,
+		buf:          make([]byte, 0, 1024),
+		blockBuf:     nil,
+		closed:       false,
+		maxBlockSize: min(maxBlockSize, MaxBlockSize),
 	}
 }
 
@@ -107,6 +108,7 @@ type openReader struct {
 	r             io.Reader
 	buf, blockBuf []byte
 	closed        bool
+	maxBlockSize  int
 }
 
 func (o *openReader) Read(p []byte) (n int, err error) {
@@ -137,6 +139,8 @@ readBuffered:
 	uLen := binary.BigEndian.Uint32(header)
 	if uLen > MaxBlockSize {
 		return 0, newplex.ErrInvalidCiphertext
+	} else if uLen > uint32(o.maxBlockSize) { //nolint:gosec // o.maxBlockSize <= MaxBlockSize
+		return 0, fmt.Errorf("aestream: %d byte block bigger than %d byte max", uLen, o.maxBlockSize)
 	}
 
 	// Read and open the block.

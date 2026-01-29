@@ -27,7 +27,7 @@ func TestRoundTrip(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestTruncation(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 	_, err := io.ReadAll(r)
 	if err == nil {
 		t.Error("expected error on truncated stream, got nil")
@@ -75,7 +75,7 @@ func TestPartialHeader(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(truncated))
+	r := aestream.NewReader(&p2, bytes.NewReader(truncated), aestream.MaxBlockSize)
 	_, err := io.ReadAll(r)
 	if err == nil {
 		t.Error("expected error on truncated header, got nil")
@@ -125,7 +125,7 @@ func BenchmarkNewReader(b *testing.B) {
 			var p3 newplex.Protocol
 			for b.Loop() {
 				p3 = p2.Clone()
-				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()))
+				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
 			}
 		})
 	}
@@ -151,7 +151,7 @@ func BenchmarkReader(b *testing.B) {
 			var p3 newplex.Protocol
 			for b.Loop() {
 				p3 = p2.Clone()
-				r := aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()))
+				r := aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
 				if _, err := io.CopyBuffer(io.Discard, r, buf); err != nil {
 					b.Fatal(err)
 				}
@@ -196,7 +196,7 @@ func TestEmptyWrite(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
