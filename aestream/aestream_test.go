@@ -27,7 +27,7 @@ func TestRoundTrip(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestCopy(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestTruncation(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 	_, err := io.ReadAll(r)
 	if err == nil {
 		t.Error("expected error on truncated stream, got nil")
@@ -98,21 +98,43 @@ func TestPartialHeader(t *testing.T) {
 	}
 	_ = w.Close()
 
-	// Truncate the buffer so it only has 1 byte of the next block's header
 	data := buf.Bytes()
-	truncated := data[:len(data)-2] // Remove 2 bytes of the terminal block (which is 3+0+16 = 19 bytes)
-	// Wait, terminal block is 3 bytes header + 16 bytes tag.
-	// So truncated should have at least 1 byte of the terminal header.
+	truncated := data[:len(data)-2]
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(truncated))
+	r := aestream.NewReader(&p2, bytes.NewReader(truncated), aestream.MaxBlockSize)
 	_, err := io.ReadAll(r)
 	if err == nil {
 		t.Error("expected error on truncated header, got nil")
 	}
 	if err != nil && !errors.Is(err, newplex.ErrInvalidCiphertext) {
 		t.Errorf("expected ErrInvalidCiphertext, got %v", err)
+	}
+}
+
+func TestBlockTooLarge(t *testing.T) {
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("key", []byte("it's a key"))
+	buf := bytes.NewBuffer(nil)
+	w := aestream.NewWriter(&p1, buf)
+	if _, err := w.Write([]byte("message")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	p2 := newplex.NewProtocol("example")
+	p2.Mix("key", []byte("it's a key"))
+	// Set max block size smaller than "message" length (7 bytes)
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), 6)
+	_, err := io.ReadAll(r)
+	if err == nil {
+		t.Error("expected error on block too large, got nil")
+	}
+	if !errors.Is(err, aestream.ErrBlockTooLarge) {
+		t.Errorf("expected ErrBlockTooLarge, got %v", err)
 	}
 }
 
@@ -156,7 +178,7 @@ func BenchmarkNewReader(b *testing.B) {
 			var p3 newplex.Protocol
 			for b.Loop() {
 				p3 = p2.Clone()
-				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()))
+				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
 			}
 		})
 	}
@@ -182,7 +204,7 @@ func BenchmarkReader(b *testing.B) {
 			var p3 newplex.Protocol
 			for b.Loop() {
 				p3 = p2.Clone()
-				r := aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()))
+				r := aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
 				if _, err := io.CopyBuffer(io.Discard, r, buf); err != nil {
 					b.Fatal(err)
 				}
@@ -227,7 +249,7 @@ func TestEmptyWrite(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)

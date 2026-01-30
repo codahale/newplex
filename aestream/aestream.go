@@ -24,6 +24,9 @@ import (
 // this size.
 const MaxBlockSize = 1<<24 - 1
 
+// ErrBlockTooLarge is returned when a reading a block which is larger than the specified maximum block size.
+var ErrBlockTooLarge = errors.New("aestream: block size > max block size")
+
 // NewWriter wraps the given newplex.Protocol and io.Writer with a streaming authenticated encryption writer.
 //
 // The returned io.WriteCloser MUST be closed for the encrypted stream to be valid.
@@ -38,14 +41,18 @@ func NewWriter(p *newplex.Protocol, w io.Writer) io.WriteCloser {
 
 // NewReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption reader.
 //
+// The maxBlockSize parameter limits the size of the blocks that will be read. If a block is encountered that is larger
+// than this limit, a newplex.ErrInvalidCiphertext is returned.
+//
 // If the stream has been modified or truncated, a newplex.ErrInvalidCiphertext is returned.
-func NewReader(p *newplex.Protocol, r io.Reader) io.Reader {
+func NewReader(p *newplex.Protocol, r io.Reader, maxBlockSize int) io.Reader {
 	return &openReader{
-		p:        p,
-		r:        r,
-		buf:      make([]byte, 0, 1024),
-		blockBuf: nil,
-		closed:   false,
+		p:            p,
+		r:            r,
+		buf:          make([]byte, 0, 1024),
+		blockBuf:     nil,
+		closed:       false,
+		maxBlockSize: maxBlockSize,
 	}
 }
 
@@ -104,6 +111,7 @@ type openReader struct {
 	r             io.Reader
 	buf, blockBuf []byte
 	closed        bool
+	maxBlockSize  int
 }
 
 func (o *openReader) Read(p []byte) (n int, err error) {
@@ -132,6 +140,9 @@ readBuffered:
 		return 0, err
 	}
 	blockLen := int(uint24(header))
+	if blockLen > o.maxBlockSize {
+		return 0, ErrBlockTooLarge
+	}
 
 	// Read and open the block.
 	block, err := o.readAndOpen("block", blockLen)
