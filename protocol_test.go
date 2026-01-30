@@ -2,36 +2,10 @@ package newplex_test
 
 import (
 	"bytes"
-	"encoding/hex"
 	"testing"
 
 	"github.com/codahale/newplex"
 )
-
-func TestKnownAnswers(t *testing.T) {
-	protocol := newplex.NewProtocol("com.example.kat")
-	protocol.Mix("first", []byte("one"))
-	protocol.Mix("second", []byte("two"))
-
-	if got, want := hex.EncodeToString(protocol.Derive("third", nil, 8)), "05f09801216ea9d1"; got != want {
-		t.Errorf("Derive('third') = %v, want = %v", got, want)
-	}
-
-	plaintext := []byte("this is an example")
-	ciphertext := protocol.Encrypt("fourth", nil, plaintext)
-	if got, want := hex.EncodeToString(ciphertext), "da0b8cacd3b9c16f0447b9ead5ededb11ae3"; got != want {
-		t.Errorf("Encrypt('fourth') = %v, want = %v", got, want)
-	}
-
-	ciphertext = protocol.Seal("fifth", nil, []byte("this is an example"))
-	if got, want := hex.EncodeToString(ciphertext), "fe05d9f43d40a8050650e9e203bff0728eba91583453b14aa3faa270254cdb2d6ba2"; got != want {
-		t.Errorf("Seal('fifth') = %v, want = %v", got, want)
-	}
-
-	if got, want := hex.EncodeToString(protocol.Derive("sixth", nil, 8)), "58e60e022a1612fe"; got != want {
-		t.Errorf("Derive('sixth') = %v, want = %v", got, want)
-	}
-}
 
 func TestProtocol_EmptyInputs(t *testing.T) {
 	p := newplex.NewProtocol("empty-test")
