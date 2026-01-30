@@ -181,7 +181,7 @@ An `Init` operation initializes a new, all-zero duplex, and absorbs a domain sep
 
 ```text
 function Init(domain):
-  Absorb(0x01 || left_encode(|domain|) || domain)
+  duplex.Absorb(0x01 || left_encode(|domain|) || domain)
 ``` 
 
 `Init` encodes the length of the domain in bytes using the `left_encode` function from [NIST SP 800-185][TupleHash].
@@ -203,7 +203,7 @@ dependent on them.
 
 ```text
 function Mix(label, input):
-  Absorb(0x02 || left_encode(|label|) || label || input || right_encode(|input|))
+  duplex.Absorb(0x02 || left_encode(|label|) || label || input || right_encode(|input|))
 ```
 
 `Mix` encodes the length of the label in bytes and the length of the input in bytes using the `left_encode` and
@@ -217,10 +217,10 @@ state, the label, and the output length.
 
 ```text
 function Derive(label, n):
-  Absorb(0x03 || left_encode(|label|) || label || right_encode(n))
-  Permute()
-  prf = Squeeze(n)
-  Ratchet()
+  duplex.Absorb(0x03 || left_encode(|label|) || label || right_encode(n))
+  duplex.Permute()
+  prf = duplex.Squeeze(n)
+  duplex.Ratchet()
   return prf
 ```
 
@@ -264,19 +264,19 @@ state and the label.
 
 ```text
 function Encrypt(label, plaintext):
-  Absorb(0x04 || left_encode(|label|) || label)
-  Permute()
-  ciphertext = Encrypt(plaintext)
-  Absorb(right_encode(|plaintext|))
-  Ratchet()
+  duplex.Absorb(0x04 || left_encode(|label|) || label)
+  duplex.Permute()
+  ciphertext = duplex.Encrypt(plaintext)
+  duplex.Absorb(right_encode(|plaintext|))
+  duplex.Ratchet()
   return ciphertext
   
 function Decrypt(label, ciphertext):
-  Absorb(0x04 || left_encode(|label|) || label)
-  Permute()
-  plaintext = Decrypt(ciphertext)
-  Absorb(right_encode(|plaintext|))
-  Ratchet()
+  duplex.Absorb(0x04 || left_encode(|label|) || label)
+  duplex.Permute()
+  plaintext = duplex.Decrypt(ciphertext)
+  duplex.Absorb(right_encode(|plaintext|))
+  duplex.Ratchet()
   return plaintext
 ```
 
@@ -310,21 +310,21 @@ authentication tag. The `Open` operation verifies the tag, returning an error if
 
 ```text
 function Seal(label, plaintext):
-  Absorb(0x05 || left_encode(|label|) || label || right_encode(|plaintext|))
-  Permute()
-  ciphertext = Encrypt(plaintext)
-  Permute()
-  tag = Squeeze(16)
-  Ratchet()
+  duplex.Absorb(0x05 || left_encode(|label|) || label || right_encode(|plaintext|))
+  duplex.Permute()
+  ciphertext = duplex.Encrypt(plaintext)
+  duplex.Permute()
+  tag = duplex.Squeeze(16)
+  duplex.Ratchet()
   return ciphertext || tag
   
 function Open(label, ciphertext || tag):
-  Absorb(0x05 || left_encode(|label|) || label || right_encode(|ciphertext|))
-  Permute()
-  plaintext = Decrypt(ciphertext)
-  Permute()
-  tag' = Squeeze(16)
-  Ratchet()
+  duplex.Absorb(0x05 || left_encode(|label|) || label || right_encode(|ciphertext|))
+  duplex.Permute()
+  plaintext = duplex.Decrypt(ciphertext)
+  duplex.Permute()
+  tag' = duplex.Squeeze(16)
+  duplex.Ratchet()
   if tag != tag':
     return ErrInvalidCiphertext
   return plaintext
@@ -365,9 +365,9 @@ Calculating a message digest is as simple as a `Mix` and a `Derive`:
 
 ```text
 function MessageDigest(message):
-  Init("com.example.md")        // Initialize a protocol with a domain string.
-  Mix("message", data)          // Mix the message into the protocol.
-  digest = Derive("digest", 32) // Derive 32 bytes of output and return it.
+  protocol.Init("com.example.md")        // Initialize a protocol with a domain string.
+  protocol.Mix("message", data)          // Mix the message into the protocol.
+  digest = protocol.Derive("digest", 32) // Derive 32 bytes of output and return it.
   return digest
 ```
 
@@ -380,10 +380,10 @@ Adding a key to the previous construction makes it a MAC:
 
 ```text
 function MAC(key, message):
-  Init("com.example.mac") // Initialize a protocol with a domain string.
-  Mix("key", key)         // Mix the key into the protocol.
-  Mix("message", message) // Mix the message into the protocol.
-  tag = Derive("tag", 16) // Derive 16 bytes of output and return it.
+  protocol.Init("com.example.mac") // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)         // Mix the key into the protocol.
+  protocol.Mix("message", message) // Mix the message into the protocol.
+  tag = protocol.Derive("tag", 16) // Derive 16 bytes of output and return it.
   return tag
 ```
 
@@ -398,17 +398,17 @@ A protocol can be used to create a stream cipher:
 
 ```text
 function StreamEncrypt(key, nonce, plaintext):
-  Init("com.example.stream")                 // Initialize a protocol with a domain string.
-  Mix("key", key)                            // Mix the key into the protocol.
-  Mix("nonce", nonce)                        // Mix the nonce into the protocol.
-  ciphertext = Encrypt("message", plaintext) // Encrypt the plaintext.
+  protocol.Init("com.example.stream")                 // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                            // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                        // Mix the nonce into the protocol.
+  ciphertext = protocol.Encrypt("message", plaintext) // Encrypt the plaintext.
   return ciphertext
 
 function StreamDecrypt(key, nonce, ciphertext):
-  Init("com.example.stream")                 // Initialize a protocol with a domain string.
-  Mix("key", key)                            // Mix the key into the protocol.
-  Mix("nonce", nonce)                        // Mix the nonce into the protocol.
-  plaintext = Decrypt("message", ciphertext) // Decrypt the ciphertext.
+  protocol.Init("com.example.stream")                 // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                            // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                        // Mix the nonce into the protocol.
+  plaintext = protocol.Decrypt("message", ciphertext) // Decrypt the ciphertext.
   return plaintext
 ```
 
@@ -423,11 +423,11 @@ A protocol can be used to create an AEAD:
 
 ```text
 function AEADSeal(key, nonce, ad, plaintext):
-  Init("com.example.aead")                       // Initialize a protocol with a domain string.
-  Mix("key", key)                                // Mix the key into the protocol.
-  Mix("nonce", nonce)                            // Mix the nonce into the protocol.
-  Mix("ad", ad)                                  // Mix the associated data into the protocol.
-  ciphertext || tag = Seal("message", plaintext) // Seal the plaintext.
+  protocol.Init("com.example.aead")                       // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                                // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                            // Mix the nonce into the protocol.
+  protocol.Mix("ad", ad)                                  // Mix the associated data into the protocol.
+  ciphertext || tag = protocol.Seal("message", plaintext) // Seal the plaintext.
   return ciphertext || tag
 ```
 
@@ -441,12 +441,12 @@ without the risk of ambiguous inputs.
 
 ```text
 function AEADOpen(key, nonce, ad, ciphertext || tag):
-  Init("com.example.aead")                       // Initialize a protocol with a domain string.
-  Mix("key", key)                                // Mix the key into the protocol.
-  Mix("nonce", nonce)                            // Mix the nonce into the protocol.
-  Mix("ad", ad)                                  // Mix the associated data into the protocol.
-  plaintext = Open("message", ciphertext || tag) // Open the ciphertext.
-  return plaintext                               // Return the plaintext or an error.
+  protocol.Init("com.example.aead")                       // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                                // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                            // Mix the nonce into the protocol.
+  protocol.Mix("ad", ad)                                  // Mix the associated data into the protocol.
+  plaintext = protocol.Open("message", ciphertext || tag) // Open the ciphertext.
+  return plaintext                                        // Return the plaintext or an error.
 ```
 
 This construction is IND-CCA2-secure (i.e., both IND-CPA and INT-CTXT) under the following assumptions:
@@ -461,39 +461,39 @@ is limited to `2^24-1` bytes.
 
 ```text
 function AEStreamSend(key, nonce, plaintext, ciphertext):
-  Init("com.example.aestream")           // Establish a shared protocol state.
-  Mix("key", key)
-  Mix("nonce", nonce)
+  protocol.Init("com.example.aestream")        // Establish a shared protocol state.
+  protocol.Mix("key", key)
+  protocol.Mix("nonce", nonce)
   while |plaintext| > 0:
-    pblock = Read(plaintext)             // Read a block of plaintext.
-    pheader = BEU24(|pblock|)            // Encode the block length as a 3-byte unsigned big endian integer.
-    cheader = Seal("header", pheader)    // Seal the header.
-    cblock = Seal("block", pblock)       // Seal the block.
-    Write(ciphertext, cheader || cblock) // Write the sealed header and sealed block.
-  pheader = BEU24(0)                     // Encode a zero-length block header.
-  cheader = Seal("header", pheader)      // Seal the header.
-  cblock = Seal("block", "")             // Seal a zero-length block.
-  Write(ciphertext, cheader || cblock)   // Write the sealed header and sealed block.
+    pblock = Read(plaintext)                   // Read a block of plaintext.
+    pheader = BEU24(|pblock|)                  // Encode the block length as a 3-byte unsigned big endian integer.
+    cheader = protocol.Seal("header", pheader) // Seal the header.
+    cblock = protocol.Seal("block", pblock)    // Seal the block.
+    Write(ciphertext, cheader || cblock)       // Write the sealed header and sealed block.
+  pheader = BEU24(0)                           // Encode a zero-length block header.
+  cheader = protocol.Seal("header", pheader)   // Seal the header.
+  cblock = protocol.Seal("block", "")          // Seal a zero-length block.
+  Write(ciphertext, cheader || cblock)         // Write the sealed header and sealed block.
 
 
 function AEStreamRecv(key, nonce, ciphertext, plaintext):
-  Init("com.example.aestream")
-  Mix("key", key)
-  Mix("nonce", nonce)
+  protocol.Init("com.example.aestream")
+  protocol.Mix("key", key)
+  protocol.Mix("nonce", nonce)
   while |ciphertext| > 0:
-    cheader = Read(ciphertext, 3+16)      // Read a sealed 4-byte header and 16-byte tag.
-    pheader = Open("header", cheader)     // Open the sealed header.
-    if pheader == ErrInvalidCiphertext:   // Error if the header is not authenticated.
+    cheader = Read(ciphertext, 3+16)           // Read a sealed 3-byte header and 16-byte tag.
+    pheader = protocol.Open("header", cheader) // Open the sealed header.
+    if pheader == ErrInvalidCiphertext:        // Error if the header is not authenticated.
       return ErrInvalidCiphertext
-    msglen = BEU24(pheader)               // Decode the block length.
-    cblock = Read(ciphertext, msglen+16)  // Read the sealed block and 16-byte tag.
-    pblock = Open("block", cblock)        // Open the sealed block.
-    if pblock == ErrInvalidCiphertext:    // Error if the ciphertext is not authenticated.
+    msglen = BEU24(pheader)                    // Decode the block length.
+    cblock = Read(ciphertext, msglen+16)       // Read the sealed block and 16-byte tag.
+    pblock = protocol.Open("block", cblock)    // Open the sealed block.
+    if pblock == ErrInvalidCiphertext:         // Error if the ciphertext is not authenticated.
       return ErrInvalidCiphertext
-    if |pblock| == 0:                     // Return an EOF if the block is empty.
+    if |pblock| == 0:                          // Return an EOF if the block is empty.
       return EOF
-    Write(plaintext, pblock)              // Otherwise, write the plaintext block.
-  return ErrInvalidCiphertext             // Error if the stream is truncated.
+    Write(plaintext, pblock)                   // Otherwise, write the plaintext block.
+  return ErrInvalidCiphertext                  // Error if the stream is truncated.
 ```
 
 The sender encodes each block's length as a 3-byte big endian integer, seals that header, seals the block, and sends
@@ -534,22 +534,22 @@ A protocol can be used to build an integrated [ECIES]-style public key encryptio
 
 ```text
 function HPKEEncrypt(receiver.pub, plaintext):
-  ephemeral = P256::KeyGen()                      // Generate an ephemeral key pair.
-  Init("com.example.hpke")                        // Initialize a protocol with a domain string.
-  Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
-  ciphertext || tag = Seal("message", plaintext)  // Seal the plaintext.
-  return (ephemeral.pub, ciphertext || tag)       // Return the ephemeral public key, ciphertext, and tag.
+  ephemeral = P256::KeyGen()                               // Generate an ephemeral key pair.
+  protocol.Init("com.example.hpke")                        // Initialize a protocol with a domain string.
+  protocol.Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
+  protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
+  protocol.Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
+  ciphertext || tag = protocol.Seal("message", plaintext)  // Seal the plaintext.
+  return (ephemeral.pub, ciphertext || tag)                // Return the ephemeral public key, ciphertext, and tag.
 ```
 
 ```text
 function HPKEDecrypt(receiver, ephemeral.pub, ciphertext || tag):
-  Init("com.example.hpke")                        // Initialize a protocol with a domain string.
-  Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ephemeral ECDH shared secret into the protocol.
-  plaintext = Open("message", ciphertext || tag)  // Open the ciphertext.
+  protocol.Init("com.example.hpke")                        // Initialize a protocol with a domain string.
+  protocol.Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
+  protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
+  protocol.Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ephemeral ECDH shared secret into the protocol.
+  plaintext = protocol.Open("message", ciphertext || tag)  // Open the ciphertext.
   return plaintext
 ```
 
@@ -571,14 +571,14 @@ A protocol can be used to implement EdDSA-style Schnorr digital signatures:
 
 ```text
 function Sign(signer, message):
-  Init("com.example.eddsa")                 // Initialize a protocol with a domain string.
-  Mix("signer", signer.pub)                 // Mix the signer's public key into the protocol.
-  Mix("message", message)                   // Mix the message into the protocol.
-  (k, I) = P256::KeyGen()                   // Generate a commitment scalar and point.
-  Mix("commitment", I)                      // Mix the commitment point into the protocol.
-  r = P256::Scalar(Derive("challenge", 40)) // Derive a challenge scalar.
-  s = signer.priv * r + k                   // Calculate the proof scalar.
-  return (I, s)                             // Return the commitment point and proof scalar.
+  protocol.Init("com.example.eddsa")                 // Initialize a protocol with a domain string.
+  protocol.Mix("signer", signer.pub)                 // Mix the signer's public key into the protocol.
+  protocol.Mix("message", message)                   // Mix the message into the protocol.
+  (k, I) = P256::KeyGen()                            // Generate a commitment scalar and point.
+  protocol.Mix("commitment", I)                      // Mix the commitment point into the protocol.
+  r = P256::Scalar(protocol.Derive("challenge", 40)) // Derive a challenge scalar.
+  s = signer.priv * r + k                            // Calculate the proof scalar.
+  return (I, s)                                      // Return the commitment point and proof scalar.
 ```
 
 The resulting signature is strongly bound to both the message and the signer's public key, making it sUF-CMA secure. If
@@ -587,13 +587,13 @@ co-factors to be strongly unforgeable.
 
 ```text
 function Verify(signer.pub, message, I, s):
-  Init("com.example.eddsa")                  // Initialize a protocol with a domain string.
-  Mix("signer", signer.pub)                  // Mix the signer's public key into the protocol.
-  Mix("message", message)                    // Mix the message into the protocol.
-  Mix("commitment", I)                       // Mix the commitment point into the protocol.
-  r' = P256::Scalar(Derive("challenge", 40)) // Derive an expected challenge scalar.
-  I' = [s]G - [r']signer.pub                 // Calculate the expected commitment point.
-  return I = I'                              // The signature is valid if both points are equal.
+  protocol.Init("com.example.eddsa")                  // Initialize a protocol with a domain string.
+  protocol.Mix("signer", signer.pub)                  // Mix the signer's public key into the protocol.
+  protocol.Mix("message", message)                    // Mix the message into the protocol.
+  protocol.Mix("commitment", I)                       // Mix the commitment point into the protocol.
+  r' = P256::Scalar(protocol.Derive("challenge", 40)) // Derive an expected challenge scalar.
+  I' = [s]G - [r']signer.pub                          // Calculate the expected commitment point.
+  return I = I'                                       // The signature is valid if both points are equal.
 ```
 
 An additional variation on this construction uses `Encrypt` instead of `Mix` to include the commitment point `I` in the
@@ -605,7 +605,7 @@ function using a cloned protocol:
 
 ```text
 function DetCommitment(signer):
-  clone = Clone()
+  clone = protocol.Clone()
   clone.Mix("signer-private", signer.priv)
   k = P256::Scalar(clone.Derive("scalar", 40))
   I = [k]G 
@@ -625,35 +625,35 @@ strong authentication in the public key setting:
 
 ```text
 function Signcrypt(sender, receiver.pub, plaintext):
-  ephemeral = P256::KeyGen()                      // Generate an ephemeral key pair.
-  Init("com.example.sc")                          // Initialize a protocol with a domain string.
-  Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
-  Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
-  ciphertext = Encrypt("message", plaintext)      // Encrypt the plaintext.
-  (k, I) = P256::KeyGen()                         // Generate a commitment scalar and point.
-  Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  r = P256::Scalar(Derive("challenge", 40))       // Derive a challenge scalar.
-  s = sender.priv * r + k                         // Calculate the proof scalar.
-  return (ephemeral.pub, ciphertext, I, s)        // Return the ephemeral public key, ciphertext, and signature.
+  ephemeral = P256::KeyGen()                               // Generate an ephemeral key pair.
+  protocol.Init("com.example.sc")                          // Initialize a protocol with a domain string.
+  protocol.Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
+  protocol.Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
+  protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
+  protocol.Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
+  ciphertext = protocol.Encrypt("message", plaintext)      // Encrypt the plaintext.
+  (k, I) = P256::KeyGen()                                  // Generate a commitment scalar and point.
+  protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
+  r = P256::Scalar(protocol.Derive("challenge", 40))       // Derive a challenge scalar.
+  s = sender.priv * r + k                                  // Calculate the proof scalar.
+  return (ephemeral.pub, ciphertext, I, s)                 // Return the ephemeral public key, ciphertext, and signature.
 ```
 
 ```text
 function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
-  Init("com.example.sc")                          // Initialize a protocol with a domain string.
-  Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
-  Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
-  plaintext = Decrypt("message", ciphertext)      // Decrypt the ciphertext.
-  Mix("commitment", I)                            // Mix the commitment point into the protocol.
-   r' = P256::Scalar(Derive("challenge", 40))     // Derive an expected challenge scalar.
-  I' = [s]G - [r']sender.pub                      // Calculate the expected commitment point.
+  protocol.Init("com.example.sc")                          // Initialize a protocol with a domain string.
+  protocol.Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
+  protocol.Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
+  protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
+  protocol.Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
+  plaintext = protocol.Decrypt("message", ciphertext)      // Decrypt the ciphertext.
+  protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
+   r' = P256::Scalar(protocol.Derive("challenge", 40))     // Derive an expected challenge scalar.
+  I' = [s]G - [r']sender.pub                               // Calculate the expected commitment point.
   if I == I':
-    return plaintext                              // If both points are equal, return the plaintext.
+    return plaintext                                       // If both points are equal, return the plaintext.
   else:
-    return ErrInvalidCiphertext                   // Otherwise, return an error.
+    return ErrInvalidCiphertext                            // Otherwise, return an error.
 ```
 
 Because a Newplex protocol is an incremental, stateful way of building a cryptographic construction, this integrated
