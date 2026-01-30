@@ -7,6 +7,18 @@ import (
 	"github.com/codahale/newplex"
 )
 
+func TestNewProtocol(t *testing.T) {
+	p1 := newplex.NewProtocol("example")
+	out1 := p1.Derive("out", nil, 8)
+
+	p2 := newplex.NewProtocol("other")
+	out2 := p2.Derive("out", nil, 8)
+
+	if bytes.Equal(out1, out2) {
+		t.Errorf("Domain separation failure")
+	}
+}
+
 func TestProtocol_Clone(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("a thing", []byte("another thing"))
