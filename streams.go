@@ -34,19 +34,19 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 	return &mixReader{p: p, r: r, n: 0, closed: false}
 }
 
-// EncryptWriter updates the protocol's state using the given label and encrypts whatever data is written to the wrapped
-// io.Writer.
+// UnauthenticatedEncryptWriter updates the protocol's state using the given label and encrypts whatever data is written
+// to the wrapped io.Writer.
 //
 // To avoid encrypting the written slices in-place, this writer copies the data before encrypting. As such, it is
-// slightly slower than its EncryptReader counterpart.
+// slightly slower than its UnauthenticatedEncryptReader counterpart.
 //
 // If a Write call returns an error, then the Protocol will be out of sync and must be discarded.
 //
-// N.B.: The returned io.WriteCloser must be closed for the Encrypt operation to be complete. While the returned
-// io.WriteCloser is open, any other operation on the Protocol will panic.
+// N.B.: The returned io.WriteCloser must be closed for the UnauthenticatedEncrypt operation to be complete. While the
+// returned io.WriteCloser is open, any other operation on the Protocol will panic.
 //
-// EncryptWriter panics if a streaming operation is currently active.
-func (p *Protocol) EncryptWriter(label string, w io.Writer) io.WriteCloser {
+// UnauthenticatedEncryptWriter panics if a streaming operation is currently active.
+func (p *Protocol) UnauthenticatedEncryptWriter(label string, w io.Writer) io.WriteCloser {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
@@ -54,14 +54,14 @@ func (p *Protocol) EncryptWriter(label string, w io.Writer) io.WriteCloser {
 	return &cryptWriter{p: p, f: p.duplex.encrypt, w: w, n: 0, buf: nil, closed: false}
 }
 
-// EncryptReader updates the protocol's state using the given label and encrypts whatever data is read from the wrapped
-// io.Reader.
+// UnauthenticatedEncryptReader updates the protocol's state using the given label and encrypts whatever data is read
+// from the wrapped io.Reader.
 //
-// N.B.: The returned io.ReadCloser must be closed for the Encrypt operation to be complete. While the returned
-// io.ReadCloser is open, any other operation on the Protocol will panic.
+// N.B.: The returned io.ReadCloser must be closed for the UnauthenticatedEncrypt operation to be complete. While the
+// returned io.ReadCloser is open, any other operation on the Protocol will panic.
 //
-// EncryptReader panics if a streaming operation is currently active.
-func (p *Protocol) EncryptReader(label string, r io.Reader) io.ReadCloser {
+// UnauthenticatedEncryptReader panics if a streaming operation is currently active.
+func (p *Protocol) UnauthenticatedEncryptReader(label string, r io.Reader) io.ReadCloser {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
@@ -69,19 +69,19 @@ func (p *Protocol) EncryptReader(label string, r io.Reader) io.ReadCloser {
 	return &cryptReader{p: p, f: p.duplex.encrypt, r: r, n: 0, closed: false}
 }
 
-// DecryptWriter updates the protocol's state using the given label and decrypts whatever data is written to the wrapped
-// io.Writer.
+// UnauthenticatedDecryptWriter updates the protocol's state using the given label and decrypts whatever data is written
+// to the wrapped io.Writer.
 //
 // To avoid decrypting the written slices in-place, this writer copies the data before decrypting. As such, it is
-// slightly slower than its DecryptReader counterpart.
+// slightly slower than its UnauthenticatedDecryptReader counterpart.
 //
 // If a Write call returns an error, then the Protocol will be out of sync and must be discarded.
 //
-// N.B.: The returned io.WriteCloser must be closed for the Decrypt operation to be complete. While the returned
-// io.WriteCloser is open, any other operation on the Protocol will panic.
+// N.B.: The returned io.WriteCloser must be closed for the UnauthenticatedDecrypt operation to be complete. While the
+// returned io.WriteCloser is open, any other operation on the Protocol will panic.
 //
-// DecryptWriter panics if a streaming operation is currently active.
-func (p *Protocol) DecryptWriter(label string, w io.Writer) io.WriteCloser {
+// UnauthenticatedDecryptWriter panics if a streaming operation is currently active.
+func (p *Protocol) UnauthenticatedDecryptWriter(label string, w io.Writer) io.WriteCloser {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
@@ -89,14 +89,14 @@ func (p *Protocol) DecryptWriter(label string, w io.Writer) io.WriteCloser {
 	return &cryptWriter{p: p, f: p.duplex.decrypt, w: w, n: 0, buf: nil, closed: false}
 }
 
-// DecryptReader updates the protocol's state using the given label and decrypts whatever data is read from the wrapped
-// io.Reader.
+// UnauthenticatedDecryptReader updates the protocol's state using the given label and decrypts whatever data is read
+// from the wrapped io.Reader.
 //
-// N.B.: The returned io.ReadCloser must be closed for the Decrypt operation to be complete. While the returned
-// io.ReadCloser is open, any other operation on the Protocol will panic.
+// N.B.: The returned io.ReadCloser must be closed for the UnauthenticatedDecrypt operation to be complete. While the
+// returned io.ReadCloser is open, any other operation on the Protocol will panic.
 //
-// DecryptReader panics if a streaming operation is currently active.
-func (p *Protocol) DecryptReader(label string, r io.Reader) io.ReadCloser {
+// UnauthenticatedDecryptReader panics if a streaming operation is currently active.
+func (p *Protocol) UnauthenticatedDecryptReader(label string, r io.Reader) io.ReadCloser {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)

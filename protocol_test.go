@@ -20,17 +20,17 @@ func TestProtocol_EmptyInputs(t *testing.T) {
 	}
 
 	p2 := p.Clone()
-	ct := p2.Encrypt("enc", nil, nil)
+	ct := p2.UnauthenticatedEncrypt("enc", nil, nil)
 	if len(ct) != 0 {
-		t.Errorf("Encrypt(nil) returned %d bytes", len(ct))
+		t.Errorf("UnauthenticatedEncrypt(nil) returned %d bytes", len(ct))
 	}
 
-	// Encrypt(nil) -> nil ciphertext.
-	// Decrypt(nil) should work on that.
+	// UnauthenticatedEncrypt(nil) -> nil ciphertext.
+	// UnauthenticatedDecrypt(nil) should work on that.
 	p3 := p.Clone()
-	pt := p3.Decrypt("enc", nil, nil)
+	pt := p3.UnauthenticatedDecrypt("enc", nil, nil)
 	if len(pt) != 0 {
-		t.Errorf("Decrypt(nil) returned %d bytes", len(pt))
+		t.Errorf("UnauthenticatedDecrypt(nil) returned %d bytes", len(pt))
 	}
 
 	pSeal := p.Clone()
@@ -136,29 +136,29 @@ func TestProtocol_Encrypt(t *testing.T) {
 		long := make([]byte, 16)
 
 		p1 := newplex.NewProtocol("prefixes")
-		p1.Encrypt("message", short, short)
+		p1.UnauthenticatedEncrypt("message", short, short)
 
 		p2 := newplex.NewProtocol("prefixes")
-		p2.Encrypt("message", long, long)
+		p2.UnauthenticatedEncrypt("message", long, long)
 
 		if got, want := long[:len(short)], short; !bytes.Equal(got, want) {
-			t.Errorf("Encrypt(16)[:10] = %x, want = %x", got, want)
+			t.Errorf("UnauthenticatedEncrypt(16)[:10] = %x, want = %x", got, want)
 		}
 
 		if got, want := p1.Derive("test", nil, 8), p2.Derive("test", nil, 8); bytes.Equal(got, want) {
-			t.Errorf("Encrypt(10) state = Encrypt(16) state = %x", got)
+			t.Errorf("UnauthenticatedEncrypt(10) state = UnauthenticatedEncrypt(16) state = %x", got)
 		}
 	})
 
 	t.Run("in place", func(t *testing.T) {
 		plaintext := []byte("hello world")
 		p1 := newplex.NewProtocol("test")
-		ciphertext := p1.Encrypt("message", nil, plaintext)
+		ciphertext := p1.UnauthenticatedEncrypt("message", nil, plaintext)
 
 		p2 := newplex.NewProtocol("test")
 		msg := make([]byte, len(plaintext))
 		copy(msg, plaintext)
-		p2.Encrypt("message", msg[:0], msg)
+		p2.UnauthenticatedEncrypt("message", msg[:0], msg)
 
 		if !bytes.Equal(msg, ciphertext) {
 			t.Errorf("In-place encryption failed: %x vs %x", msg, ciphertext)
@@ -171,14 +171,14 @@ func TestProtocol_Decrypt(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("this is a key"))
 		plaintext := []byte("this is a message")
-		ciphertext := p1.Encrypt("message", nil, plaintext)
+		ciphertext := p1.UnauthenticatedEncrypt("message", nil, plaintext)
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("this is a key"))
-		got := p2.Decrypt("message", nil, ciphertext)
+		got := p2.UnauthenticatedDecrypt("message", nil, ciphertext)
 
 		if want := plaintext; !bytes.Equal(got, want) {
-			t.Errorf("Decrypt(Encrypt(%x)) = %x", want, got)
+			t.Errorf("UnauthenticatedDecrypt(UnauthenticatedEncrypt(%x)) = %x", want, got)
 		}
 	})
 }
@@ -301,7 +301,7 @@ func BenchmarkProtocol_Encrypt(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		p.Encrypt(label, output[:0], output)
+		p.UnauthenticatedEncrypt(label, output[:0], output)
 	}
 }
 
@@ -312,7 +312,7 @@ func BenchmarkProtocol_Decrypt(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		p.Decrypt(label, output[:0], output)
+		p.UnauthenticatedDecrypt(label, output[:0], output)
 	}
 }
 

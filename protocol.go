@@ -80,19 +80,20 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 	return ret
 }
 
-// Encrypt updates the protocol's state with the given label, then uses the state to encrypt the given plaintext. It
-// appends the ciphertext to dst and returns the resulting slice.
+// UnauthenticatedEncrypt updates the protocol's state with the given label, then uses the state to encrypt the given
+// plaintext. It appends the ciphertext to dst and returns the resulting slice.
 //
-// Encrypt provides confidentiality but not authenticity. To ensure ciphertext authenticity, use Seal instead.
+// UnauthenticatedEncrypt provides confidentiality but not authenticity. To ensure ciphertext authenticity, use Seal
+// instead.
 //
-// Ciphertexts produced by Encrypt do not depend on their length, so the ciphertexts for 'A' and 'AB' will share a
-// prefix. To prevent this, include the message length in a prior Mix operation.
+// Ciphertexts produced by UnauthenticatedEncrypt do not depend on their length, so the ciphertexts for 'A' and 'AB'
+// will share a prefix. To prevent this, include the message length in a prior Mix operation.
 //
 // To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
 // dst must not overlap plaintext.
 //
-// Encrypt panics if a streaming operation is currently active.
-func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
+// UnauthenticatedEncrypt panics if a streaming operation is currently active.
+func (p *Protocol) UnauthenticatedEncrypt(label string, dst, plaintext []byte) []byte {
 	p.checkStreaming()
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
 	p.absorbMetadata(opCrypt, label)
@@ -103,16 +104,17 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 	return ret
 }
 
-// Decrypt updates the protocol's state with the given label, then uses the state to decrypt the given ciphertext. It
-// appends the plaintext to dst and returns the resulting slice.
+// UnauthenticatedDecrypt updates the protocol's state with the given label, then uses the state to decrypt the given
+// ciphertext. It appends the plaintext to dst and returns the resulting slice.
 //
-// Decrypt provides confidentiality but not authenticity. To ensure ciphertext authenticity, use Seal instead.
+// UnauthenticatedDecrypt provides confidentiality but not authenticity. To ensure ciphertext authenticity, use Seal
+// instead.
 //
 // To reuse ciphertext's storage for the encrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
 //
-// Decrypt panics if a streaming operation is currently active.
-func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
+// UnauthenticatedDecrypt panics if a streaming operation is currently active.
+func (p *Protocol) UnauthenticatedDecrypt(label string, dst, ciphertext []byte) []byte {
 	p.checkStreaming()
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
 	p.absorbMetadata(opCrypt, label)

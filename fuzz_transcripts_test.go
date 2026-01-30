@@ -49,7 +49,7 @@ func FuzzProtocolDivergence(f *testing.F) {
 				t.Skip(err)
 			}
 
-			const opTypeCount = 4 // Mix, Derive, Encrypt, Seal
+			const opTypeCount = 4 // Mix, Derive, UnauthenticatedEncrypt, Seal
 			switch opType := opTypeRaw % opTypeCount; opType {
 			case 0: // Mix
 				input, err := tp.GetBytes()
@@ -69,15 +69,15 @@ func FuzzProtocolDivergence(f *testing.F) {
 				if !bytes.Equal(res1, res2) {
 					t.Fatalf("Divergent Derive outputs: %x != %x", res1, res2)
 				}
-			case 2: // Encrypt
+			case 2: // UnauthenticatedEncrypt
 				input, err := tp.GetBytes()
 				if err != nil {
 					t.Skip(err)
 				}
 
-				res1, res2 := p1.Encrypt(label, nil, input), p2.Encrypt(label, nil, input)
+				res1, res2 := p1.UnauthenticatedEncrypt(label, nil, input), p2.UnauthenticatedEncrypt(label, nil, input)
 				if !bytes.Equal(res1, res2) {
-					t.Fatalf("Divergent Encrypt outputs: %x != %x", res1, res2)
+					t.Fatalf("Divergent UnauthenticatedEncrypt outputs: %x != %x", res1, res2)
 				}
 			case 3: // Seal
 				input, err := tp.GetBytes()
@@ -101,8 +101,8 @@ func FuzzProtocolDivergence(f *testing.F) {
 	})
 }
 
-// FuzzProtocolReversibility generates a transcript of reversible operations (Mix, Derive, Encrypt, and Seal) and
-// performs them on a protocol, recording the outputs. It then runs the transcript's duals (Mix, Derive, Decrypt, and
+// FuzzProtocolReversibility generates a transcript of reversible operations (Mix, Derive, UnauthenticatedEncrypt, and Seal) and
+// performs them on a protocol, recording the outputs. It then runs the transcript's duals (Mix, Derive, UnauthenticatedDecrypt, and
 // Open) on another protocol object, ensuring the outputs are the same as the inputs.
 //
 //nolint:gocognit // It's fine if this is complicated.
@@ -141,7 +141,7 @@ func FuzzProtocolReversibility(f *testing.F) {
 				t.Skip(err)
 			}
 
-			const opTypeCount = 4 // Mix, Derive, Encrypt, Seal
+			const opTypeCount = 4 // Mix, Derive, UnauthenticatedEncrypt, Seal
 			switch opType := opTypeRaw % opTypeCount; opType {
 			case 0: // Mix
 				input, err := tp.GetBytes()
@@ -170,13 +170,13 @@ func FuzzProtocolReversibility(f *testing.F) {
 					n:      int(n),
 					output: output,
 				})
-			case 2: // Encrypt
+			case 2: // UnauthenticatedEncrypt
 				input, err := tp.GetBytes()
 				if err != nil {
 					t.Skip(err)
 				}
 
-				output := p1.Encrypt(label, nil, input)
+				output := p1.UnauthenticatedEncrypt(label, nil, input)
 
 				operations = append(operations, operation{ //nolint:exhaustruct // it's fine
 					opType: 2,
@@ -213,10 +213,10 @@ func FuzzProtocolReversibility(f *testing.F) {
 				if !bytes.Equal(output, op.output) {
 					t.Fatalf("Divergent Derive outputs: %x != %x", output, op.output)
 				}
-			case 2: // Decrypt
-				plaintext := p2.Decrypt(op.label, nil, op.output)
+			case 2: // UnauthenticatedDecrypt
+				plaintext := p2.UnauthenticatedDecrypt(op.label, nil, op.output)
 				if !bytes.Equal(plaintext, op.input) {
-					t.Fatalf("Invalid Decrypt output: %x != %x", plaintext, op.input)
+					t.Fatalf("Invalid UnauthenticatedDecrypt output: %x != %x", plaintext, op.input)
 				}
 			case 3: // Open
 				plaintext, err := p2.Open(op.label, nil, op.output)
