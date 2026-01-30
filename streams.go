@@ -126,14 +126,20 @@ var ErrBlockTooLarge = errors.New("newplex: block size > max block size")
 //
 // The returned io.WriteCloser MUST be closed for the encrypted stream to be valid and for the protocol to return to
 // non-streaming mode.
-func (p *Protocol) AEWriter(w io.Writer) io.WriteCloser {
+//
+// AEWriter panics if maxBlockSize is less than 1 or greater than MaxBlockSize.
+func (p *Protocol) AEWriter(w io.Writer, maxBlockSize int) io.WriteCloser {
 	p.checkStreaming()
+	if maxBlockSize < 1 || maxBlockSize > MaxBlockSize {
+		panic("newplex: invalid max block size")
+	}
 	p.streaming = true
 	return &sealWriter{
-		p:      p,
-		w:      w,
-		buf:    make([]byte, 0, 1024),
-		closed: false,
+		p:            p,
+		w:            w,
+		buf:          make([]byte, 0, 1024),
+		closed:       false,
+		maxBlockSize: maxBlockSize,
 	}
 }
 
@@ -274,10 +280,11 @@ func (c *cryptReader) Close() error {
 }
 
 type sealWriter struct {
-	p      *Protocol
-	w      io.Writer
-	buf    []byte
-	closed bool
+	p            *Protocol
+	w            io.Writer
+	buf          []byte
+	closed       bool
+	maxBlockSize int
 }
 
 func (s *sealWriter) Write(p []byte) (n int, err error) {
@@ -287,7 +294,7 @@ func (s *sealWriter) Write(p []byte) (n int, err error) {
 
 	total := len(p)
 	for len(p) > 0 {
-		blockLen := min(len(p), MaxBlockSize)
+		blockLen := min(len(p), s.maxBlockSize)
 		err = s.sealAndWrite(p[:blockLen])
 		if err != nil {
 			return total - len(p), err

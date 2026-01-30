@@ -223,7 +223,7 @@ func ExampleProtocol_aestream() {
 		ciphertext := bytes.NewBuffer(nil)
 
 		// Create a streaming authenticated encryption writer.
-		w := aestream.AEWriter(ciphertext)
+		w := aestream.AEWriter(ciphertext, newplex.MaxBlockSize)
 
 		// Write the plaintext to the writer.
 		if _, err := w.Write(plaintext); err != nil {

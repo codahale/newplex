@@ -252,7 +252,7 @@ func TestProtocol_AEWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf)
+		w := p1.AEWriter(buf, newplex.MaxBlockSize)
 		if _, err := w.Write([]byte("here's one message; ")); err != nil {
 			t.Fatal(err)
 		}
@@ -283,7 +283,7 @@ func TestProtocol_AEWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf)
+		w := p1.AEWriter(buf, newplex.MaxBlockSize)
 		message := make([]byte, 2345)
 		n, err := io.CopyBuffer(w, bytes.NewReader(message), make([]byte, 100))
 		if err != nil {
@@ -317,7 +317,7 @@ func TestProtocol_AEWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf)
+		w := p1.AEWriter(buf, newplex.MaxBlockSize)
 
 		if _, err := w.Write([]byte("first")); err != nil {
 			t.Fatal(err)
@@ -347,6 +347,17 @@ func TestProtocol_AEWriter(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+
+	t.Run("invalid block size", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("The code did not panic")
+			}
+		}()
+
+		p := newplex.NewProtocol("example")
+		p.AEWriter(io.Discard, 0)
+	})
 }
 
 //nolint:gocognit // nested tests
@@ -355,7 +366,7 @@ func TestProtocol_AEReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf)
+		w := p1.AEWriter(buf, newplex.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -377,7 +388,7 @@ func TestProtocol_AEReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf)
+		w := p1.AEWriter(buf, newplex.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -405,7 +416,7 @@ func TestProtocol_AEReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf)
+		w := p1.AEWriter(buf, newplex.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -438,7 +449,7 @@ func BenchmarkProtocol_AEWriter(b *testing.B) {
 
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
-			w := p1.AEWriter(io.Discard)
+			w := p1.AEWriter(io.Discard, newplex.MaxBlockSize)
 			buf := make([]byte, length.n)
 
 			for b.Loop() {
@@ -459,7 +470,7 @@ func BenchmarkProtocol_AEReader(b *testing.B) {
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
 			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
-			w := p1.AEWriter(ciphertext)
+			w := p1.AEWriter(ciphertext, newplex.MaxBlockSize)
 			buf := make([]byte, length.n)
 			_, _ = w.Write(buf)
 			_ = w.Close()
@@ -485,7 +496,7 @@ func BenchmarkProtocol_AEReader_Read(b *testing.B) {
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
 			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
-			w := p1.AEWriter(ciphertext)
+			w := p1.AEWriter(ciphertext, newplex.MaxBlockSize)
 			buf := make([]byte, length.n)
 			_, _ = w.Write(buf)
 			_ = w.Close()
