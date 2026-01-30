@@ -38,7 +38,7 @@ var ErrInvalidCiphertext = errors.New("newplex: invalid ciphertext")
 //
 // Protocol instances are not concurrent-safe.
 type Protocol struct {
-	duplex Duplex
+	duplex duplex
 }
 
 // NewProtocol creates a new Protocol with the given domain separation string.
