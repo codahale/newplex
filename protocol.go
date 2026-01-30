@@ -72,7 +72,7 @@ func (p *Protocol) MixWriter(label string, w io.Writer) io.WriteCloser {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opMix, label)
-	return &mixWriter{p: p, w: w, n: 0}
+	return &mixWriter{p: p, w: w, n: 0, closed: false}
 }
 
 // MixReader updates the protocol's state using the given label and whatever data is read from the wrapped io.Reader.
@@ -85,7 +85,7 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opMix, label)
-	return &mixReader{p: p, r: r, n: 0}
+	return &mixReader{p: p, r: r, n: 0, closed: false}
 }
 
 // Derive updates the protocol's state with the given label and output length and then generates n bytes of pseudorandom
@@ -147,7 +147,7 @@ func (p *Protocol) EncryptWriter(label string, w io.Writer) io.WriteCloser {
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
-	return &cryptWriter{p: p, f: p.duplex.encrypt, w: w, n: 0, buf: nil}
+	return &cryptWriter{p: p, f: p.duplex.encrypt, w: w, n: 0, buf: nil, closed: false}
 }
 
 // EncryptReader updates the protocol's state using the given label and encrypts whatever data is read from the wrapped
@@ -162,7 +162,7 @@ func (p *Protocol) EncryptReader(label string, r io.Reader) io.ReadCloser {
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
-	return &cryptReader{p: p, f: p.duplex.encrypt, r: r, n: 0}
+	return &cryptReader{p: p, f: p.duplex.encrypt, r: r, n: 0, closed: false}
 }
 
 // Decrypt updates the protocol's state with the given label, then uses the state to decrypt the given ciphertext. It
@@ -202,7 +202,7 @@ func (p *Protocol) DecryptWriter(label string, w io.Writer) io.WriteCloser {
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
-	return &cryptWriter{p: p, f: p.duplex.decrypt, w: w, n: 0, buf: nil}
+	return &cryptWriter{p: p, f: p.duplex.decrypt, w: w, n: 0, buf: nil, closed: false}
 }
 
 // DecryptReader updates the protocol's state using the given label and decrypts whatever data is read from the wrapped
@@ -217,7 +217,7 @@ func (p *Protocol) DecryptReader(label string, r io.Reader) io.ReadCloser {
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
-	return &cryptReader{p: p, f: p.duplex.decrypt, r: r, n: 0}
+	return &cryptReader{p: p, f: p.duplex.decrypt, r: r, n: 0, closed: false}
 }
 
 // Seal updates the protocol's state with the given label and plaintext length, then uses the state to encrypt the

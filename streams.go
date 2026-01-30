@@ -8,9 +8,10 @@ import (
 )
 
 type mixWriter struct {
-	p *Protocol
-	w io.Writer
-	n uint64
+	p      *Protocol
+	w      io.Writer
+	n      uint64
+	closed bool
 }
 
 func (m *mixWriter) Write(p []byte) (n int, err error) {
@@ -21,15 +22,20 @@ func (m *mixWriter) Write(p []byte) (n int, err error) {
 }
 
 func (m *mixWriter) Close() error {
+	if m.closed {
+		return nil
+	}
+	m.closed = true
 	m.p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
 	m.p.streaming = false
 	return nil
 }
 
 type mixReader struct {
-	p *Protocol
-	r io.Reader
-	n uint64
+	p      *Protocol
+	r      io.Reader
+	n      uint64
+	closed bool
 }
 
 func (m *mixReader) Read(p []byte) (n int, err error) {
@@ -40,17 +46,22 @@ func (m *mixReader) Read(p []byte) (n int, err error) {
 }
 
 func (m *mixReader) Close() error {
+	if m.closed {
+		return nil
+	}
+	m.closed = true
 	m.p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
 	m.p.streaming = false
 	return nil
 }
 
 type cryptWriter struct {
-	p   *Protocol
-	f   func(dst, src []byte)
-	w   io.Writer
-	n   uint64
-	buf []byte
+	p      *Protocol
+	f      func(dst, src []byte)
+	w      io.Writer
+	n      uint64
+	buf    []byte
+	closed bool
 }
 
 func (c *cryptWriter) Write(p []byte) (n int, err error) {
@@ -68,6 +79,10 @@ func (c *cryptWriter) Write(p []byte) (n int, err error) {
 }
 
 func (c *cryptWriter) Close() error {
+	if c.closed {
+		return nil
+	}
+	c.closed = true
 	c.p.duplex.absorb(tuplehash.AppendRightEncode(nil, c.n))
 	c.p.duplex.ratchet()
 	c.p.streaming = false
@@ -75,10 +90,11 @@ func (c *cryptWriter) Close() error {
 }
 
 type cryptReader struct {
-	p *Protocol
-	f func(dst, src []byte)
-	r io.Reader
-	n uint64
+	p      *Protocol
+	f      func(dst, src []byte)
+	r      io.Reader
+	n      uint64
+	closed bool
 }
 
 func (c *cryptReader) Read(p []byte) (n int, err error) {
@@ -89,6 +105,10 @@ func (c *cryptReader) Read(p []byte) (n int, err error) {
 }
 
 func (c *cryptReader) Close() error {
+	if c.closed {
+		return nil
+	}
+	c.closed = true
 	c.p.duplex.absorb(tuplehash.AppendRightEncode(nil, c.n))
 	c.p.duplex.ratchet()
 	c.p.streaming = false
