@@ -35,7 +35,7 @@
 
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
 hashing, encryption, message authentication codes, and authenticated encryption) in complex constructions. Inspired
-by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [SpongeWrap], and [Xoodyak]'s
+by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [DuplexWrap], and [Xoodyak]'s
 Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern processors at a
 128-bit security level.
 
@@ -47,7 +47,7 @@ Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/seco
 
 [Merlin]: https://merlin.cool
 
-[SpongeWrap]: https://eprint.iacr.org/2011/499.pdf
+[DuplexWrap]: https://competitions.cr.yp.to/round1/keyakv1.pdf
 
 [Xoodyak]: https://keccak.team/xoodyak.html
 
@@ -147,7 +147,7 @@ The `Decrypt` operation XORs the ciphertext with the duplex's remaining rate in 
 result as the plaintext. It then replaces the duplex's rate with the ciphertext. When the duplex's rate is exhausted, it
 calls `Permute`.
 
-This is functionally the same as the [SpongeWrap] construction, combining an `Absorb` operation of the plaintext with a
+This is functionally the same as the [DuplexWrap] construction, combining an `Absorb` operation of the plaintext with a
 `Squeeze` operation for a keystream.
 
 **N.B.:** Neither `Encrypt` nor `Decrypt` call `Permute` at the end of the operation, therefore a sequence of `Encrypt`
