@@ -53,8 +53,6 @@ func (d *duplex) squeeze(out []byte) {
 // updates the duplex's state with the ciphertext.
 //
 // Multiple encrypt calls are effectively the same thing as a single encrypt call with concatenated inputs.
-//
-//goland:noinspection DuplicatedCode
 func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 	for len(plaintext) > 0 {
 		remain := min(len(plaintext), rate-d.pos)
@@ -77,8 +75,6 @@ func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 // updates the duplex's state with the ciphertext.
 //
 // Multiple decrypt calls are effectively the same thing as a single decrypt call with concatenated inputs.
-//
-//goland:noinspection DuplicatedCode
 func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 	for len(ciphertext) > 0 {
 		remain := min(len(ciphertext), rate-d.pos)
