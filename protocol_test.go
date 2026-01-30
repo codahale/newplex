@@ -7,49 +7,6 @@ import (
 	"github.com/codahale/newplex"
 )
 
-func TestProtocol_EmptyInputs(t *testing.T) {
-	p := newplex.NewProtocol("empty-test")
-	p.Mix("", nil)
-	p.Mix("label", nil)
-	p.Mix("", []byte("value"))
-
-	p1 := p.Clone()
-	out := p1.Derive("", nil, 0)
-	if len(out) != 0 {
-		t.Errorf("Derive(0) returned %d bytes", len(out))
-	}
-
-	p2 := p.Clone()
-	ct := p2.UnauthenticatedEncrypt("enc", nil, nil)
-	if len(ct) != 0 {
-		t.Errorf("UnauthenticatedEncrypt(nil) returned %d bytes", len(ct))
-	}
-
-	// UnauthenticatedEncrypt(nil) -> nil ciphertext.
-	// UnauthenticatedDecrypt(nil) should work on that.
-	p3 := p.Clone()
-	pt := p3.UnauthenticatedDecrypt("enc", nil, nil)
-	if len(pt) != 0 {
-		t.Errorf("UnauthenticatedDecrypt(nil) returned %d bytes", len(pt))
-	}
-
-	pSeal := p.Clone()
-	sealed := pSeal.Seal("seal", nil, nil)
-	if len(sealed) != newplex.TagSize {
-		t.Errorf("Seal(nil) returned %d bytes, want %d", len(sealed), newplex.TagSize)
-	}
-
-	// Open needs the state before Seal.
-	pOpen := p.Clone()
-	opened, err := pOpen.Open("seal", nil, sealed)
-	if err != nil {
-		t.Errorf("Open(Seal(nil)) failed: %v", err)
-	}
-	if len(opened) != 0 {
-		t.Errorf("Open(Seal(nil)) returned %d bytes", len(opened))
-	}
-}
-
 func TestProtocol_Clone(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("a thing", []byte("another thing"))
@@ -105,6 +62,22 @@ func TestProtocol_AppendBinary(t *testing.T) {
 	}
 }
 
+func TestProtocol_Mix(t *testing.T) {
+	t.Run("empty input", func(t *testing.T) {
+		p1 := newplex.NewProtocol("empty-test")
+		p1.Mix("", nil)
+		out1 := p1.Derive("", nil, 0)
+
+		p2 := newplex.NewProtocol("empty-test")
+		p2.Mix("label", nil)
+		out2 := p2.Derive("", nil, 0)
+
+		if !bytes.Equal(out1, out2) {
+			t.Errorf("Mix(''); Mix('label') == Mix('label'")
+		}
+	})
+}
+
 func TestProtocol_Derive(t *testing.T) {
 	t.Run("nonzero output slices", func(t *testing.T) {
 		zero := make([]byte, 10)
@@ -128,9 +101,17 @@ func TestProtocol_Derive(t *testing.T) {
 		p := newplex.NewProtocol("example")
 		p.Derive("test", nil, -200)
 	})
+
+	t.Run("empty input", func(t *testing.T) {
+		p := newplex.NewProtocol("empty-test")
+		out := p.Derive("", nil, 0)
+		if len(out) != 0 {
+			t.Errorf("Derive(0) returned %d bytes (%x)", len(out), out)
+		}
+	})
 }
 
-func TestProtocol_Encrypt(t *testing.T) {
+func TestProtocol_UnauthenticatedEncrypt(t *testing.T) {
 	t.Run("common prefixes", func(t *testing.T) {
 		short := make([]byte, 10)
 		long := make([]byte, 16)
@@ -164,9 +145,17 @@ func TestProtocol_Encrypt(t *testing.T) {
 			t.Errorf("In-place encryption failed: %x vs %x", msg, ciphertext)
 		}
 	})
+
+	t.Run("empty input", func(t *testing.T) {
+		p := newplex.NewProtocol("empty-test")
+		out := p.UnauthenticatedEncrypt("enc", nil, nil)
+		if len(out) != 0 {
+			t.Errorf("UnauthenticatedEncrypt(nil) returned %d bytes (%x)", len(out), out)
+		}
+	})
 }
 
-func TestProtocol_Decrypt(t *testing.T) {
+func TestProtocol_UnauthenticatedDecrypt(t *testing.T) {
 	t.Run("round trip", func(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("this is a key"))
@@ -179,6 +168,14 @@ func TestProtocol_Decrypt(t *testing.T) {
 
 		if want := plaintext; !bytes.Equal(got, want) {
 			t.Errorf("UnauthenticatedDecrypt(UnauthenticatedEncrypt(%x)) = %x", want, got)
+		}
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		p := newplex.NewProtocol("empty-test")
+		out := p.UnauthenticatedDecrypt("enc", nil, nil)
+		if len(out) != 0 {
+			t.Errorf("UnauthenticatedDecrypt(nil) returned %d bytes (%x)", len(out), out)
 		}
 	})
 }
@@ -196,6 +193,14 @@ func TestProtocol_Seal(t *testing.T) {
 
 		if !bytes.Equal(msg, ciphertext) {
 			t.Errorf("In-place seal failed: %x vs %x", msg, ciphertext)
+		}
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		p := newplex.NewProtocol("empty-test")
+		sealed := p.Seal("seal", nil, nil)
+		if len(sealed) != newplex.TagSize {
+			t.Errorf("Seal(nil) returned %d bytes (%x), want = %d", len(sealed), sealed, newplex.TagSize)
 		}
 	})
 }
@@ -241,6 +246,22 @@ func TestProtocol_Open(t *testing.T) {
 		_, err := p.Open("message", nil, make([]byte, newplex.TagSize-1))
 		if err == nil {
 			t.Error("Open(short) should have failed")
+		}
+	})
+
+	t.Run("empty ciphertext", func(t *testing.T) {
+		p := newplex.NewProtocol("empty-test")
+
+		pSeal := p.Clone()
+		sealed := pSeal.Seal("seal", nil, nil)
+
+		pOpen := p.Clone()
+		opened, err := pOpen.Open("seal", nil, sealed)
+		if err != nil {
+			t.Errorf("Open(Seal(nil)) failed: %v", err)
+		}
+		if len(opened) != 0 {
+			t.Errorf("Open(Seal(nil)) returned %d bytes (%x)", len(opened), opened)
 		}
 	})
 }
