@@ -27,13 +27,44 @@ func TestRoundTrip(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
 	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if got, want := b, []byte("here's one message; and another"); !bytes.Equal(got, want) {
+		t.Errorf("OpenReader(SealWriter(%x)) = %x, want = %x", want, got, want)
+	}
+}
+
+func TestCopy(t *testing.T) {
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("key", []byte("it's a key"))
+	buf := bytes.NewBuffer(nil)
+	w := aestream.NewWriter(&p1, buf)
+	message := make([]byte, 2345)
+	n, err := io.CopyBuffer(w, bytes.NewReader(message), make([]byte, 100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := n, int64(len(message)); got != want {
+		t.Errorf("Copy(aestream, buf) = %d bytes, want = %d", got, want)
+	}
+	err = w.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p2 := newplex.NewProtocol("example")
+	p2.Mix("key", []byte("it's a key"))
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := b, message; !bytes.Equal(got, want) {
 		t.Errorf("OpenReader(SealWriter(%x)) = %x, want = %x", want, got, want)
 	}
 }
@@ -50,7 +81,7 @@ func TestTruncation(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
 	_, err := io.ReadAll(r)
 	if err == nil {
 		t.Error("expected error on truncated stream, got nil")
@@ -75,7 +106,7 @@ func TestPartialHeader(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(truncated), aestream.MaxBlockSize)
+	r := aestream.NewReader(&p2, bytes.NewReader(truncated))
 	_, err := io.ReadAll(r)
 	if err == nil {
 		t.Error("expected error on truncated header, got nil")
@@ -125,7 +156,7 @@ func BenchmarkNewReader(b *testing.B) {
 			var p3 newplex.Protocol
 			for b.Loop() {
 				p3 = p2.Clone()
-				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
+				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()))
 			}
 		})
 	}
@@ -151,7 +182,7 @@ func BenchmarkReader(b *testing.B) {
 			var p3 newplex.Protocol
 			for b.Loop() {
 				p3 = p2.Clone()
-				r := aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
+				r := aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()))
 				if _, err := io.CopyBuffer(io.Discard, r, buf); err != nil {
 					b.Fatal(err)
 				}
@@ -196,7 +227,7 @@ func TestEmptyWrite(t *testing.T) {
 
 	p2 := newplex.NewProtocol("example")
 	p2.Mix("key", []byte("it's a key"))
-	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()))
 	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)

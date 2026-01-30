@@ -457,7 +457,7 @@ This construction is IND-CCA2-secure (i.e., both IND-CPA and INT-CTXT) under the
 ### Streaming Authenticated Encryption
 
 For streams of indeterminate length, authenticated encryption can be provided via a sequence of `Seal` calls. Each block
-is limited to `2^32-1` bytes.
+is limited to `2^24-1` bytes.
 
 ```text
 function AEStreamSend(key, nonce, plaintext, ciphertext):
@@ -466,11 +466,11 @@ function AEStreamSend(key, nonce, plaintext, ciphertext):
   Mix("nonce", nonce)
   while |plaintext| > 0:
     pblock = Read(plaintext)             // Read a block of plaintext.
-    pheader = BEU32(|pblock|)            // Encode the block length as a 4-byte unsigned big endian integer.
+    pheader = BEU24(|pblock|)            // Encode the block length as a 3-byte unsigned big endian integer.
     cheader = Seal("header", pheader)    // Seal the header.
     cblock = Seal("block", pblock)       // Seal the block.
     Write(ciphertext, cheader || cblock) // Write the sealed header and sealed block.
-  pheader = BEU32(0)                     // Encode a zero-length block header.
+  pheader = BEU24(0)                     // Encode a zero-length block header.
   cheader = Seal("header", pheader)      // Seal the header.
   cblock = Seal("block", "")             // Seal a zero-length block.
   Write(ciphertext, cheader || cblock)   // Write the sealed header and sealed block.
@@ -481,11 +481,11 @@ function AEStreamRecv(key, nonce, ciphertext, plaintext):
   Mix("key", key)
   Mix("nonce", nonce)
   while |ciphertext| > 0:
-    cheader = Read(ciphertext, 4+16)      // Read a sealed 4-byte header and 16-byte tag.
+    cheader = Read(ciphertext, 3+16)      // Read a sealed 4-byte header and 16-byte tag.
     pheader = Open("header", cheader)     // Open the sealed header.
     if pheader == ErrInvalidCiphertext:   // Error if the header is not authenticated.
       return ErrInvalidCiphertext
-    msglen = BEU32(pheader)               // Decode the block length.
+    msglen = BEU24(pheader)               // Decode the block length.
     cblock = Read(ciphertext, msglen+16)  // Read the sealed block and 16-byte tag.
     pblock = Open("block", cblock)        // Open the sealed block.
     if pblock == ErrInvalidCiphertext:    // Error if the ciphertext is not authenticated.
@@ -496,7 +496,7 @@ function AEStreamRecv(key, nonce, ciphertext, plaintext):
   return ErrInvalidCiphertext             // Error if the stream is truncated.
 ```
 
-The sender encodes each block's length as a 4-byte big endian integer, seals that header, seals the block, and sends
+The sender encodes each block's length as a 3-byte big endian integer, seals that header, seals the block, and sends
 both to the receiver. An empty block is used to mark the end of the stream. The receiver reads the encrypted header,
 decrypts it, decodes it into a block length, reads an encrypted block of that length and its authentication tag, then
 opens the sealed block. When it encounters the empty block, it returns EOF. If the stream terminates before that, an

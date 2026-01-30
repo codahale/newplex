@@ -1,7 +1,8 @@
 // Package aestream provides a streaming authenticated encryption scheme on top of a newplex.Protocol.
 //
-// The writer encodes each block's length as a 4-byte big endian integer, seals that header, seals the block, and
-// writes both to the wrapped writer. An empty block is used to mark the end of the stream when the writer is closed.
+// The writer encodes each block's length as a 3-byte big endian integer, seals that header, seals the block, and
+// writes both to the wrapped writer. An empty block is used to mark the end of the stream when the writer is closed. A
+// block may be at most 2^24-1 bytes long (16,777,216 bytes).
 //
 // The reader reads the sealed header, opens it, decodes it into a block length, reads an encrypted block of that
 // length and its authentication tag, then opens the sealed block. When it encounters the empty block, it returns EOF.
@@ -9,24 +10,19 @@
 //
 // For maximum throughput and transmission efficiency, the use of bufio.Reader and bufio.Writer wrappers is strongly
 // recommended.
-//
-// N.B.: For compatibility with 32-bit systems, this implementation has a maximum block size of 2^31-1-16
-// (2,147,483,631) bytes. The construction has a theoretical maximum block size of 2^32-1 bytes.
 package aestream
 
 import (
-	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
-	"math"
 	"slices"
 
 	"github.com/codahale/newplex"
 )
 
-// MaxBlockSize is the maximum size of an aestream block, in bytes. Writes larger than this will be rejected.
-const MaxBlockSize = math.MaxInt32 - newplex.TagSize
+// MaxBlockSize is the maximum size of an aestream block, in bytes. Writes larger than this broken up into blocks of
+// this size.
+const MaxBlockSize = 1<<24 - 1
 
 // NewWriter wraps the given newplex.Protocol and io.Writer with a streaming authenticated encryption writer.
 //
@@ -43,14 +39,13 @@ func NewWriter(p *newplex.Protocol, w io.Writer) io.WriteCloser {
 // NewReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption reader.
 //
 // If the stream has been modified or truncated, a newplex.ErrInvalidCiphertext is returned.
-func NewReader(p *newplex.Protocol, r io.Reader, maxBlockSize int) io.Reader {
+func NewReader(p *newplex.Protocol, r io.Reader) io.Reader {
 	return &openReader{
-		p:            p,
-		r:            r,
-		buf:          make([]byte, 0, 1024),
-		blockBuf:     nil,
-		closed:       false,
-		maxBlockSize: min(maxBlockSize, MaxBlockSize),
+		p:        p,
+		r:        r,
+		buf:      make([]byte, 0, 1024),
+		blockBuf: nil,
+		closed:   false,
 	}
 }
 
@@ -66,11 +61,17 @@ func (s *sealWriter) Write(p []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	err = s.sealAndWrite(p)
-	if err != nil {
-		return 0, err
+	total := len(p)
+	for len(p) > 0 {
+		blockLen := min(len(p), MaxBlockSize)
+		err = s.sealAndWrite(p[:blockLen])
+		if err != nil {
+			return total - len(p), err
+		}
+		p = p[blockLen:]
 	}
-	return len(p), nil
+
+	return total, nil
 }
 
 func (s *sealWriter) Close() error {
@@ -84,15 +85,10 @@ func (s *sealWriter) Close() error {
 }
 
 func (s *sealWriter) sealAndWrite(p []byte) error {
-	pLen := uint64(len(p))
-	if pLen > MaxBlockSize {
-		return fmt.Errorf("oversized write: %d bytes, max = %d", pLen, MaxBlockSize)
-	}
-
 	// Encode a header with a 4-byte big endian block length and seal it.
 	s.buf = slices.Grow(s.buf[:0], headerSize+newplex.TagSize+len(p)+newplex.TagSize)
 	header := s.buf[:headerSize]
-	binary.BigEndian.PutUint32(header, uint32(pLen))
+	putUint24(header, uint32(len(p))) //nolint:gosec // len(p) <= MaxBlockSize
 	encryptedHeader := s.p.Seal("header", header[:0], header)
 
 	// Seal the block, append it to the header, and send it.
@@ -108,7 +104,6 @@ type openReader struct {
 	r             io.Reader
 	buf, blockBuf []byte
 	closed        bool
-	maxBlockSize  int
 }
 
 func (o *openReader) Read(p []byte) (n int, err error) {
@@ -136,15 +131,10 @@ readBuffered:
 	if err != nil {
 		return 0, err
 	}
-	uLen := binary.BigEndian.Uint32(header)
-	if uLen > MaxBlockSize {
-		return 0, newplex.ErrInvalidCiphertext
-	} else if uLen > uint32(o.maxBlockSize) { //nolint:gosec // o.maxBlockSize <= MaxBlockSize
-		return 0, fmt.Errorf("aestream: %d byte block bigger than %d byte max", uLen, o.maxBlockSize)
-	}
+	blockLen := int(uint24(header))
 
 	// Read and open the block.
-	block, err := o.readAndOpen("block", int(uLen))
+	block, err := o.readAndOpen("block", blockLen)
 	if err != nil {
 		return 0, err
 	}
@@ -172,7 +162,19 @@ func (o *openReader) readAndOpen(label string, n int) ([]byte, error) {
 	return data, nil
 }
 
-const headerSize = 4
+const headerSize = 3
+
+func uint24(b []byte) uint32 {
+	_ = b[2] // bounds check hint to compiler; see golang.org/issue/14808
+	return uint32(b[2]) | uint32(b[1])<<8 | uint32(b[0])<<16
+}
+
+func putUint24(b []byte, v uint32) {
+	_ = b[2] // early bounds check to guarantee the safety of writes below
+	b[0] = byte(v >> 16)
+	b[1] = byte(v >> 8)
+	b[2] = byte(v)
+}
 
 var (
 	_ io.WriteCloser = (*sealWriter)(nil)
