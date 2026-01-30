@@ -38,7 +38,8 @@ var ErrInvalidCiphertext = errors.New("newplex: invalid ciphertext")
 //
 // Protocol instances are not concurrent-safe.
 type Protocol struct {
-	duplex duplex
+	duplex    duplex
+	streaming bool
 }
 
 // NewProtocol creates a new Protocol with the given domain separation string.
@@ -52,7 +53,10 @@ func NewProtocol(domain string) Protocol {
 }
 
 // Mix updates the protocol's state using the given label and input.
+//
+// Mix panics if a streaming operation is currently active.
 func (p *Protocol) Mix(label string, input []byte) {
+	p.checkStreaming()
 	p.absorbMetadata(opMix, label)
 	p.duplex.absorb(input)
 	p.duplex.absorb(tuplehash.AppendRightEncode(nil, uint64(len(input))))
@@ -60,16 +64,26 @@ func (p *Protocol) Mix(label string, input []byte) {
 
 // MixWriter updates the protocol's state using the given label and whatever data is written to the wrapped io.Writer.
 //
-// N.B.: The returned io.WriteCloser must be closed for the Mix operation to be complete.
+// N.B.: The returned io.WriteCloser must be closed for the Mix operation to be complete. While the returned
+// io.WriteCloser is open, any other operation on the Protocol will panic.
+//
+// MixWriter panics if a streaming operation is currently active.
 func (p *Protocol) MixWriter(label string, w io.Writer) io.WriteCloser {
+	p.checkStreaming()
+	p.streaming = true
 	p.absorbMetadata(opMix, label)
 	return &mixWriter{p: p, w: w, n: 0}
 }
 
 // MixReader updates the protocol's state using the given label and whatever data is read from the wrapped io.Reader.
 //
-// N.B.: The returned io.ReadCloser must be closed for the Mix operation to be complete.
+// N.B.: The returned io.ReadCloser must be closed for the Mix operation to be complete. While the returned
+// io.ReadCloser is open, any other operation on the Protocol will panic.
+//
+// MixReader panics if a streaming operation is currently active.
 func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
+	p.checkStreaming()
+	p.streaming = true
 	p.absorbMetadata(opMix, label)
 	return &mixReader{p: p, r: r, n: 0}
 }
@@ -77,8 +91,9 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 // Derive updates the protocol's state with the given label and output length and then generates n bytes of pseudorandom
 // output. It appends the output to dst and returns the resulting slice.
 //
-// Derive panics if n is negative.
+// Derive panics if n is negative or if a streaming operation is currently active.
 func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
+	p.checkStreaming()
 	if n < 0 {
 		panic("invalid argument to Derive: n cannot be negative")
 	}
@@ -102,7 +117,10 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 //
 // To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
 // dst must not overlap plaintext.
+//
+// Encrypt panics if a streaming operation is currently active.
 func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
+	p.checkStreaming()
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
@@ -120,8 +138,13 @@ func (p *Protocol) Encrypt(label string, dst, plaintext []byte) []byte {
 //
 // If a Write call returns an error, then the Protocol will be out of sync and must be discarded.
 //
-// N.B.: The returned io.WriteCloser must be closed for the Encrypt operation to be complete.
+// N.B.: The returned io.WriteCloser must be closed for the Encrypt operation to be complete. While the returned
+// io.WriteCloser is open, any other operation on the Protocol will panic.
+//
+// EncryptWriter panics if a streaming operation is currently active.
 func (p *Protocol) EncryptWriter(label string, w io.Writer) io.WriteCloser {
+	p.checkStreaming()
+	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
 	return &cryptWriter{p: p, f: p.duplex.encrypt, w: w, n: 0, buf: nil}
@@ -130,8 +153,13 @@ func (p *Protocol) EncryptWriter(label string, w io.Writer) io.WriteCloser {
 // EncryptReader updates the protocol's state using the given label and encrypts whatever data is read from the wrapped
 // io.Reader.
 //
-// N.B.: The returned io.ReadCloser must be closed for the Encrypt operation to be complete.
+// N.B.: The returned io.ReadCloser must be closed for the Encrypt operation to be complete. While the returned
+// io.ReadCloser is open, any other operation on the Protocol will panic.
+//
+// EncryptReader panics if a streaming operation is currently active.
 func (p *Protocol) EncryptReader(label string, r io.Reader) io.ReadCloser {
+	p.checkStreaming()
+	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
 	return &cryptReader{p: p, f: p.duplex.encrypt, r: r, n: 0}
@@ -144,7 +172,10 @@ func (p *Protocol) EncryptReader(label string, r io.Reader) io.ReadCloser {
 //
 // To reuse ciphertext's storage for the encrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
+//
+// Decrypt panics if a streaming operation is currently active.
 func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
+	p.checkStreaming()
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
@@ -162,8 +193,13 @@ func (p *Protocol) Decrypt(label string, dst, ciphertext []byte) []byte {
 //
 // If a Write call returns an error, then the Protocol will be out of sync and must be discarded.
 //
-// N.B.: The returned io.WriteCloser must be closed for the Decrypt operation to be complete.
+// N.B.: The returned io.WriteCloser must be closed for the Decrypt operation to be complete. While the returned
+// io.WriteCloser is open, any other operation on the Protocol will panic.
+//
+// DecryptWriter panics if a streaming operation is currently active.
 func (p *Protocol) DecryptWriter(label string, w io.Writer) io.WriteCloser {
+	p.checkStreaming()
+	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
 	return &cryptWriter{p: p, f: p.duplex.decrypt, w: w, n: 0, buf: nil}
@@ -172,8 +208,13 @@ func (p *Protocol) DecryptWriter(label string, w io.Writer) io.WriteCloser {
 // DecryptReader updates the protocol's state using the given label and decrypts whatever data is read from the wrapped
 // io.Reader.
 //
-// N.B.: The returned io.ReadCloser must be closed for the Decrypt operation to be complete.
+// N.B.: The returned io.ReadCloser must be closed for the Decrypt operation to be complete. While the returned
+// io.ReadCloser is open, any other operation on the Protocol will panic.
+//
+// DecryptReader panics if a streaming operation is currently active.
 func (p *Protocol) DecryptReader(label string, r io.Reader) io.ReadCloser {
+	p.checkStreaming()
+	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
 	return &cryptReader{p: p, f: p.duplex.decrypt, r: r, n: 0}
@@ -185,7 +226,10 @@ func (p *Protocol) DecryptReader(label string, r io.Reader) io.ReadCloser {
 //
 // To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity of
 // dst must not overlap plaintext.
+//
+// Seal panics if a streaming operation is currently active.
 func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
+	p.checkStreaming()
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
 
@@ -209,7 +253,10 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 // WARNING: Open decrypts the ciphertext in-place before verifying the authentication tag. If the tag is invalid, the
 // decrypted plaintext (which is now in dst) is zeroed out, but the original ciphertext is lost. If you need to preserve
 // the ciphertext in case of error, do not use in-place decryption (i.e., do not use ciphertext[:0] as dst).
+//
+// Open panics if a streaming operation is currently active.
 func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, error) {
+	p.checkStreaming()
 	if len(ciphertextAndTag) < TagSize {
 		return nil, ErrInvalidCiphertext
 	}
@@ -233,25 +280,43 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 }
 
 // Clone returns a full clone of the receiver.
+//
+// Clone panics if a streaming operation is currently active.
 func (p *Protocol) Clone() Protocol {
+	p.checkStreaming()
 	return *p
 }
 
 // AppendBinary appends the binary representation of the protocol's state to the given slice. It implements
 // encoding.BinaryAppender.
+//
+// AppendBinary panics if a streaming operation is currently active.
 func (p *Protocol) AppendBinary(b []byte) ([]byte, error) {
+	p.checkStreaming()
 	return p.duplex.AppendBinary(b)
 }
 
 // MarshalBinary returns the binary representation of the protocol's state. It implements encoding.BinaryMarshaler.
+//
+// MarshalBinary panics if a streaming operation is currently active.
 func (p *Protocol) MarshalBinary() (data []byte, err error) {
+	p.checkStreaming()
 	return p.duplex.MarshalBinary()
 }
 
 // UnmarshalBinary restores the protocol's state from the given binary representation. It implements
 // encoding.BinaryUnmarshaler.
+//
+// UnmarshalBinary panics if a streaming operation is currently active.
 func (p *Protocol) UnmarshalBinary(data []byte) error {
+	p.checkStreaming()
 	return p.duplex.UnmarshalBinary(data)
+}
+
+func (p *Protocol) checkStreaming() {
+	if p.streaming {
+		panic("newplex: protocol is currently streaming")
+	}
 }
 
 func (p *Protocol) absorbMetadata(op byte, label string) {

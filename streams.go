@@ -22,6 +22,7 @@ func (m *mixWriter) Write(p []byte) (n int, err error) {
 
 func (m *mixWriter) Close() error {
 	m.p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
+	m.p.streaming = false
 	return nil
 }
 
@@ -40,6 +41,7 @@ func (m *mixReader) Read(p []byte) (n int, err error) {
 
 func (m *mixReader) Close() error {
 	m.p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
+	m.p.streaming = false
 	return nil
 }
 
@@ -68,6 +70,7 @@ func (c *cryptWriter) Write(p []byte) (n int, err error) {
 func (c *cryptWriter) Close() error {
 	c.p.duplex.absorb(tuplehash.AppendRightEncode(nil, c.n))
 	c.p.duplex.ratchet()
+	c.p.streaming = false
 	return nil
 }
 
@@ -88,6 +91,7 @@ func (c *cryptReader) Read(p []byte) (n int, err error) {
 func (c *cryptReader) Close() error {
 	c.p.duplex.absorb(tuplehash.AppendRightEncode(nil, c.n))
 	c.p.duplex.ratchet()
+	c.p.streaming = false
 	return nil
 }
 
