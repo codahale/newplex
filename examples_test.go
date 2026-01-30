@@ -223,7 +223,7 @@ func ExampleProtocol_aestream() {
 		ciphertext := bytes.NewBuffer(nil)
 
 		// Create a streaming authenticated encryption writer.
-		w := aestream.AEWriter(ciphertext, newplex.MaxBlockSize)
+		w := aestream.AuthenticatedEncryptWriter(ciphertext, newplex.MaxBlockSize)
 
 		// Write the plaintext to the writer.
 		if _, err := w.Write(plaintext); err != nil {
@@ -246,7 +246,7 @@ func ExampleProtocol_aestream() {
 		aestream.Mix("key", key)
 
 		// Create a streaming authenticated encryption reader.
-		r := aestream.AEReader(bytes.NewReader(ciphertext), newplex.MaxBlockSize)
+		r := aestream.AuthenticatedEncryptReader(bytes.NewReader(ciphertext), newplex.MaxBlockSize)
 
 		// Read the plaintext from the reader.
 		plaintext, err := io.ReadAll(r)

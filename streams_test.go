@@ -252,7 +252,7 @@ func TestProtocol_AEWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf, newplex.MaxBlockSize)
+		w := p1.AuthenticatedEncryptWriter(buf, newplex.MaxBlockSize)
 		if _, err := w.Write([]byte("here's one message; ")); err != nil {
 			t.Fatal(err)
 		}
@@ -265,14 +265,14 @@ func TestProtocol_AEWriter(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := p2.AEReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
+		r := p2.AuthenticatedEncryptReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
 		b, err := io.ReadAll(r)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		if got, want := b, []byte("here's one message; and another"); !bytes.Equal(got, want) {
-			t.Errorf("AEReader(AEWriter(%x)) = %x, want = %x", want, got, want)
+			t.Errorf("AuthenticatedEncryptReader(AuthenticatedEncryptWriter(%x)) = %x, want = %x", want, got, want)
 		}
 		if err := r.Close(); err != nil {
 			t.Fatal(err)
@@ -283,7 +283,7 @@ func TestProtocol_AEWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf, newplex.MaxBlockSize)
+		w := p1.AuthenticatedEncryptWriter(buf, newplex.MaxBlockSize)
 		message := make([]byte, 2345)
 		n, err := io.CopyBuffer(w, bytes.NewReader(message), make([]byte, 100))
 		if err != nil {
@@ -299,14 +299,14 @@ func TestProtocol_AEWriter(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := p2.AEReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
+		r := p2.AuthenticatedEncryptReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
 		b, err := io.ReadAll(r)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		if got, want := b, message; !bytes.Equal(got, want) {
-			t.Errorf("AEReader(AEWriter(%x)) = %x, want = %x", want, got, want)
+			t.Errorf("AuthenticatedEncryptReader(AuthenticatedEncryptWriter(%x)) = %x, want = %x", want, got, want)
 		}
 		if err := r.Close(); err != nil {
 			t.Fatal(err)
@@ -317,7 +317,7 @@ func TestProtocol_AEWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf, newplex.MaxBlockSize)
+		w := p1.AuthenticatedEncryptWriter(buf, newplex.MaxBlockSize)
 
 		if _, err := w.Write([]byte("first")); err != nil {
 			t.Fatal(err)
@@ -334,7 +334,7 @@ func TestProtocol_AEWriter(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := p2.AEReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
+		r := p2.AuthenticatedEncryptReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
 		b, err := io.ReadAll(r)
 		if err != nil {
 			t.Fatal(err)
@@ -356,7 +356,7 @@ func TestProtocol_AEWriter(t *testing.T) {
 		}()
 
 		p := newplex.NewProtocol("example")
-		p.AEWriter(io.Discard, 0)
+		p.AuthenticatedEncryptWriter(io.Discard, 0)
 	})
 }
 
@@ -366,7 +366,7 @@ func TestProtocol_AEReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf, newplex.MaxBlockSize)
+		w := p1.AuthenticatedEncryptWriter(buf, newplex.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -374,7 +374,7 @@ func TestProtocol_AEReader(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := p2.AEReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
+		r := p2.AuthenticatedEncryptReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
 		_, err := io.ReadAll(r)
 		if err == nil {
 			t.Error("expected error on truncated stream, got nil")
@@ -388,7 +388,7 @@ func TestProtocol_AEReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf, newplex.MaxBlockSize)
+		w := p1.AuthenticatedEncryptWriter(buf, newplex.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -399,7 +399,7 @@ func TestProtocol_AEReader(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := p2.AEReader(bytes.NewReader(truncated), newplex.MaxBlockSize)
+		r := p2.AuthenticatedEncryptReader(bytes.NewReader(truncated), newplex.MaxBlockSize)
 		_, err := io.ReadAll(r)
 		if err == nil {
 			t.Error("expected error on truncated header, got nil")
@@ -416,7 +416,7 @@ func TestProtocol_AEReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := p1.AEWriter(buf, newplex.MaxBlockSize)
+		w := p1.AuthenticatedEncryptWriter(buf, newplex.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -427,7 +427,7 @@ func TestProtocol_AEReader(t *testing.T) {
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
 		// Set max block size smaller than "message" length (7 bytes)
-		r := p2.AEReader(bytes.NewReader(buf.Bytes()), 6)
+		r := p2.AuthenticatedEncryptReader(bytes.NewReader(buf.Bytes()), 6)
 		_, err := io.ReadAll(r)
 		if err == nil {
 			t.Error("expected error on block too large, got nil")
@@ -449,7 +449,7 @@ func BenchmarkProtocol_AEWriter(b *testing.B) {
 
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
-			w := p1.AEWriter(io.Discard, newplex.MaxBlockSize)
+			w := p1.AuthenticatedEncryptWriter(io.Discard, newplex.MaxBlockSize)
 			buf := make([]byte, length.n)
 
 			for b.Loop() {
@@ -470,7 +470,7 @@ func BenchmarkProtocol_AEReader(b *testing.B) {
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
 			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
-			w := p1.AEWriter(ciphertext, newplex.MaxBlockSize)
+			w := p1.AuthenticatedEncryptWriter(ciphertext, newplex.MaxBlockSize)
 			buf := make([]byte, length.n)
 			_, _ = w.Write(buf)
 			_ = w.Close()
@@ -481,7 +481,7 @@ func BenchmarkProtocol_AEReader(b *testing.B) {
 			var p3 newplex.Protocol
 			for b.Loop() {
 				p3 = p2.Clone()
-				p3.AEReader(bytes.NewReader(ciphertext.Bytes()), newplex.MaxBlockSize)
+				p3.AuthenticatedEncryptReader(bytes.NewReader(ciphertext.Bytes()), newplex.MaxBlockSize)
 			}
 		})
 	}
@@ -496,7 +496,7 @@ func BenchmarkProtocol_AEReader_Read(b *testing.B) {
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
 			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
-			w := p1.AEWriter(ciphertext, newplex.MaxBlockSize)
+			w := p1.AuthenticatedEncryptWriter(ciphertext, newplex.MaxBlockSize)
 			buf := make([]byte, length.n)
 			_, _ = w.Write(buf)
 			_ = w.Close()
@@ -507,7 +507,7 @@ func BenchmarkProtocol_AEReader_Read(b *testing.B) {
 			var p3 newplex.Protocol
 			for b.Loop() {
 				p3 = p2.Clone()
-				r := p3.AEReader(bytes.NewReader(ciphertext.Bytes()), newplex.MaxBlockSize)
+				r := p3.AuthenticatedEncryptReader(bytes.NewReader(ciphertext.Bytes()), newplex.MaxBlockSize)
 				if _, err := io.CopyBuffer(io.Discard, r, buf); err != nil {
 					b.Fatal(err)
 				}

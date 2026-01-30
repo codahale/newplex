@@ -111,7 +111,8 @@ const MaxBlockSize = 1<<24 - 1
 // ErrBlockTooLarge is returned when a reading a block which is larger than the specified maximum block size.
 var ErrBlockTooLarge = errors.New("newplex: block size > max block size")
 
-// AEWriter wraps the given newplex.Protocol and io.Writer with a streaming authenticated encryption writer.
+// AuthenticatedEncryptWriter wraps the given newplex.Protocol and io.Writer with a streaming authenticated encryption
+// writer.
 //
 // The writer encodes each block's length as a 3-byte big endian integer, seals that header, seals the block, and
 // writes both to the wrapped writer. An empty block is used to mark the end of the stream when the writer is closed. A
@@ -127,8 +128,8 @@ var ErrBlockTooLarge = errors.New("newplex: block size > max block size")
 // The returned io.WriteCloser MUST be closed for the encrypted stream to be valid and for the protocol to return to
 // non-streaming mode.
 //
-// AEWriter panics if maxBlockSize is less than 1 or greater than MaxBlockSize.
-func (p *Protocol) AEWriter(w io.Writer, maxBlockSize int) io.WriteCloser {
+// AuthenticatedEncryptWriter panics if maxBlockSize is less than 1 or greater than MaxBlockSize.
+func (p *Protocol) AuthenticatedEncryptWriter(w io.Writer, maxBlockSize int) io.WriteCloser {
 	p.checkStreaming()
 	if maxBlockSize < 1 || maxBlockSize > MaxBlockSize {
 		panic("newplex: invalid max block size")
@@ -143,8 +144,8 @@ func (p *Protocol) AEWriter(w io.Writer, maxBlockSize int) io.WriteCloser {
 	}
 }
 
-// AEReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption reader. See the
-// AEWriter documentation for details.
+// AuthenticatedEncryptReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption
+// reader. See the AuthenticatedEncryptWriter documentation for details.
 //
 // The maxBlockSize parameter limits the size of the blocks that will be read. If a block is encountered that is larger
 // than this limit, a newplex.ErrInvalidCiphertext is returned.
@@ -157,7 +158,7 @@ func (p *Protocol) AEWriter(w io.Writer, maxBlockSize int) io.WriteCloser {
 // limit for your application (e.g., 64KiB or 1MiB) rather than the default MaxBlockSize (16MiB).
 //
 // The returned io.ReadCloser MUST be closed for the protocol to return to non-streaming mode.
-func (p *Protocol) AEReader(r io.Reader, maxBlockSize int) io.ReadCloser {
+func (p *Protocol) AuthenticatedEncryptReader(r io.Reader, maxBlockSize int) io.ReadCloser {
 	p.checkStreaming()
 	p.streaming = true
 	return &openReader{
