@@ -45,6 +45,11 @@ func NewWriter(p *newplex.Protocol, w io.Writer) io.WriteCloser {
 // than this limit, a newplex.ErrInvalidCiphertext is returned.
 //
 // If the stream has been modified or truncated, a newplex.ErrInvalidCiphertext is returned.
+//
+// WARNING: The reader allocates a buffer of size equal to the block length specified in the stream header (up to
+// maxBlockSize) before authenticating the block. This creates a potential denial-of-service vector where a malicious
+// stream can cause the reader to allocate large amounts of memory. To mitigate this, set maxBlockSize to a reasonable
+// limit for your application (e.g., 64KiB or 1MiB) rather than the default MaxBlockSize (16MiB).
 func NewReader(p *newplex.Protocol, r io.Reader, maxBlockSize int) io.Reader {
 	return &openReader{
 		p:            p,
@@ -119,41 +124,38 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 		return 0, nil
 	}
 
-readBuffered:
+	for {
+		// If a block is buffer, satisfy the read with that.
+		if len(o.blockBuf) > 0 {
+			n = min(len(o.blockBuf), len(p))
+			copy(p, o.blockBuf[:n])
+			o.blockBuf = o.blockBuf[n:]
+			return n, nil
+		}
 
-	// If a block is buffer, satisfy the read with that.
-	if len(o.blockBuf) > 0 {
-		n = min(len(o.blockBuf), len(p))
-		copy(p, o.blockBuf[:n])
-		o.blockBuf = o.blockBuf[n:]
-		return n, nil
-	}
+		// If the stream is closed, return EOF.
+		if o.closed {
+			return 0, io.EOF
+		}
 
-	// If the stream is closed, return EOF.
-	if o.closed {
-		return 0, io.EOF
-	}
+		// Read and open the header and decode the block length.
+		header, err := o.readAndOpen("header", headerSize)
+		if err != nil {
+			return 0, err
+		}
+		blockLen := int(uint24(header))
+		if blockLen > o.maxBlockSize {
+			return 0, ErrBlockTooLarge
+		}
 
-	// Read and open the header and decode the block length.
-	header, err := o.readAndOpen("header", headerSize)
-	if err != nil {
-		return 0, err
+		// Read and open the block.
+		block, err := o.readAndOpen("block", blockLen)
+		if err != nil {
+			return 0, err
+		}
+		o.closed = len(block) == 0
+		o.blockBuf = block
 	}
-	blockLen := int(uint24(header))
-	if blockLen > o.maxBlockSize {
-		return 0, ErrBlockTooLarge
-	}
-
-	// Read and open the block.
-	block, err := o.readAndOpen("block", blockLen)
-	if err != nil {
-		return 0, err
-	}
-	o.closed = len(block) == 0
-	o.blockBuf = block
-
-	// Satisfy the read with the buffered contents.
-	goto readBuffered
 }
 
 func (o *openReader) readAndOpen(label string, n int) ([]byte, error) {
