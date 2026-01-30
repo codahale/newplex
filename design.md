@@ -209,7 +209,7 @@ function Mix(label, input):
 
 `Mix` encodes the length of the label in bytes and the length of the input in bytes using the `left_encode` and
 `right_encode` functions from [NIST SP 800-185], respectively. The use of `right_encode` allows `Mix` operations to
-accept inputs of indeterminate length (i.e., streams).
+accept inputs whose lengths are not initially known without introducing encoding ambiguities.
 
 ### `Derive`
 
