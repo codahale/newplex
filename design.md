@@ -71,13 +71,13 @@ Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/seco
 4. In the ten years since the publication of [Simpira V2][Simpira-1024], the main cryptanalytical results on it have
    been on round-reduced versions of the smaller permutations:
 
-   | Variant      | Total Rounds | Max Rounds Attacked | % Rounds Broken | Security Margin       |
-   |--------------|--------------|---------------------|-----------------|-----------------------|
-   | Simpira-256  | 15           | 9                   | 60%             | Safe (6 rounds left)  |
-   | Simpira-384  | 21           | 10                  | 48%             | Safe (11 rounds left) |
-   | Simpira-512  | 15           | 8                   | 53%             | Safe (7 rounds left)  |
-   | Simpira-768  | 15           | 8                   | 53%             | Safe (7 rounds left)  |
-   | Simpira-1024 | 18           | 0                   | 0%              | Safe (18 rounds left) |
+   | Variant            | Total Rounds | Max Rounds Attacked | % Rounds Broken | Security Margin       |
+   |--------------------|--------------|---------------------|-----------------|-----------------------|
+   | Simpira-256 (b=2)  | 15           | 9                   | 60%             | Safe (6 rounds left)  |
+   | Simpira-384 (b=3)  | 21           | 10                  | 48%             | Safe (11 rounds left) |
+   | Simpira-512 (b=4)  | 15           | 8                   | 53%             | Safe (7 rounds left)  |
+   | Simpira-768 (b=6)  | 15           | 8                   | 53%             | Safe (7 rounds left)  |
+   | Simpira-1024 (b=8) | 18           | 0                   | 0%              | Safe (18 rounds left) |
 
    No attacks have been found on the full-round specifications, and no attacks at all have been found for Simpira-1024.
    It should be noted that Simpira-1024 has not received the same degree of scrutiny as the smaller Simpira variants.
