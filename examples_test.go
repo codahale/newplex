@@ -19,8 +19,8 @@ func Example() {
 	fmt.Printf("Derive('third', 8) = %x\n", third)
 
 	plaintext := []byte("this is an example")
-	ciphertext := protocol.UnauthenticatedEncrypt("fourth", nil, plaintext)
-	fmt.Printf("UnauthenticatedEncrypt('fourth', '%s') = %x\n", plaintext, ciphertext)
+	ciphertext := protocol.Encrypt("fourth", nil, plaintext)
+	fmt.Printf("Encrypt('fourth', '%s') = %x\n", plaintext, ciphertext)
 
 	ciphertext = protocol.Seal("fifth", nil, []byte("this is an example"))
 	fmt.Printf("Seal('fifth', '%s') = %x\n", plaintext, ciphertext)
@@ -30,7 +30,7 @@ func Example() {
 
 	// Output:
 	// Derive('third', 8) = 05f09801216ea9d1
-	// UnauthenticatedEncrypt('fourth', 'this is an example') = da0b8cacd3b9c16f0447b9ead5ededb11ae3
+	// Encrypt('fourth', 'this is an example') = da0b8cacd3b9c16f0447b9ead5ededb11ae3
 	// Seal('fifth', 'this is an example') = fe05d9f43d40a8050650e9e203bff0728eba91583453b14aa3faa270254cdb2d6ba2
 	// Derive('sixth', 8) = 58e60e022a1612fe
 }
@@ -72,7 +72,7 @@ func ExampleProtocol_stream() {
 		stream.Mix("nonce", nonce)
 
 		// Encrypt the plaintext.
-		return stream.UnauthenticatedEncrypt("message", nil, plaintext)
+		return stream.Encrypt("message", nil, plaintext)
 	}
 
 	decrypt := func(key, nonce, ciphertext []byte) []byte {
@@ -84,7 +84,7 @@ func ExampleProtocol_stream() {
 		stream.Mix("nonce", nonce)
 
 		// Decrypt the ciphertext.
-		return stream.UnauthenticatedDecrypt("message", nil, ciphertext)
+		return stream.Decrypt("message", nil, ciphertext)
 	}
 
 	key := []byte("my-secret-key")

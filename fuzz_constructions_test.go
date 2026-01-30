@@ -14,14 +14,14 @@ func FuzzStream(f *testing.F) {
 		protocol := newplex.NewProtocol("stream")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.UnauthenticatedEncrypt("message", nil, message), protocol.Derive("state", nil, 8)
+		return protocol.Encrypt("message", nil, message), protocol.Derive("state", nil, 8)
 	}
 
 	decrypt := func(key []byte, nonce []byte, message []byte) (plaintext, state []byte) {
 		protocol := newplex.NewProtocol("stream")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.UnauthenticatedDecrypt("message", nil, message), protocol.Derive("state", nil, 8)
+		return protocol.Decrypt("message", nil, message), protocol.Derive("state", nil, 8)
 	}
 
 	drbg := sha3.NewSHAKE128()

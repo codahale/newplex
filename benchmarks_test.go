@@ -53,7 +53,7 @@ func BenchmarkStreamConstruction(b *testing.B) {
 		protocol := newplex.NewProtocol("stream")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.UnauthenticatedEncrypt("message", message[:0], message)
+		return protocol.Encrypt("message", message[:0], message)
 	}
 
 	for _, length := range lengths {

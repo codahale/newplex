@@ -123,35 +123,35 @@ func TestProtocol_Derive(t *testing.T) {
 	})
 }
 
-func TestProtocol_UnauthenticatedEncrypt(t *testing.T) {
+func TestProtocol_Encrypt(t *testing.T) {
 	t.Run("common prefixes", func(t *testing.T) {
 		short := make([]byte, 10)
 		long := make([]byte, 16)
 
 		p1 := newplex.NewProtocol("prefixes")
-		p1.UnauthenticatedEncrypt("message", short, short)
+		p1.Encrypt("message", short, short)
 
 		p2 := newplex.NewProtocol("prefixes")
-		p2.UnauthenticatedEncrypt("message", long, long)
+		p2.Encrypt("message", long, long)
 
 		if got, want := long[:len(short)], short; !bytes.Equal(got, want) {
-			t.Errorf("UnauthenticatedEncrypt(16)[:10] = %x, want = %x", got, want)
+			t.Errorf("Encrypt(16)[:10] = %x, want = %x", got, want)
 		}
 
 		if got, want := p1.Derive("test", nil, 8), p2.Derive("test", nil, 8); bytes.Equal(got, want) {
-			t.Errorf("UnauthenticatedEncrypt(10) state = UnauthenticatedEncrypt(16) state = %x", got)
+			t.Errorf("Encrypt(10) state = Encrypt(16) state = %x", got)
 		}
 	})
 
 	t.Run("in place", func(t *testing.T) {
 		plaintext := []byte("hello world")
 		p1 := newplex.NewProtocol("test")
-		ciphertext := p1.UnauthenticatedEncrypt("message", nil, plaintext)
+		ciphertext := p1.Encrypt("message", nil, plaintext)
 
 		p2 := newplex.NewProtocol("test")
 		msg := make([]byte, len(plaintext))
 		copy(msg, plaintext)
-		p2.UnauthenticatedEncrypt("message", msg[:0], msg)
+		p2.Encrypt("message", msg[:0], msg)
 
 		if !bytes.Equal(msg, ciphertext) {
 			t.Errorf("In-place encryption failed: %x vs %x", msg, ciphertext)
@@ -160,34 +160,34 @@ func TestProtocol_UnauthenticatedEncrypt(t *testing.T) {
 
 	t.Run("empty input", func(t *testing.T) {
 		p := newplex.NewProtocol("empty-test")
-		out := p.UnauthenticatedEncrypt("enc", nil, nil)
+		out := p.Encrypt("enc", nil, nil)
 		if len(out) != 0 {
-			t.Errorf("UnauthenticatedEncrypt(nil) returned %d bytes (%x)", len(out), out)
+			t.Errorf("Encrypt(nil) returned %d bytes (%x)", len(out), out)
 		}
 	})
 }
 
-func TestProtocol_UnauthenticatedDecrypt(t *testing.T) {
+func TestProtocol_Decrypt(t *testing.T) {
 	t.Run("round trip", func(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("this is a key"))
 		plaintext := []byte("this is a message")
-		ciphertext := p1.UnauthenticatedEncrypt("message", nil, plaintext)
+		ciphertext := p1.Encrypt("message", nil, plaintext)
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("this is a key"))
-		got := p2.UnauthenticatedDecrypt("message", nil, ciphertext)
+		got := p2.Decrypt("message", nil, ciphertext)
 
 		if want := plaintext; !bytes.Equal(got, want) {
-			t.Errorf("UnauthenticatedDecrypt(UnauthenticatedEncrypt(%x)) = %x", want, got)
+			t.Errorf("Decrypt(Encrypt(%x)) = %x", want, got)
 		}
 	})
 
 	t.Run("empty input", func(t *testing.T) {
 		p := newplex.NewProtocol("empty-test")
-		out := p.UnauthenticatedDecrypt("enc", nil, nil)
+		out := p.Decrypt("enc", nil, nil)
 		if len(out) != 0 {
-			t.Errorf("UnauthenticatedDecrypt(nil) returned %d bytes (%x)", len(out), out)
+			t.Errorf("Decrypt(nil) returned %d bytes (%x)", len(out), out)
 		}
 	})
 }
@@ -334,7 +334,7 @@ func BenchmarkProtocol_Encrypt(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		p.UnauthenticatedEncrypt(label, output[:0], output)
+		p.Encrypt(label, output[:0], output)
 	}
 }
 
@@ -345,7 +345,7 @@ func BenchmarkProtocol_Decrypt(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		p.UnauthenticatedDecrypt(label, output[:0], output)
+		p.Decrypt(label, output[:0], output)
 	}
 }
 
