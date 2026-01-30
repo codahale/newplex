@@ -42,7 +42,7 @@ func ExampleProtocol_stream() {
 		nonce = []byte("actually random")
 		stream.Mix("nonce", nonce)
 
-		// Encrypt the plaintext.
+		// encrypt the plaintext.
 		plaintext := []byte("hello world")
 		ciphertext = stream.Encrypt("message", nil, plaintext)
 		fmt.Printf("%x\n", ciphertext)
@@ -60,7 +60,7 @@ func ExampleProtocol_stream() {
 		nonce = []byte("actually random")
 		stream.Mix("nonce", nonce)
 
-		// Decrypt the ciphertext.
+		// decrypt the ciphertext.
 		plaintext := stream.Decrypt("message", nil, ciphertext)
 		fmt.Printf("%s\n", plaintext)
 	}

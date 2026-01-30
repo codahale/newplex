@@ -18,44 +18,44 @@ type duplex struct {
 	pos   int
 }
 
-// Absorb updates the duplex's state with the given data, running the permutation as the state becomes fully updated.
+// absorb updates the duplex's state with the given data, running the permutation as the state becomes fully updated.
 //
-// Multiple Absorb calls are effectively the same thing as a single Absorb call with concatenated inputs.
-func (d *duplex) Absorb(b []byte) {
+// Multiple absorb calls are effectively the same thing as a single absorb call with concatenated inputs.
+func (d *duplex) absorb(b []byte) {
 	for len(b) > 0 {
 		remain := min(len(b), rate-d.pos)
 		subtle.XORBytes(d.state[d.pos:], d.state[d.pos:], b[:remain])
 		d.pos += remain
 		if d.pos == rate {
-			d.Permute()
+			d.permute()
 		}
 		b = b[remain:]
 	}
 }
 
-// Squeeze fills the given slice with data from the duplex's state, running the permutation as the state becomes
+// squeeze fills the given slice with data from the duplex's state, running the permutation as the state becomes
 // exhausted.
 //
-// Multiple Squeeze calls are effectively the same thing as a single Squeeze call with concatenated outputs.
-func (d *duplex) Squeeze(out []byte) {
+// Multiple squeeze calls are effectively the same thing as a single squeeze call with concatenated outputs.
+func (d *duplex) squeeze(out []byte) {
 	for len(out) > 0 {
 		remain := min(len(out), rate-d.pos)
 		copy(out[:remain], d.state[d.pos:d.pos+remain])
 		d.pos += remain
 		if d.pos == rate {
-			d.Permute()
+			d.permute()
 		}
 		out = out[remain:]
 	}
 }
 
-// Encrypt XORs the given plaintext slice with the duplex's state, copies the result to the given ciphertext slice, and
+// encrypt XORs the given plaintext slice with the duplex's state, copies the result to the given ciphertext slice, and
 // updates the duplex's state with the ciphertext.
 //
-// Multiple Encrypt calls are effectively the same thing as a single Encrypt call with concatenated inputs.
+// Multiple encrypt calls are effectively the same thing as a single encrypt call with concatenated inputs.
 //
 //goland:noinspection DuplicatedCode
-func (d *duplex) Encrypt(ciphertext, plaintext []byte) {
+func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 	for len(plaintext) > 0 {
 		remain := min(len(plaintext), rate-d.pos)
 		k := d.state[d.pos : d.pos+remain]
@@ -66,20 +66,20 @@ func (d *duplex) Encrypt(ciphertext, plaintext []byte) {
 
 		d.pos += remain
 		if d.pos == rate {
-			d.Permute()
+			d.permute()
 		}
 		plaintext = plaintext[remain:]
 		ciphertext = ciphertext[remain:]
 	}
 }
 
-// Decrypt XORs the given ciphertext slice with the duplex's state, copies the result to the given plaintext slice, and
+// decrypt XORs the given ciphertext slice with the duplex's state, copies the result to the given plaintext slice, and
 // updates the duplex's state with the ciphertext.
 //
-// Multiple Decrypt calls are effectively the same thing as a single Decrypt call with concatenated inputs.
+// Multiple decrypt calls are effectively the same thing as a single decrypt call with concatenated inputs.
 //
 //goland:noinspection DuplicatedCode
-func (d *duplex) Decrypt(plaintext, ciphertext []byte) {
+func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 	for len(ciphertext) > 0 {
 		remain := min(len(ciphertext), rate-d.pos)
 		k := d.state[d.pos : d.pos+remain]
@@ -94,22 +94,22 @@ func (d *duplex) Decrypt(plaintext, ciphertext []byte) {
 
 		d.pos += remain
 		if d.pos == rate {
-			d.Permute()
+			d.permute()
 		}
 		ciphertext = ciphertext[remain:]
 		plaintext = plaintext[remain:]
 	}
 }
 
-// Permute resets the duplex's state index and applies the Simpira-1024 permutation to its 1024-bit state.
-func (d *duplex) Permute() {
+// permute resets the duplex's state index and applies the Simpira-1024 permutation to its 1024-bit state.
+func (d *duplex) permute() {
 	simpira1024.Permute(&d.state)
 	d.pos = 0
 }
 
-// Ratchet applies the Simpira-1024 permutation, then zeros out 256 bits of the rate, preventing rollback.
-func (d *duplex) Ratchet() {
-	d.Permute()
+// ratchet applies the Simpira-1024 permutation, then zeros out 256 bits of the rate, preventing rollback.
+func (d *duplex) ratchet() {
+	d.permute()
 	// Zero out a portion of the rate equal to the size of the capacity. This ensures the security margin for state
 	// recovery (i.e., the size of the capacity) applies to rollback attacks as well.
 	clear(d.state[:capacity])

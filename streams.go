@@ -15,13 +15,13 @@ type mixWriter struct {
 
 func (m *mixWriter) Write(p []byte) (n int, err error) {
 	n, err = m.w.Write(p)
-	m.p.duplex.Absorb(p[:n])
+	m.p.duplex.absorb(p[:n])
 	m.n += uint64(n) //nolint:gosec // n can't be <0
 	return n, err
 }
 
 func (m *mixWriter) Close() error {
-	m.p.duplex.Absorb(tuplehash.AppendRightEncode(nil, m.n))
+	m.p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
 	return nil
 }
 
@@ -34,12 +34,12 @@ type mixReader struct {
 func (m *mixReader) Read(p []byte) (n int, err error) {
 	n, err = m.r.Read(p)
 	m.n += uint64(n) //nolint:gosec // n can't be <0
-	m.p.duplex.Absorb(p[:n])
+	m.p.duplex.absorb(p[:n])
 	return n, err
 }
 
 func (m *mixReader) Close() error {
-	m.p.duplex.Absorb(tuplehash.AppendRightEncode(nil, m.n))
+	m.p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
 	return nil
 }
 
@@ -66,8 +66,8 @@ func (c *cryptWriter) Write(p []byte) (n int, err error) {
 }
 
 func (c *cryptWriter) Close() error {
-	c.p.duplex.Absorb(tuplehash.AppendRightEncode(nil, c.n))
-	c.p.duplex.Ratchet()
+	c.p.duplex.absorb(tuplehash.AppendRightEncode(nil, c.n))
+	c.p.duplex.ratchet()
 	return nil
 }
 
@@ -86,8 +86,8 @@ func (c *cryptReader) Read(p []byte) (n int, err error) {
 }
 
 func (c *cryptReader) Close() error {
-	c.p.duplex.Absorb(tuplehash.AppendRightEncode(nil, c.n))
-	c.p.duplex.Ratchet()
+	c.p.duplex.absorb(tuplehash.AppendRightEncode(nil, c.n))
+	c.p.duplex.ratchet()
 	return nil
 }
 
