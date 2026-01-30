@@ -314,7 +314,7 @@ function Seal(label, plaintext):
   Permute()
   ciphertext = Encrypt(plaintext)
   Permute()
-  tag = Squeeze(128)
+  tag = Squeeze(16)
   Ratchet()
   return ciphertext || tag
   
@@ -323,7 +323,7 @@ function Open(label, ciphertext || tag):
   Permute()
   plaintext = Decrypt(ciphertext)
   Permute()
-  tag' = Squeeze(128)
+  tag' = Squeeze(16)
   Ratchet()
   if tag != tag':
     return ErrInvalidCiphertext
