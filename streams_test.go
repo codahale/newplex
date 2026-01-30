@@ -2,6 +2,7 @@ package newplex_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"testing"
 
@@ -243,6 +244,265 @@ func TestProtocol_DecryptWriter(t *testing.T) {
 			t.Errorf("Derive('final', 8) = %x, want = %x", got, want)
 		}
 	})
+}
+
+//nolint:gocognit // nested tests
+func TestProtocol_AEWriter(t *testing.T) {
+	t.Run("round trip", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		p1.Mix("key", []byte("it's a key"))
+		buf := bytes.NewBuffer(nil)
+		w := p1.AEWriter(buf)
+		if _, err := w.Write([]byte("here's one message; ")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte("and another")); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		p2 := newplex.NewProtocol("example")
+		p2.Mix("key", []byte("it's a key"))
+		r := p2.AEReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
+		b, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got, want := b, []byte("here's one message; and another"); !bytes.Equal(got, want) {
+			t.Errorf("AEReader(AEWriter(%x)) = %x, want = %x", want, got, want)
+		}
+		if err := r.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("io.Copy", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		p1.Mix("key", []byte("it's a key"))
+		buf := bytes.NewBuffer(nil)
+		w := p1.AEWriter(buf)
+		message := make([]byte, 2345)
+		n, err := io.CopyBuffer(w, bytes.NewReader(message), make([]byte, 100))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := n, int64(len(message)); got != want {
+			t.Errorf("Copy(aestream, buf) = %d bytes, want = %d", got, want)
+		}
+		err = w.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		p2 := newplex.NewProtocol("example")
+		p2.Mix("key", []byte("it's a key"))
+		r := p2.AEReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
+		b, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got, want := b, message; !bytes.Equal(got, want) {
+			t.Errorf("AEReader(AEWriter(%x)) = %x, want = %x", want, got, want)
+		}
+		if err := r.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("empty write", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		p1.Mix("key", []byte("it's a key"))
+		buf := bytes.NewBuffer(nil)
+		w := p1.AEWriter(buf)
+
+		if _, err := w.Write([]byte("first")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte{}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte("second")); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		p2 := newplex.NewProtocol("example")
+		p2.Mix("key", []byte("it's a key"))
+		r := p2.AEReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
+		b, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got, want := string(b), "firstsecond"; got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+		if err := r.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+//nolint:gocognit // nested tests
+func TestProtocol_AEReader(t *testing.T) {
+	t.Run("truncation", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		p1.Mix("key", []byte("it's a key"))
+		buf := bytes.NewBuffer(nil)
+		w := p1.AEWriter(buf)
+		if _, err := w.Write([]byte("message")); err != nil {
+			t.Fatal(err)
+		}
+		// Do not close w, so no terminal block is written.
+
+		p2 := newplex.NewProtocol("example")
+		p2.Mix("key", []byte("it's a key"))
+		r := p2.AEReader(bytes.NewReader(buf.Bytes()), newplex.MaxBlockSize)
+		_, err := io.ReadAll(r)
+		if err == nil {
+			t.Error("expected error on truncated stream, got nil")
+		}
+		if err := r.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("partial header", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		p1.Mix("key", []byte("it's a key"))
+		buf := bytes.NewBuffer(nil)
+		w := p1.AEWriter(buf)
+		if _, err := w.Write([]byte("message")); err != nil {
+			t.Fatal(err)
+		}
+		_ = w.Close()
+
+		data := buf.Bytes()
+		truncated := data[:len(data)-2]
+
+		p2 := newplex.NewProtocol("example")
+		p2.Mix("key", []byte("it's a key"))
+		r := p2.AEReader(bytes.NewReader(truncated), newplex.MaxBlockSize)
+		_, err := io.ReadAll(r)
+		if err == nil {
+			t.Error("expected error on truncated header, got nil")
+		}
+		if err != nil && !errors.Is(err, newplex.ErrInvalidCiphertext) {
+			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
+		}
+		if err := r.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("large block", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		p1.Mix("key", []byte("it's a key"))
+		buf := bytes.NewBuffer(nil)
+		w := p1.AEWriter(buf)
+		if _, err := w.Write([]byte("message")); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		p2 := newplex.NewProtocol("example")
+		p2.Mix("key", []byte("it's a key"))
+		// Set max block size smaller than "message" length (7 bytes)
+		r := p2.AEReader(bytes.NewReader(buf.Bytes()), 6)
+		_, err := io.ReadAll(r)
+		if err == nil {
+			t.Error("expected error on block too large, got nil")
+		}
+		if !errors.Is(err, newplex.ErrBlockTooLarge) {
+			t.Errorf("expected ErrBlockTooLarge, got %v", err)
+		}
+		if err := r.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func BenchmarkProtocol_AEWriter(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+
+			p1 := newplex.NewProtocol("example")
+			p1.Mix("key", []byte("it's a key"))
+			w := p1.AEWriter(io.Discard)
+			buf := make([]byte, length.n)
+
+			for b.Loop() {
+				if _, err := w.Write(buf); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkProtocol_AEReader(b *testing.B) {
+	// This is really only useful for compensating for the inability to remove setup costs from BenchmarkReader.
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			p1 := newplex.NewProtocol("example")
+			p1.Mix("key", []byte("it's a key"))
+			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
+			w := p1.AEWriter(ciphertext)
+			buf := make([]byte, length.n)
+			_, _ = w.Write(buf)
+			_ = w.Close()
+
+			p2 := newplex.NewProtocol("example")
+			p2.Mix("key", []byte("it's a key"))
+
+			var p3 newplex.Protocol
+			for b.Loop() {
+				p3 = p2.Clone()
+				p3.AEReader(bytes.NewReader(ciphertext.Bytes()), newplex.MaxBlockSize)
+			}
+		})
+	}
+}
+
+func BenchmarkProtocol_AEReader_Read(b *testing.B) {
+	for _, length := range lengths {
+		b.Run(length.name, func(b *testing.B) {
+			b.SetBytes(int64(length.n))
+			b.ReportAllocs()
+
+			p1 := newplex.NewProtocol("example")
+			p1.Mix("key", []byte("it's a key"))
+			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
+			w := p1.AEWriter(ciphertext)
+			buf := make([]byte, length.n)
+			_, _ = w.Write(buf)
+			_ = w.Close()
+
+			p2 := newplex.NewProtocol("example")
+			p2.Mix("key", []byte("it's a key"))
+
+			var p3 newplex.Protocol
+			for b.Loop() {
+				p3 = p2.Clone()
+				r := p3.AEReader(bytes.NewReader(ciphertext.Bytes()), newplex.MaxBlockSize)
+				if _, err := io.CopyBuffer(io.Discard, r, buf); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }
 
 type shortWriter struct {

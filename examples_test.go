@@ -1,9 +1,11 @@
 package newplex_test
 
 import (
+	"bytes"
 	"crypto/ecdh"
 	"encoding/hex"
 	"fmt"
+	"io"
 
 	"github.com/codahale/newplex"
 )
@@ -206,5 +208,75 @@ func ExampleProtocol_hpke() {
 
 	// Output:
 	// ciphertext = 672e904ba78b50b56f896d4b9c2f8018aecfd34038523a6faa4e82e37be4281fb503e7fbc35792545a5b650c208300ac9a4f31b9740ab0758f4c0f
+	// plaintext  = hello world
+}
+
+func ExampleProtocol_aestream() {
+	encrypt := func(key, plaintext []byte) []byte {
+		// Initialize a protocol with a domain string.
+		aestream := newplex.NewProtocol("com.example.aestream")
+
+		// Mix the key into the protocol.
+		aestream.Mix("key", key)
+
+		// Create a buffer to hold the ciphertext.
+		ciphertext := bytes.NewBuffer(nil)
+
+		// Create a streaming authenticated encryption writer.
+		w := aestream.AEWriter(ciphertext)
+
+		// Write the plaintext to the writer.
+		if _, err := w.Write(plaintext); err != nil {
+			panic(err)
+		}
+
+		// Close the writer to flush the final block.
+		if err := w.Close(); err != nil {
+			panic(err)
+		}
+
+		return ciphertext.Bytes()
+	}
+
+	decrypt := func(key, ciphertext []byte) ([]byte, error) {
+		// Initialize a protocol with a domain string.
+		aestream := newplex.NewProtocol("com.example.aestream")
+
+		// Mix the key into the protocol.
+		aestream.Mix("key", key)
+
+		// Create a streaming authenticated encryption reader.
+		r := aestream.AEReader(bytes.NewReader(ciphertext), newplex.MaxBlockSize)
+
+		// Read the plaintext from the reader.
+		plaintext, err := io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+
+		// Close the reader and check for the terminal block which ensures the stream was not truncated.
+		err = r.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		// Finally, return the plaintext.
+		return plaintext, nil
+	}
+
+	key := []byte("my-secret-key")
+	plaintext := []byte("hello world")
+
+	ciphertext := encrypt(key, plaintext)
+	fmt.Printf("ciphertext = %x\n", ciphertext)
+
+	plaintext, err := decrypt(key, ciphertext)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("plaintext  = %s\n", plaintext)
+
+	// Output:
+	// ciphertext = 7337be7238443b8e8791818c8f50c38f4856a50e265f9c3fdc5d5ab624babae5e8e35f2ba4e8ed522a5b63603490c69ea40402da9ca0362ad4c8ad9bbfd4a5d04096b4f09afadbc816c7d7cc660fad1fac
 	// plaintext  = hello world
 }
