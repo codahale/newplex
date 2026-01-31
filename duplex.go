@@ -108,8 +108,9 @@ func (d *duplex) ratchet() {
 	d.permute()
 	// Zero out a portion of the rate equal to the size of the capacity. This ensures the security margin for state
 	// recovery (i.e., the size of the capacity) applies to rollback attacks as well.
-	clear(d.state[:capacity])
-	d.pos = capacity
+	const ratchetSize = width - rate
+	clear(d.state[:ratchetSize])
+	d.pos = ratchetSize
 }
 
 // UnmarshalBinary restores the duplex's state from the given binary representation. It implements
