@@ -14,11 +14,11 @@ import (
 // io.WriteCloser is open, any other operation on the Protocol will panic.
 //
 // MixWriter panics if a streaming operation is currently active.
-func (p *Protocol) MixWriter(label string, w io.Writer) io.WriteCloser {
+func (p *Protocol) MixWriter(label string, w io.Writer) *MixWriter {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opMix, label)
-	return &mixWriter{p: p, w: w, n: 0, closed: false}
+	return &MixWriter{p: p, w: w, n: 0, closed: false}
 }
 
 // MixReader updates the protocol's state using the given label and whatever data is read from the wrapped io.Reader.
@@ -171,21 +171,31 @@ func (p *Protocol) BlockOpenReader(r io.Reader, maxBlockSize int) io.ReadCloser 
 	}
 }
 
-type mixWriter struct {
+// MixWriter allows for the incremental processing of a stream of data into a single Mix operation on a protocol.
+type MixWriter struct {
 	p      *Protocol
 	w      io.Writer
 	n      uint64
 	closed bool
 }
 
-func (m *mixWriter) Write(p []byte) (n int, err error) {
+// Clone returns a clone of the writer's protocol with the Mix operation completed. The original writer and protocol
+// remain unmodified.
+func (m *MixWriter) Clone() Protocol {
+	p := *m.p
+	p.streaming = false
+	p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
+	return p
+}
+
+func (m *MixWriter) Write(p []byte) (n int, err error) {
 	n, err = m.w.Write(p)
 	m.p.duplex.absorb(p[:n])
 	m.n += uint64(n) //nolint:gosec // n can't be <0
 	return n, err
 }
 
-func (m *mixWriter) Close() error {
+func (m *MixWriter) Close() error {
 	if m.closed {
 		return nil
 	}
@@ -426,11 +436,17 @@ func putUint24(b []byte, v uint32) {
 	b[2] = byte(v)
 }
 
+type cloneWriteCloser interface {
+	io.WriteCloser
+
+	Clone() Protocol
+}
+
 var (
-	_ io.WriteCloser = (*mixWriter)(nil)
-	_ io.ReadCloser  = (*mixReader)(nil)
-	_ io.ReadCloser  = (*cryptReader)(nil)
-	_ io.WriteCloser = (*cryptWriter)(nil)
-	_ io.WriteCloser = (*sealWriter)(nil)
-	_ io.ReadCloser  = (*openReader)(nil)
+	_ cloneWriteCloser = (*MixWriter)(nil)
+	_ io.ReadCloser    = (*mixReader)(nil)
+	_ io.ReadCloser    = (*cryptReader)(nil)
+	_ io.WriteCloser   = (*cryptWriter)(nil)
+	_ io.WriteCloser   = (*sealWriter)(nil)
+	_ io.ReadCloser    = (*openReader)(nil)
 )
