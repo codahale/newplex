@@ -8,10 +8,19 @@ import (
 )
 
 func TestDigest_Size(t *testing.T) {
-	h := digest.New("test")
-	if s := h.Size(); s != digest.Size {
-		t.Errorf("Size() = %d, want 32", s)
-	}
+	t.Run("unkeyed", func(t *testing.T) {
+		h := digest.New("test")
+		if s := h.Size(); s != digest.UnkeyedSize {
+			t.Errorf("UnkeyedSize() = %d, want %d", s, digest.UnkeyedSize)
+		}
+	})
+
+	t.Run("keyed", func(t *testing.T) {
+		h := digest.NewKeyed("test", []byte("key"))
+		if s := h.Size(); s != digest.KeyedSize {
+			t.Errorf("UnkeyedSize() = %d, want %d", s, digest.KeyedSize)
+		}
+	})
 }
 
 func TestDigest_BlockSize(t *testing.T) {
