@@ -1,48 +1,63 @@
-- Run tests before and after modifying the code to ensure correctness:
+# Newplex Context
+
+## Project Overview
+Newplex is a high-performance, incremental, stateful cryptographic primitive (Duplex) and high-level Protocol implemented in Go. It uses the Simpira-1024 permutation.
+
+**Critical Resources:**
+- `design.md`: The authoritative source for the cryptographic construction, protocol logic, and security claims. ALWAYS check this before modifying core logic.
+- `internal/simpira1024`: Contains the core permutation logic, including optimized assembly (`.s`) for AMD64/ARM64 and a generic Go implementation.
+
+## Development Guidelines
+
+### 1. Testing & Verification
+This project uses standard Go testing, fuzzing, and benchmarking.
+
+- **Run all tests:**
   ```bash
   go test ./...
   ```
-
-- Run code linters after modifying the code to ensure consistency and to catch bugs:
+- **Run with race detector:**
+  ```bash
+  go test -race ./...
+  ```
+- **Run Linter:**
   ```bash
   golangci-lint run ./...
   ```
-  
-  Some linter warnings can be automatically fixed:
+
+### 2. Fuzzing
+Fuzz tests are located in `fuzz_constructions_test.go` and `fuzz_transcripts_test.go`. When modifying `duplex.go` or `protocol.go`, run relevant fuzzers to ensure stability.
+```bash
+go test -fuzz=FuzzConstructions -fuzztime=10s
+go test -fuzz=FuzzTranscripts -fuzztime=10s
+```
+
+### 3. Benchmarking
+Performance is a key feature (10+ Gb/s). Always verify performance impacts when touching core paths.
+```bash
+go test -bench=. ./...
+```
+Use `benchstat` to compare results if optimizing.
+
+### 4. Cross-Platform / Pure Go
+The project has optimized assembly and a fallback Go implementation.
+- **Test the "pure Go" fallback:**
   ```bash
-  golangci-lint run ./... --fix
+  go test -tags purego ./...
   ```
-  
-  If a linter warning cannot be automatically fixed, either ask for help or check to see if it is a false positive.
-  Common false positives include:
-  
-  - `testpackage` warnings for tests which are necessarily testing package internals. Disable these by adding
-    a `//nolint:testpackage // an explanation of why this is necessary` comment at the end of the package declaration
-    line.
-  - `gosec` warnings for integer overflows which are not possible. Disable these by adding a
-    `//nolint:gosec // an explanation of why this is a false positive` comment at the end of the line.
+- **Assembly Files:** Be extremely cautious editing `simpira_amd64.s` or `simpira_arm64.s`.
 
-- Format the code after modifying it:
-  ```bash
-  golangci-lint fmt ./...
-  ```
+### 5. Security & Safety (CRITICAL)
+- **Constant Time:** Use `crypto/subtle` for all comparisons of secrets/tags.
+- **Zeroing Memory:** Secrets should be wiped from memory when no longer needed (e.g., `clear(buf)`).
+- **In-Place Operations:** `Open` performs in-place decryption. Ensure error paths handle potentially corrupted plaintext correctly (the current implementation zeroes it out).
+- **No Secret Logging:** Never log key material, plaintexts, or internal state.
 
-- When writing tests, prefer the use of data-driven tests with anonymous structs to long, sequential tests.
-  Ensure the anonymous struct includes a `name` field and that each test is run in a `t.Run` closure to provide
-  separation.
+## Code Style
+- Follow standard Go conventions.
+- Use `internal/` packages to hide implementation details (`simpira1024`, `tuplehash`).
+- Comments should explain *why* (cryptographic rationale), not just *what*.
 
-- When writing tests, prefer the use of nested `t.Run` closures to additional `func TestType_Method_Case` functions.
-
-- When writing tests, use a got/want structure for assertions:
-  ```go
-  if got, want := calculatedValue, "fixture"; got != want {
-    t.Errorf("Method(%v) = %v, want = %v", input, got, want)
-  }
-  ```
-
-- When writing tests, add clarifying comments about what is being tested and why.
-
-- When optimizing code, run benchmarks before and after changing the code. Use `-benchtime=5s` to ensure a stable
-  measurement. If possible, use `-count=10` and record the output to a text file to capture multiple measurements, then
-  use `benchstat` to compare the before and after text files. Do not accept optimizations which do not provide
-  statistically significant improvements in latency, throughput, or memory usage.
+## Common Linter False Positives
+- `testpackage`: We test internals; ignore this.
+- `gosec` (integer overflow): We use `uint64` counters that won't overflow in realistic timeframes. Annotate valid ignore cases.
