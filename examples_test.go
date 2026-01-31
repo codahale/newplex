@@ -211,7 +211,7 @@ func ExampleProtocol_hpke() {
 	// plaintext  = hello world
 }
 
-func ExampleProtocol_aestream() {
+func ExampleProtocol_authenticated_stream() {
 	encrypt := func(key, plaintext []byte) []byte {
 		// Initialize a protocol with a domain string.
 		aestream := newplex.NewProtocol("com.example.aestream")
@@ -223,7 +223,7 @@ func ExampleProtocol_aestream() {
 		ciphertext := bytes.NewBuffer(nil)
 
 		// Create a streaming authenticated encryption writer.
-		w := aestream.AuthenticatedEncryptWriter(ciphertext, newplex.MaxBlockSize)
+		w := aestream.BlockSealWriter(ciphertext, newplex.MaxBlockSize)
 
 		// Write the plaintext to the writer.
 		if _, err := w.Write(plaintext); err != nil {
@@ -246,7 +246,7 @@ func ExampleProtocol_aestream() {
 		aestream.Mix("key", key)
 
 		// Create a streaming authenticated encryption reader.
-		r := aestream.AuthenticatedEncryptReader(bytes.NewReader(ciphertext), newplex.MaxBlockSize)
+		r := aestream.BlockOpenReader(bytes.NewReader(ciphertext), newplex.MaxBlockSize)
 
 		// Read the plaintext from the reader.
 		plaintext, err := io.ReadAll(r)
