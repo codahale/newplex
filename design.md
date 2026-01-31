@@ -72,7 +72,7 @@ Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/seco
    been on round-reduced versions of the smaller permutations:
 
    | Variant            | Total Rounds | Max Rounds Attacked | % Rounds Broken | Security Margin       |
-      |--------------------|--------------|---------------------|-----------------|-----------------------|
+   |--------------------|--------------|---------------------|-----------------|-----------------------|
    | Simpira-256 (b=2)  | 15           | 9                   | 60%             | Safe (6 rounds left)  |
    | Simpira-384 (b=3)  | 21           | 10                  | 48%             | Safe (11 rounds left) |
    | Simpira-512 (b=4)  | 15           | 8                   | 53%             | Safe (7 rounds left)  |
@@ -280,10 +280,10 @@ function Decrypt(label, ciphertext):
   return plaintext
 ```
 
-`Encrypt` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
-state is indistinguishable from random, and encrypts the input with the duplex. The total length of the plaintext is
-absorbed, and the duplex's state is permuted to ensure the duplex's capacity is dependent on the plaintext length.
-Finally, the duplex's state is ratcheted to prevent rollback.
+`Encrypt` encodes the label, absorbs it into the duplex, permutes the duplex to ensure the duplex's state is
+indistinguishable from random, and encrypts the input with the duplex. The total length of the plaintext is absorbed,
+and the duplex's state is permuted to ensure the duplex's capacity is dependent on the plaintext length. Finally, the
+duplex's state is ratcheted to prevent rollback.
 
 `Decrypt` is identical but uses the duplex to decrypt the data.
 
@@ -330,7 +330,7 @@ function Open(label, ciphertext || tag):
   return plaintext
 ```
 
-`Seal` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
+`Seal` encodes the label and plaintext length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
 state is indistinguishable from random, and encrypts the input with the duplex. Next, the duplex is permuted again, and
 a 16-byte tag is squeezed from the duplex's state. Finally, the duplex's state ratcheted to prevent rollback.
 
@@ -366,7 +366,7 @@ Calculating a message digest is as simple as a `Mix` and a `Derive`:
 ```text
 function MessageDigest(message):
   protocol.Init("com.example.md")        // Initialize a protocol with a domain string.
-  protocol.Mix("message", data)          // Mix the message into the protocol.
+  protocol.Mix("message", message)       // Mix the message into the protocol.
   digest = protocol.Derive("digest", 32) // Derive 32 bytes of output and return it.
   return digest
 ```
@@ -608,7 +608,7 @@ function DetCommitment(signer):
   clone = protocol.Clone()
   clone.Mix("signer-private", signer.priv)
   k = P256::Scalar(clone.Derive("scalar", 40))
-  I = [k]G 
+  I = [k]G
   return (k, I)
 ```
 
@@ -648,7 +648,7 @@ function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
   protocol.Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
   plaintext = protocol.Decrypt("message", ciphertext)      // Decrypt the ciphertext.
   protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
-   r' = P256::Scalar(protocol.Derive("challenge", 40))     // Derive an expected challenge scalar.
+  r' = P256::Scalar(protocol.Derive("challenge", 40))      // Derive an expected challenge scalar.
   I' = [s]G - [r']sender.pub                               // Calculate the expected commitment point.
   if I == I':
     return plaintext                                       // If both points are equal, return the plaintext.
