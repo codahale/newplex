@@ -327,8 +327,8 @@ func BenchmarkProtocol_Derive(b *testing.B) {
 	}
 }
 
-func BenchmarkProtocol_Encrypt(b *testing.B) {
-	p := newplex.NewProtocol("encrypt")
+func BenchmarkProtocol_Mask(b *testing.B) {
+	p := newplex.NewProtocol("mask")
 	label := "label"
 	output := make([]byte, 32)
 
@@ -338,8 +338,8 @@ func BenchmarkProtocol_Encrypt(b *testing.B) {
 	}
 }
 
-func BenchmarkProtocol_Decrypt(b *testing.B) {
-	p := newplex.NewProtocol("decrypt")
+func BenchmarkProtocol_Unmask(b *testing.B) {
+	p := newplex.NewProtocol("unmask")
 	label := "label"
 	output := make([]byte, 32)
 
