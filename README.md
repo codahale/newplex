@@ -52,9 +52,9 @@ p := newplex.NewProtocol("my-app.my-protocol")
 p.Mix("key", []byte("secret-key-material"))
 p.Mix("nonce", []byte("unique-nonce"))
 
-// Encrypt a message (provides confidentiality).
+// Mask a message (provides confidentiality only).
 plaintext := []byte("Hello, World!")
-ciphertext := p.Encrypt("message", nil, plaintext)
+ciphertext := p.Mask("message", nil, plaintext)
 
 // Or Seal a message (provides confidentiality + authenticity).
 sealed := p.Seal("secure-message", nil, plaintext)

@@ -16,7 +16,7 @@
     * [`Derive`](#derive)
       * [KDF Security](#kdf-security)
       * [KDF Chains](#kdf-chains)
-    * [`Encrypt`/`Decrypt`](#encryptdecrypt-1)
+    * [`Mask`/`Unmask`](#maskunmask)
     * [`Seal`/`Open`](#sealopen)
   * [Basic Constructions](#basic-constructions)
     * [Message Digests](#message-digests)
@@ -165,7 +165,8 @@ A protocol supports the following operations:
 * `Mix`: Mix a labeled input into the protocol's state, making all future outputs cryptographically dependent on it.
 * `Derive`: Generate a pseudo-random bitstring of arbitrary length that is cryptographically dependent on the protocol's
   state.
-* `Encrypt`/`Decrypt`: Encrypt and decrypt a message, using the protocol's current state as a key.
+* `Mask`/`Unmask`: Encrypt and decrypt a message with no authenticity protection, using the protocol's current state as
+  a key.
 * `Seal`/`Open`: Encrypt and decrypt a message, using an authenticator tag to ensure the ciphertext has not been
   modified.
 
@@ -232,7 +233,7 @@ is ratcheted to prevent rollback.
 
 #### KDF Security
 
-A sequence of `Mix` operations followed by an operation which produces output (e.g., `Derive`, `Encrypt`, `Seal`, etc.)
+A sequence of `Mix` operations followed by an operation which produces output (e.g., `Derive`, `Mask`, `Seal`, etc.)
 is equivalent to constructing a string using a recoverable encoding, absorbing it into a duplex, then squeezing an
 output string. [As long as the Simpira-1024 permutation is indistinguishable from a random permutation, the duplex is
 indistinguishable from a random oracle.][duplex security] Therefore, the `Absorb`/`Permute`/`Squeeze` sequence maps
@@ -257,13 +258,13 @@ Consequently, Newplex protocols have the following security properties:
 * **Break-in Recovery**: A protocol's future outputs will appear random to an adversary in possession of the protocol's
   state as long as one of the future inputs to the protocol is secret.
 
-### `Encrypt`/`Decrypt`
+### `Mask`/`Unmask`
 
-The `Encrypt` and `Decrypt` operations accept a label and an input and encrypts or decrypts them using the protocol's
+The `Mask` and `Unmask` operations accept a label and an input and encrypts or decrypts them using the protocol's
 state and the label.
 
 ```text
-function Encrypt(label, plaintext):
+function Mask(label, plaintext):
   duplex.Absorb(0x04 || left_encode(|label|) || label)
   duplex.Permute()
   ciphertext = duplex.Encrypt(plaintext)
@@ -271,7 +272,7 @@ function Encrypt(label, plaintext):
   duplex.Ratchet()
   return ciphertext
   
-function Decrypt(label, ciphertext):
+function Unmask(label, ciphertext):
   duplex.Absorb(0x04 || left_encode(|label|) || label)
   duplex.Permute()
   plaintext = duplex.Decrypt(ciphertext)
@@ -280,32 +281,32 @@ function Decrypt(label, ciphertext):
   return plaintext
 ```
 
-`Encrypt` encodes the label, absorbs it into the duplex, permutes the duplex to ensure the duplex's state is
+`Mask` encodes the label, absorbs it into the duplex, permutes the duplex to ensure the duplex's state is
 indistinguishable from random, and encrypts the input with the duplex. The total length of the plaintext is absorbed,
 and the duplex's state is permuted to ensure the duplex's capacity is dependent on the plaintext length. Finally, the
 duplex's state is ratcheted to prevent rollback.
 
-`Decrypt` is identical but uses the duplex to decrypt the data.
+`Unmask` is identical but uses the duplex to decrypt the data.
 
-Three points bear mentioning about `Encrypt` and `Decrypt`:
+Three points bear mentioning about `Mask` and `Unmask`:
 
-1. Unlike `Derive`, the output of an `Encrypt` operation does not depend on its input length, therefore `Encrypt('A')`
-   and `Encrypt('AB')` will share a prefix. This allows for fully streaming operations, but usages which require the
-   ciphertext to depend on the plaintext length must include that as the input to a prior `Mix` operation.
-2. `Encrypt` operations offer EAV security (i.e., an entirely passive adversary will not be able to read plaintexts).
+1. Unlike `Derive`, the output of an `Mask` operation does not depend on its input length, therefore `Mask('A')` and
+   `Mask('AB')` will share a prefix. This allows for fully streaming operations, but usages which require the ciphertext
+   to depend on the plaintext length must include that as the input to a prior `Mix` operation.
+2. `Mask` operations offer EAV security (i.e., an entirely passive adversary will not be able to read plaintexts).
    IND-CPA security (i.e., an adversary with an encryption oracle) requires a prior `Mix` operation to include a value
    unique to the plaintext, like a nonce or a message ID.
-3. `Encrypt` operations provide no authentication by themselves. An attacker can modify a ciphertext and the `Decrypt`
+3. `Mask` operations provide no authentication by themselves. An attacker can modify a ciphertext and the `Unmask`
    operation will return a plaintext which was never encrypted.
 
    That said, the divergent ciphertext input will result in divergent protocol state, as the protocol's state after an
-   `Encrypt`/`Decrypt` operation is cryptographically dependent on the plaintext of the operation.
+   `Mask`/`Unmask` operation is cryptographically dependent on the plaintext of the operation.
 
    For IND-CCA security, use [`Seal`/`Open`](#sealopen).
 
 ### `Seal`/`Open`
 
-`Seal` and `Open` operations extend the `Encrypt` and `Decrypt` operations with the inclusion of a 16-byte
+`Seal` and `Open` operations extend the `Mask` and `Unmask` operations with the inclusion of a 16-byte
 authentication tag. The `Open` operation verifies the tag, returning an error if the tag is invalid.
 
 ```text
@@ -350,7 +351,7 @@ operation. All future operations will result in different outputs and the inabil
 is intentional. Because an active attacker is unable to control the duplex's post-permutation state, this does not
 present an avenue for influence.
 
-**N.B.:** Unlike `Encrypt`, `Seal` does not support streaming operations. This is an intentional choice to mitigate the
+**N.B.:** Unlike `Mask`, `Seal` does not support streaming operations. This is an intentional choice to mitigate the
 accidental disclosure of unauthenticated plaintext and follows the generally recommended practices for API design of
 authenticated encryption. See the [Streaming Authenticated Encryption](#streaming-authenticated-encryption) construction
 for details on how to handle streaming data.
@@ -398,17 +399,17 @@ A protocol can be used to create a stream cipher:
 
 ```text
 function StreamEncrypt(key, nonce, plaintext):
-  protocol.Init("com.example.stream")                 // Initialize a protocol with a domain string.
-  protocol.Mix("key", key)                            // Mix the key into the protocol.
-  protocol.Mix("nonce", nonce)                        // Mix the nonce into the protocol.
-  ciphertext = protocol.Encrypt("message", plaintext) // Encrypt the plaintext.
+  protocol.Init("com.example.stream")              // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                         // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                     // Mix the nonce into the protocol.
+  ciphertext = protocol.Mask("message", plaintext) // Encrypt the plaintext.
   return ciphertext
 
 function StreamDecrypt(key, nonce, ciphertext):
-  protocol.Init("com.example.stream")                 // Initialize a protocol with a domain string.
-  protocol.Mix("key", key)                            // Mix the key into the protocol.
-  protocol.Mix("nonce", nonce)                        // Mix the nonce into the protocol.
-  plaintext = protocol.Decrypt("message", ciphertext) // Decrypt the ciphertext.
+  protocol.Init("com.example.stream")                // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                           // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                       // Mix the nonce into the protocol.
+  plaintext = protocol.Unmask("message", ciphertext) // Decrypt the ciphertext.
   return plaintext
 ```
 
@@ -596,7 +597,7 @@ function Verify(signer.pub, message, I, s):
   return I = I'                                       // The signature is valid if both points are equal.
 ```
 
-An additional variation on this construction uses `Encrypt` instead of `Mix` to include the commitment point `I` in the
+An additional variation on this construction uses `Mask` instead of `Mix` to include the commitment point `I` in the
 protocol's state. This makes it impossible to recover the signer's public key from a message and signature (which may be
 desirable for privacy in some contexts) at the expense of making batch verification impossible.
 
@@ -631,7 +632,7 @@ function Signcrypt(sender, receiver.pub, plaintext):
   protocol.Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
   protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
   protocol.Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
-  ciphertext = protocol.Encrypt("message", plaintext)      // Encrypt the plaintext.
+  ciphertext = protocol.Mask("message", plaintext)         // Encrypt the plaintext.
   (k, I) = P256::KeyGen()                                  // Generate a commitment scalar and point.
   protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
   r = P256::Scalar(protocol.Derive("challenge", 40))       // Derive a challenge scalar.
@@ -646,7 +647,7 @@ function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
   protocol.Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
   protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
   protocol.Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
-  plaintext = protocol.Decrypt("message", ciphertext)      // Decrypt the ciphertext.
+  plaintext = protocol.Unmask("message", ciphertext)       // Decrypt the ciphertext.
   protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
   r' = P256::Scalar(protocol.Derive("challenge", 40))      // Derive an expected challenge scalar.
   I' = [s]G - [r']sender.pub                               // Calculate the expected commitment point.

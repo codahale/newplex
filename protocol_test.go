@@ -123,35 +123,35 @@ func TestProtocol_Derive(t *testing.T) {
 	})
 }
 
-func TestProtocol_Encrypt(t *testing.T) {
+func TestProtocol_Mask(t *testing.T) {
 	t.Run("common prefixes", func(t *testing.T) {
 		short := make([]byte, 10)
 		long := make([]byte, 16)
 
 		p1 := newplex.NewProtocol("prefixes")
-		p1.Encrypt("message", short, short)
+		p1.Mask("message", short, short)
 
 		p2 := newplex.NewProtocol("prefixes")
-		p2.Encrypt("message", long, long)
+		p2.Mask("message", long, long)
 
 		if got, want := long[:len(short)], short; !bytes.Equal(got, want) {
-			t.Errorf("Encrypt(16)[:10] = %x, want = %x", got, want)
+			t.Errorf("Mask(16)[:10] = %x, want = %x", got, want)
 		}
 
 		if got, want := p1.Derive("test", nil, 8), p2.Derive("test", nil, 8); bytes.Equal(got, want) {
-			t.Errorf("Encrypt(10) state = Encrypt(16) state = %x", got)
+			t.Errorf("Mask(10) state = Mask(16) state = %x", got)
 		}
 	})
 
 	t.Run("in place", func(t *testing.T) {
 		plaintext := []byte("hello world")
 		p1 := newplex.NewProtocol("test")
-		ciphertext := p1.Encrypt("message", nil, plaintext)
+		ciphertext := p1.Mask("message", nil, plaintext)
 
 		p2 := newplex.NewProtocol("test")
 		msg := make([]byte, len(plaintext))
 		copy(msg, plaintext)
-		p2.Encrypt("message", msg[:0], msg)
+		p2.Mask("message", msg[:0], msg)
 
 		if !bytes.Equal(msg, ciphertext) {
 			t.Errorf("In-place encryption failed: %x vs %x", msg, ciphertext)
@@ -160,34 +160,34 @@ func TestProtocol_Encrypt(t *testing.T) {
 
 	t.Run("empty input", func(t *testing.T) {
 		p := newplex.NewProtocol("empty-test")
-		out := p.Encrypt("enc", nil, nil)
+		out := p.Mask("enc", nil, nil)
 		if len(out) != 0 {
-			t.Errorf("Encrypt(nil) returned %d bytes (%x)", len(out), out)
+			t.Errorf("Mask(nil) returned %d bytes (%x)", len(out), out)
 		}
 	})
 }
 
-func TestProtocol_Decrypt(t *testing.T) {
+func TestProtocol_Unmask(t *testing.T) {
 	t.Run("round trip", func(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("this is a key"))
 		plaintext := []byte("this is a message")
-		ciphertext := p1.Encrypt("message", nil, plaintext)
+		ciphertext := p1.Mask("message", nil, plaintext)
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("this is a key"))
-		got := p2.Decrypt("message", nil, ciphertext)
+		got := p2.Unmask("message", nil, ciphertext)
 
 		if want := plaintext; !bytes.Equal(got, want) {
-			t.Errorf("Decrypt(Encrypt(%x)) = %x", want, got)
+			t.Errorf("Unmask(Mask(%x)) = %x", want, got)
 		}
 	})
 
 	t.Run("empty input", func(t *testing.T) {
 		p := newplex.NewProtocol("empty-test")
-		out := p.Decrypt("enc", nil, nil)
+		out := p.Unmask("enc", nil, nil)
 		if len(out) != 0 {
-			t.Errorf("Decrypt(nil) returned %d bytes (%x)", len(out), out)
+			t.Errorf("Unmask(nil) returned %d bytes (%x)", len(out), out)
 		}
 	})
 }
@@ -334,7 +334,7 @@ func BenchmarkProtocol_Encrypt(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		p.Encrypt(label, output[:0], output)
+		p.Mask(label, output[:0], output)
 	}
 }
 
@@ -345,7 +345,7 @@ func BenchmarkProtocol_Decrypt(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		p.Decrypt(label, output[:0], output)
+		p.Unmask(label, output[:0], output)
 	}
 }
 
