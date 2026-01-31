@@ -12,6 +12,8 @@ Newplex is a high-performance, incremental, stateful cryptographic primitive (Du
 ### 1. Testing & Verification
 This project uses standard Go testing, fuzzing, and benchmarking.
 
+- **Test Packages:** Use `package name_test` whenever possible to ensure we are testing the public API.
+- **Internal Testing:** For critical internal functionality (like the `duplex` type), tests should be placed in the same package. In these cases, disable the `testpackage` lint for that file with an explanatory comment.
 - **Run all tests:**
   ```bash
   go test ./...
@@ -59,5 +61,5 @@ The project has optimized assembly and a fallback Go implementation.
 - Comments should explain *why* (cryptographic rationale), not just *what*.
 
 ## Common Linter False Positives
-- `testpackage`: We test internals; ignore this.
-- `gosec` (integer overflow): We use `uint64` counters that won't overflow in realistic timeframes. Annotate valid ignore cases.
+- `testpackage`: Preferred whenever possible. For unit tests of critical internals, same-package tests are permitted if the lint is disabled in-file with a comment explaining why.
+- `gosec`: Should be mitigated wherever possible. If the warning is a false positive, the lint should be disabled for that statement with an explanatory comment explaining WHY it is a false positive.
