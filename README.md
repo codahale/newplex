@@ -39,6 +39,12 @@ On AMD64 and ARM64 architectures, newplex uses the AES-NI instruction set to ach
 architectures, or if the `purego` build tag is used, it uses a much-slower Go implementation with a bitsliced,
 constant-time AES round implementation.
 
+To force the use of the portable implementation, use the `purego` build tag:
+
+```bash
+go build -tags purego ./...
+```
+
 ### Protocol
 
 `Protocol` is a high-level API, designed for easily building complex cryptographic constructions (e.g., hash functions,
@@ -62,6 +68,15 @@ sealed := p.Seal("secure-message", nil, plaintext)
 // Derive pseudorandom output (like a KDF or Hash).
 tag := p.Derive("tag", nil, 32)
 ```
+
+### Standard Packages
+
+Newplex includes several standard cryptographic constructions implemented as sub-packages:
+
+*   [`newplex/digest`](digest): Implements `hash.Hash` (both keyed and unkeyed).
+*   [`newplex/aead`](aead): Implements `cipher.AEAD` with support for additional data.
+*   [`newplex/sig`](sig): Implements EdDSA-style Schnorr digital signatures.
+*   [`newplex/signcrypt`](signcrypt): Implements integrated public-key encryption and signing.
 
 ## License
 
