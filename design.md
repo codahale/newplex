@@ -22,7 +22,7 @@
     * [Message Digests](#message-digests)
     * [Message Authentication Codes](#message-authentication-codes)
     * [Stream Ciphers](#stream-ciphers)
-    * [Authenticated Encryption And Data (AEAD)](#authenticated-encryption-and-data-aead)
+    * [Authenticated Encryption with Associated Data (AEAD)](#authenticated-encryption-with-associated-data-aead)
     * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
       * [Bidirectional Streaming](#bidirectional-streaming)
   * [Complex Constructions](#complex-constructions)
@@ -418,7 +418,7 @@ This construction is IND-CPA-secure under the following assumptions:
 1. Simpira-1024 is indistinguishable from a random permutation.
 2. At least one of the inputs to the protocol is a nonce (i.e., not used for multiple messages).
 
-### Authenticated Encryption And Data (AEAD)
+### Authenticated Encryption with Associated Data (AEAD)
 
 A protocol can be used to create an AEAD:
 
