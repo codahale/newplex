@@ -12,3 +12,8 @@ gcloud compute ssh newplex --zone=us-central1-a --command 'wget -q https://go.de
 gcloud compute ssh newplex --zone=us-central1-a --command 'tar -xzf *.tar.gz'
 gcloud compute ssh newplex --zone=us-central1-a --command "echo 'export PATH=\"\$PATH:~/go/bin\"' >> ~/.bashrc"
 gcloud compute ssh newplex --zone=us-central1-a --command 'git clone https://github.com/codahale/newplex'
+gcloud compute ssh newplex --zone=us-central1-a --command 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash'
+# shellcheck disable=SC2016
+gcloud compute ssh newplex --zone=us-central1-a --command '\. $HOME/.nvm/nvm.sh && nvm install 24'
+# shellcheck disable=SC2016
+gcloud compute ssh newplex --zone=us-central1-a --command '\. $HOME/.nvm/nvm.sh && npm install -g @google/gemini-cli'
