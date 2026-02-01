@@ -39,7 +39,7 @@ func FuzzPermute(f *testing.F) {
 		Permute(&state1)
 		permuteGeneric(&state2)
 
-		if got, want := state2[:], state1[:]; !bytes.Equal(got, want) {
+		if got, want := state1[:], state2[:]; !bytes.Equal(got, want) {
 			t.Errorf("Permute-ASM(%x) = %x, want = %x", data, got, want)
 		}
 	})
