@@ -133,10 +133,7 @@ func (p *Protocol) Unmask(label string, dst, ciphertext []byte) []byte {
 // Seal panics if a streaming operation is currently active.
 func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	p.checkStreaming()
-	return p.seal(label, dst, plaintext)
-}
 
-func (p *Protocol) seal(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
 
@@ -164,13 +161,11 @@ func (p *Protocol) seal(label string, dst, plaintext []byte) []byte {
 // Open panics if a streaming operation is currently active.
 func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, error) {
 	p.checkStreaming()
-	return p.open(label, dst, ciphertextAndTag)
-}
 
-func (p *Protocol) open(label string, dst, ciphertextAndTag []byte) ([]byte, error) {
 	if len(ciphertextAndTag) < TagSize {
 		return nil, ErrInvalidCiphertext
 	}
+
 	ret, plaintext := sliceForAppend(dst, len(ciphertextAndTag)-TagSize)
 	ciphertext, receivedTag := ciphertextAndTag[:len(plaintext)], ciphertextAndTag[len(plaintext):]
 	var expectedTag [TagSize]byte
