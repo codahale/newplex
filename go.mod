@@ -2,9 +2,9 @@ module github.com/codahale/newplex
 
 go 1.25.6
 
-require github.com/trailofbits/go-fuzz-utils v0.0.0-20250830184917-b61e672bc9ed
-
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/gtank/ristretto255 v0.2.0 // indirect
+	github.com/gtank/ristretto255 v0.2.0
+	github.com/trailofbits/go-fuzz-utils v0.0.0-20250830184917-b61e672bc9ed
 )
+
+require filippo.io/edwards25519 v1.1.0 // indirect
