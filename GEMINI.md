@@ -1,5 +1,6 @@
 # Newplex Context
 
+
 ## Project Overview
 Newplex is a high-performance, incremental, stateful cryptographic primitive (Duplex) and high-level Protocol implemented in Go. It uses the Simpira-1024 permutation.
 
@@ -8,6 +9,11 @@ Newplex is a high-performance, incremental, stateful cryptographic primitive (Du
 - `internal/simpira1024`: Contains the core permutation logic, including optimized assembly (`.s`) for AMD64/ARM64 and a generic Go implementation.
 
 ## Development Guidelines
+
+## 0. Specific Instructions For AI Agents
+
+- DO NOT ATTEMPT TO DOWNGRADE THE VERSION OF ANYTHING.
+- DO NOT AUTOMATICALLY COMMIT YOUR CHANGES.
 
 ### 1. Testing & Verification
 This project uses standard Go testing, fuzzing, and benchmarking.
@@ -63,6 +69,3 @@ The project has optimized assembly and a fallback Go implementation.
 ## Common Linter False Positives
 - `testpackage`: Preferred whenever possible. For unit tests of critical internals, same-package tests are permitted if the lint is disabled in-file with a comment explaining why.
 - `gosec`: Should be mitigated wherever possible. If the warning is a false positive, the lint should be disabled for that statement with an explanatory comment explaining WHY it is a false positive.
-
-## Latest Versions
-- Do not attempt to downgrade the version of anything: GitHub Actions, Go, etc.
