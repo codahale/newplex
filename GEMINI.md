@@ -63,3 +63,6 @@ The project has optimized assembly and a fallback Go implementation.
 ## Common Linter False Positives
 - `testpackage`: Preferred whenever possible. For unit tests of critical internals, same-package tests are permitted if the lint is disabled in-file with a comment explaining why.
 - `gosec`: Should be mitigated wherever possible. If the warning is a false positive, the lint should be disabled for that statement with an explanatory comment explaining WHY it is a false positive.
+
+## Latest Versions
+- Do not attempt to downgrade the version of anything: GitHub Actions, Go, etc.
