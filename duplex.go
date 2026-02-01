@@ -76,12 +76,12 @@ func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 //
 // Multiple decrypt calls are effectively the same thing as a single decrypt call with concatenated inputs.
 func (d *duplex) decrypt(plaintext, ciphertext []byte) {
+	var tmp [rate]byte
 	for len(ciphertext) > 0 {
 		remain := min(len(ciphertext), rate-d.pos)
 		k := d.state[d.pos : d.pos+remain]
 		// Make a copy of this block of ciphertext. If plaintext is the same slice as ciphertext, the decryption will
 		// overwrite the ciphertext, making it impossible to copy it to the state afterward.
-		var tmp [rate]byte
 		copy(tmp[:remain], ciphertext[:remain])
 
 		// P = C ^ K; K = C
