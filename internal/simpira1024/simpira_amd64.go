@@ -3,5 +3,22 @@
 package simpira1024
 
 //go:noescape
-//goland:noinspection GoUnusedParameter
-func permute(state *[Width]byte)
+func permuteAsm(state *[Width]byte)
+
+//go:noescape
+func permuteAVX(state *[Width]byte)
+
+//go:noescape
+func hasAVXAES() bool
+
+var permuteImpl func(state *[Width]byte) = permuteAsm
+
+func permute(state *[Width]byte) {
+	permuteImpl(state)
+}
+
+func init() {
+	if hasAVXAES() {
+		permuteImpl = permuteAVX
+	}
+}

@@ -25,8 +25,8 @@
 	PXOR X10, s3; \
 	PXOR X11, t1
 
-// func permute(state *[128]byte)
-TEXT ·permute(SB), NOSPLIT, $0
+// func permuteAsm(state *[128]byte)
+TEXT ·permuteAsm(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
 	PXOR X15, X15     // zero
