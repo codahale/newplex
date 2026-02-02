@@ -66,6 +66,10 @@ The project has optimized assembly and a fallback Go implementation.
 - Use `internal/` packages to hide implementation details (`simpira1024`, `tuplehash`).
 - Comments should explain *why* (cryptographic rationale), not just *what*.
 
-## Common Linter False Positives
+## Common Linter Warnings
 - `testpackage`: Preferred whenever possible. For unit tests of critical internals, same-package tests are permitted if the lint is disabled in-file with a comment explaining why.
 - `gosec`: Should be mitigated wherever possible. If the warning is a false positive, the lint should be disabled for that statement with an explanatory comment explaining WHY it is a false positive.
+
+## Assembly Files (`*.s`)
+- Any `.s` file which does not end in a newline will produce an "unexpected EOF" error on compilation. If you forget to
+  add a newline when writing a `.s` file, you can use `echo '' >> file.s` to quickly append a newline.
