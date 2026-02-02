@@ -41,11 +41,21 @@ go test -fuzz=FuzzTranscripts -fuzztime=10s
 ```
 
 ### 3. Benchmarking
-Performance is a key feature (10+ Gb/s). Always verify performance impacts when touching core paths.
+Performance is a key feature (10+ Gb/s). Always verify performance impacts when touching core paths. Before beginning to
+optimize, record a set of benchmark measurements in a text file:
 ```bash
-go test -bench=. ./...
+GOMAXPROCS=1 go test -bench=BenchmarkBeingOptimizedFor -benchtime=3s -benchmem -count=10 | tee baseline.txt
 ```
-Use `benchstat` to compare results if optimizing.
+Once you've recorded a baseline measurement set, apply your changes to optimize the code. Next, record a set of
+benchmark measurements of the optimized code in a separate text file (e.g., `optimized.txt`). Finally, use `benchstat`
+to compare the two sets of measurements to see if the result is statistically significant:
+```bash
+benchstat baseline.txt optimized.txt
+```
+If `benchstat` is not available, feel free to install it:
+```bash
+go install golang.org/x/perf/cmd/benchstat@latest
+```
 
 ### 4. Cross-Platform / Pure Go
 The project has optimized assembly and a fallback Go implementation.
