@@ -104,7 +104,11 @@ Given that our only purpose is domain separation, that rules QUIC out.
 ### LEB128
 
 LEB128 uses the MSB of each byte to indicate whether the current byte is the final one of the encoding. It's fast, it
-works well for numbers of all sizes, and it's widely adopted. To make a distinct second encoding, we could simply invert
-the continuation bits. This is fairly space-efficient, but ends up having a slightly slower runtime than TupleHash due
-to the conditional in the hot loop. It's also very difficult to make an implementation of it which plays nicely with
-Go's escape analysis.
+works well for numbers of all sizes, and it's widely adopted. The primary difficulty is that the encoding itself permits
+multiple encodings for a single number. `0b01000000` can be encoded as `0b01000000` or `0b00000000_01000000`. That could
+be mitigated by simply promising not to encode numbers like that, but the fact that it's an ambiguous encoding to begin
+with is a rough start.
+
+To make a distinct second encoding, we could simply invert the continuation bits. This is fairly space-efficient, but
+ends up having a slightly slower runtime than TupleHash due to the conditional in the hot loop. It's also very difficult
+to make an implementation of it which plays nicely with Go's escape analysis.
