@@ -28,10 +28,11 @@ This project uses standard Go testing, fuzzing, and benchmarking.
   ```bash
   go test -race ./...
   ```
-- **Run Linter:**
+- **Run Linter with --fix:**
   ```bash
-  golangci-lint run ./...
+  golangci-lint run --fix ./...
   ```
+  If there are any linter warnings you can fix yourself, do so. Otherwise, wait for feedback from someone else as to how to proceed. 
 
 ### 2. Fuzzing
 Fuzz tests are located in `fuzz_constructions_test.go` and `fuzz_transcripts_test.go`. When modifying `duplex.go` or `protocol.go`, run relevant fuzzers to ensure stability.
@@ -75,10 +76,6 @@ The project has optimized assembly and a fallback Go implementation.
 - Follow standard Go conventions.
 - Use `internal/` packages to hide implementation details (`simpira1024`, `tuplehash`).
 - Comments should explain *why* (cryptographic rationale), not just *what*.
-
-## Common Linter Warnings
-- `testpackage`: Preferred whenever possible. For unit tests of critical internals, same-package tests are permitted if the lint is disabled in-file with a comment explaining why.
-- `gosec`: Should be mitigated wherever possible. If the warning is a false positive, the lint should be disabled for that statement with an explanatory comment explaining WHY it is a false positive.
 
 ## Assembly Files (`*.s`)
 - Any `.s` file which does not end in a newline will produce an "unexpected EOF" error on compilation. If you forget to
