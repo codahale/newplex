@@ -1,5 +1,7 @@
 # Notes
 
+These are some free-form notes on things that have come up while working on this project.
+
 ## Permutation Choice
 
 All things being equal, I would prefer to use Keccak as the permutation for this. It's better-studied, actually adopted
@@ -15,6 +17,29 @@ Simpira-1024, on the other hand, can do 25 Gbps+ on ARM64 and 15 Gbps+ on AMD64.
 rate is sufficient to allow for vectorization of all duplex operations. The main drawback for Simpira-1024 is that if
 the host machine doesn't have AES-NI, performance drops by three orders of magnitude, down to ~10 Mbps. That said, the
 vast majority of non-IoT hardware in 2026 has AES-NI support.
+
+## Optimizing Simpira-1024
+
+I've leaned very heavily on Gemini 3 Pro to implement and optimize the assembly versions of Simpira-1024. This is a
+summary of the various optimization attempts and how they've panned out.
+
+### AMD64
+
+* **Pipelining & Table Lookups**: Moved round constants to a lookup table and used additional registers to try to
+  improve `AESENC` pipelining. Small performance win.
+* **Instruction Encoding**: Switched to using register-relative addressing for round constants, reducing the encoding
+  size for `AESENC` operations. Small performance win.
+* **VAES/AVX-512**: Used VEX-encoded instructions to avoid unnecessary moves. Required an entirely new implementation,
+  as AVX-512 isn't widely deployed yet. ~1% improvement in performance. I reverted this one because the
+  maintenance/testing overhead wasn't worth the benefit.
+
+### ARM64
+
+* **Pipelining & Table Lookups**: Moved round constants to a lookup table and used additional registers to try to
+  improve `AESE` pipelining. Small performance win.
+* **Instruction Fusion**: Fused the addition of round constants directly into the `AESE` operation. Unlike `AESENC` on
+  AMD64, `AESE` includes the XOR of the round key. This removed 4 `VEOR` operations per round and improved performance
+  by 19%.
 
 ## Serial vs Parallel
 
