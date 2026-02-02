@@ -2,19 +2,20 @@
 
 #include "textflag.h"
 
-// ROUND_8_STEP: s0..s5 are S-registers, t0, t1 are T-registers, off is constant offset
+// ROUND_8_STEP: s0..s5 are S-registers, t0, t1 are T-registers, disp is displacement from AX
 // Op 1: s0 -> s1
 // Op 2: t0 -> s5
 // Op 3: s4 -> s3
 // Op 4: s2 -> t1
 // Interleaves 4 F-functions to utilize AES pipeline.
 // Uses X8, X9, X10, X11 for intermediate states.
-#define ROUND_8_STEP(s0, s1, s2, s3, s4, s5, t0, t1, off) \
+// Assumes AX points to roundConstants base for this step.
+#define ROUND_8_STEP(s0, s1, s2, s3, s4, s5, t0, t1, disp) \
 	MOVOU s0, X8; MOVOU t0, X9; MOVOU s4, X10; MOVOU s2, X11; \
-	AESENC ·roundConstants+off+0(SB), X8; \
-	AESENC ·roundConstants+off+16(SB), X9; \
-	AESENC ·roundConstants+off+32(SB), X10; \
-	AESENC ·roundConstants+off+48(SB), X11; \
+	AESENC disp+0(AX), X8; \
+	AESENC disp+16(AX), X9; \
+	AESENC disp+32(AX), X10; \
+	AESENC disp+48(AX), X11; \
 	AESENC X15, X8; \
 	AESENC X15, X9; \
 	AESENC X15, X10; \
@@ -28,6 +29,8 @@
 TEXT ·permute(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 	
+	PXOR X15, X15     // zero
+	
 	MOVOU 0(DI), X0   // x0
 	MOVOU 16(DI), X1  // x1
 	MOVOU 32(DI), X2  // x2
@@ -37,7 +40,7 @@ TEXT ·permute(SB), NOSPLIT, $0
 	MOVOU 96(DI), X6  // x6
 	MOVOU 112(DI), X7 // x7
 	
-	PXOR X15, X15     // zero
+	LEAQ ·roundConstants(SB), AX
 	
 	// Reg mapping:
 	// S: X0, X1, X6, X5, X4, X3
@@ -48,26 +51,34 @@ TEXT ·permute(SB), NOSPLIT, $0
 	// Block 1
 	ROUND_8_STEP(X0, X1, X6, X5, X4, X3, X2, X7, 0)
 	ROUND_8_STEP(X1, X6, X5, X4, X3, X0, X7, X2, 64)
-	ROUND_8_STEP(X6, X5, X4, X3, X0, X1, X2, X7, 128)
-	ROUND_8_STEP(X5, X4, X3, X0, X1, X6, X7, X2, 192)
-	ROUND_8_STEP(X4, X3, X0, X1, X6, X5, X2, X7, 256)
-	ROUND_8_STEP(X3, X0, X1, X6, X5, X4, X7, X2, 320)
+	ADDQ $128, AX
+	ROUND_8_STEP(X6, X5, X4, X3, X0, X1, X2, X7, 0)
+	ROUND_8_STEP(X5, X4, X3, X0, X1, X6, X7, X2, 64)
+	ADDQ $128, AX
+	ROUND_8_STEP(X4, X3, X0, X1, X6, X5, X2, X7, 0)
+	ROUND_8_STEP(X3, X0, X1, X6, X5, X4, X7, X2, 64)
+	ADDQ $128, AX
 	
 	// Block 2
-	ROUND_8_STEP(X0, X1, X6, X5, X4, X3, X2, X7, 384)
-	ROUND_8_STEP(X1, X6, X5, X4, X3, X0, X7, X2, 448)
-	ROUND_8_STEP(X6, X5, X4, X3, X0, X1, X2, X7, 512)
-	ROUND_8_STEP(X5, X4, X3, X0, X1, X6, X7, X2, 576)
-	ROUND_8_STEP(X4, X3, X0, X1, X6, X5, X2, X7, 640)
-	ROUND_8_STEP(X3, X0, X1, X6, X5, X4, X7, X2, 704)
+	ROUND_8_STEP(X0, X1, X6, X5, X4, X3, X2, X7, 0)
+	ROUND_8_STEP(X1, X6, X5, X4, X3, X0, X7, X2, 64)
+	ADDQ $128, AX
+	ROUND_8_STEP(X6, X5, X4, X3, X0, X1, X2, X7, 0)
+	ROUND_8_STEP(X5, X4, X3, X0, X1, X6, X7, X2, 64)
+	ADDQ $128, AX
+	ROUND_8_STEP(X4, X3, X0, X1, X6, X5, X2, X7, 0)
+	ROUND_8_STEP(X3, X0, X1, X6, X5, X4, X7, X2, 64)
+	ADDQ $128, AX
 	
 	// Block 3
-	ROUND_8_STEP(X0, X1, X6, X5, X4, X3, X2, X7, 768)
-	ROUND_8_STEP(X1, X6, X5, X4, X3, X0, X7, X2, 832)
-	ROUND_8_STEP(X6, X5, X4, X3, X0, X1, X2, X7, 896)
-	ROUND_8_STEP(X5, X4, X3, X0, X1, X6, X7, X2, 960)
-	ROUND_8_STEP(X4, X3, X0, X1, X6, X5, X2, X7, 1024)
-	ROUND_8_STEP(X3, X0, X1, X6, X5, X4, X7, X2, 1088)
+	ROUND_8_STEP(X0, X1, X6, X5, X4, X3, X2, X7, 0)
+	ROUND_8_STEP(X1, X6, X5, X4, X3, X0, X7, X2, 64)
+	ADDQ $128, AX
+	ROUND_8_STEP(X6, X5, X4, X3, X0, X1, X2, X7, 0)
+	ROUND_8_STEP(X5, X4, X3, X0, X1, X6, X7, X2, 64)
+	ADDQ $128, AX
+	ROUND_8_STEP(X4, X3, X0, X1, X6, X5, X2, X7, 0)
+	ROUND_8_STEP(X3, X0, X1, X6, X5, X4, X7, X2, 64)
 	
 	MOVOU X0, 0(DI)
 	MOVOU X1, 16(DI)
