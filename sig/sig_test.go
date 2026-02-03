@@ -21,13 +21,13 @@ func TestSign(t *testing.T) {
 	q := ristretto255.NewIdentityElement().ScalarBaseMult(d)
 
 	_, _ = drbg.Read(r[:])
-	signature, err := sig.Sign(d, r[:], strings.NewReader("this is a message"))
+	signature, err := sig.Sign("sig", d, r[:], strings.NewReader("this is a message"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("valid", func(t *testing.T) {
-		valid, err := sig.Verify(q, signature, strings.NewReader("this is a message"))
+		valid, err := sig.Verify("sig", q, signature, strings.NewReader("this is a message"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +39,7 @@ func TestSign(t *testing.T) {
 
 	t.Run("wrong signer", func(t *testing.T) {
 		q2, _ := ristretto255.NewIdentityElement().SetUniformBytes(r[:])
-		valid, err := sig.Verify(q2, signature, strings.NewReader("this is a message"))
+		valid, err := sig.Verify("sig", q2, signature, strings.NewReader("this is a message"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -50,7 +50,7 @@ func TestSign(t *testing.T) {
 	})
 
 	t.Run("wrong message", func(t *testing.T) {
-		valid, err := sig.Verify(q, signature, strings.NewReader("this is another message"))
+		valid, err := sig.Verify("sig", q, signature, strings.NewReader("this is another message"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +63,7 @@ func TestSign(t *testing.T) {
 	t.Run("wrong I", func(t *testing.T) {
 		badI := slices.Clone(signature)
 		badI[0] ^= 1
-		valid, err := sig.Verify(q, badI, strings.NewReader("this is a message"))
+		valid, err := sig.Verify("sig", q, badI, strings.NewReader("this is a message"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -73,10 +73,10 @@ func TestSign(t *testing.T) {
 		}
 	})
 
-	t.Run("bad s", func(t *testing.T) {
+	t.Run("wrong s", func(t *testing.T) {
 		badS := slices.Clone(signature)
 		badS[34] ^= 1
-		valid, err := sig.Verify(q, badS, strings.NewReader("this is a message"))
+		valid, err := sig.Verify("sig", q, badS, strings.NewReader("this is a message"))
 		if err != nil {
 			t.Fatal(err)
 		}

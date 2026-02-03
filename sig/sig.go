@@ -16,9 +16,9 @@ const Size = 64
 // digital signature of the reader's contents.
 //
 // Returns any error from the underlying reader.
-func Sign(d *ristretto255.Scalar, rand []byte, message io.Reader) ([]byte, error) {
+func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader) ([]byte, error) {
 	// Initialize the protocol and mix in the signer's public key and the message.
-	p := newplex.NewProtocol("sig")
+	p := newplex.NewProtocol(domain)
 	p.Mix("signer", ristretto255.NewIdentityElement().ScalarBaseMult(d).Bytes())
 	w := p.MixWriter("message", io.Discard)
 	_, err := io.Copy(w, message)
@@ -61,14 +61,14 @@ func Sign(d *ristretto255.Scalar, rand []byte, message io.Reader) ([]byte, error
 // if and only if the signature was made of the message by the holder of the signer's private key.
 //
 // Returns any error from the underlying reader.
-func Verify(q *ristretto255.Element, sig []byte, message io.Reader) (bool, error) {
+func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reader) (bool, error) {
 	// Valid signatures consist of a 32-byte masked point and a 32-byte masked scalar.
 	if len(sig) != Size {
 		return false, nil
 	}
 
 	// Initialize the protocol and mix in the signer's public key and the message.
-	p := newplex.NewProtocol("sig")
+	p := newplex.NewProtocol(domain)
 	p.Mix("signer", q.Bytes())
 	w := p.MixWriter("message", io.Discard)
 	_, err := io.Copy(w, message)
