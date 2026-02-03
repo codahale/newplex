@@ -23,6 +23,10 @@ vast majority of non-IoT hardware in 2026 has AES-NI support.
 I've leaned very heavily on Gemini 3 Pro to implement and optimize the assembly versions of Simpira-1024. This is a
 summary of the various optimization attempts and how they've panned out.
 
+At this point, it seems like the implementation on both platforms is limited by the AES pipeline and not by
+implementation choices. Both Intel's Emerald Rapids and Apple's M4 processors can fully pipeline the AES rounds in the
+permutation, and using wider instructions like `VAESENC` do not seem to improve throughput.
+
 ### AMD64
 
 * **Pipelining & Table Lookups**: Moved round constants to a lookup table and used additional registers to try to
