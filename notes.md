@@ -38,7 +38,7 @@ summary of the various optimization attempts and how they've panned out.
 ### ARM64
 
 * **Pipelining & Table Lookups**: Moved round constants to a lookup table and used additional registers to try to
-  improve `AESE` pipelining. Small performance win.
+  improve `AESE` pipelining. Again, like on AMD64, this seemed like a win initially but did not pan out.
 * **Instruction Fusion**: Fused the addition of round constants directly into the `AESE` operation. Unlike `AESENC` on
   AMD64, `AESE` includes the XOR of the round key. This removed 4 `VEOR` operations per round and improved performance
   by 19%.
