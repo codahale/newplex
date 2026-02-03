@@ -26,7 +26,9 @@ summary of the various optimization attempts and how they've panned out.
 ### AMD64
 
 * **Pipelining & Table Lookups**: Moved round constants to a lookup table and used additional registers to try to
-  improve `AESENC` pipelining. Small performance win.
+  improve `AESENC` pipelining. I initially thought this was a performance win, but having tested it pretty extensively
+  on both AMD64 and ARM64 platforms, it's a total wash in performance. I think the size of the data section outweighs
+  the slight penalty of calculating the round constants dynamically. I went with the more compact implementation.
 * **Instruction Encoding**: Switched to using register-relative addressing for round constants, reducing the encoding
   size for `AESENC` operations. Small performance win.
 * **VAES/AVX-512**: Used VEX-encoded instructions to avoid unnecessary moves. Required an entirely new implementation,
