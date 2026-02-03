@@ -13,24 +13,8 @@ import (
 )
 
 func TestOpen(t *testing.T) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex signcryption"))
-
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qS := ristretto255.NewIdentityElement().ScalarBaseMult(dS)
-
-	_, _ = drbg.Read(r[:])
-	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
-
-	_, _ = drbg.Read(r[:])
-	dX, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qX := ristretto255.NewIdentityElement().ScalarBaseMult(dX)
-
-	_, _ = drbg.Read(r[:])
-	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r[:], []byte("this is a message"))
+	r, dS, qS, dR, qR, dX, qX := setup()
+	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r, []byte("this is a message"))
 
 	t.Run("valid", func(t *testing.T) {
 		plaintext, err := signcrypt.Open("signcrypt", dR, qS, ciphertext)
@@ -95,41 +79,17 @@ func TestOpen(t *testing.T) {
 }
 
 func BenchmarkSeal(b *testing.B) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex signcryption"))
-
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-
-	_, _ = drbg.Read(r[:])
-	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
-
-	_, _ = drbg.Read(r[:])
-
+	r, dS, _, _, qR, _, _ := setup()
 	message := []byte("this is a message")
 	b.ReportAllocs()
 	for b.Loop() {
-		signcrypt.Seal("signcrypt", dS, qR, r[:], message)
+		signcrypt.Seal("signcrypt", dS, qR, r, message)
 	}
 }
 
 func BenchmarkOpen(b *testing.B) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex signcryption"))
-
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qS := ristretto255.NewIdentityElement().ScalarBaseMult(dS)
-
-	_, _ = drbg.Read(r[:])
-	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
-
-	_, _ = drbg.Read(r[:])
-	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r[:], []byte("this is a message"))
+	r, dS, qS, dR, qR, _, _ := setup()
+	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r, []byte("this is a message"))
 
 	b.ReportAllocs()
 	for b.Loop() {
@@ -138,20 +98,8 @@ func BenchmarkOpen(b *testing.B) {
 }
 
 func FuzzOpen(f *testing.F) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex signcryption"))
-
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qS := ristretto255.NewIdentityElement().ScalarBaseMult(dS)
-
-	_, _ = drbg.Read(r[:])
-	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
-
-	_, _ = drbg.Read(r[:])
-	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r[:], []byte("this is a message"))
+	r, dS, qS, dR, qR, _, _ := setup()
+	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r, []byte("this is a message"))
 
 	badQE := slices.Clone(ciphertext)
 	badQE[0] ^= 1
@@ -179,4 +127,25 @@ func FuzzOpen(f *testing.F) {
 			t.Errorf("decrypted invalid ciphertext: %x/%x/%v", ciphertext, plaintext, err)
 		}
 	})
+}
+
+func setup() ([]byte, *ristretto255.Scalar, *ristretto255.Element, *ristretto255.Scalar, *ristretto255.Element, *ristretto255.Scalar, *ristretto255.Element) {
+	drbg := sha3.NewSHAKE128()
+	_, _ = drbg.Write([]byte("newplex signcryption"))
+
+	var r [64]byte
+	_, _ = drbg.Read(r[:])
+	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
+	qS := ristretto255.NewIdentityElement().ScalarBaseMult(dS)
+
+	_, _ = drbg.Read(r[:])
+	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
+	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
+
+	_, _ = drbg.Read(r[:])
+	dX, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
+	qX := ristretto255.NewIdentityElement().ScalarBaseMult(dX)
+
+	_, _ = drbg.Read(r[:])
+	return r[:], dS, qS, dR, qR, dX, qX
 }
