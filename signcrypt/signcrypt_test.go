@@ -3,9 +3,11 @@ package signcrypt_test
 import (
 	"bytes"
 	"crypto/sha3"
+	"errors"
 	"slices"
 	"testing"
 
+	"github.com/codahale/newplex"
 	"github.com/codahale/newplex/signcrypt"
 	"github.com/gtank/ristretto255"
 )
@@ -133,4 +135,48 @@ func BenchmarkOpen(b *testing.B) {
 	for b.Loop() {
 		_, _ = signcrypt.Open("signcrypt", dR, qS, ciphertext)
 	}
+}
+
+func FuzzOpen(f *testing.F) {
+	drbg := sha3.NewSHAKE128()
+	_, _ = drbg.Write([]byte("newplex signcryption"))
+
+	var r [64]byte
+	_, _ = drbg.Read(r[:])
+	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
+	qS := ristretto255.NewIdentityElement().ScalarBaseMult(dS)
+
+	_, _ = drbg.Read(r[:])
+	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
+	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
+
+	_, _ = drbg.Read(r[:])
+	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r[:], []byte("this is a message"))
+
+	badQE := slices.Clone(ciphertext)
+	badQE[0] ^= 1
+
+	badCT := slices.Clone(ciphertext)
+	badCT[33] ^= 1
+
+	badI := slices.Clone(ciphertext)
+	badI[len(badI)-60] ^= 1
+
+	badS := slices.Clone(ciphertext)
+	badS[len(badS)-20] ^= 1
+
+	f.Add(badQE)
+	f.Add(badCT)
+	f.Add(badI)
+	f.Add(badS)
+	f.Fuzz(func(t *testing.T, modifiedCiphertext []byte) {
+		if bytes.Equal(ciphertext, modifiedCiphertext) {
+			t.Skip()
+		}
+
+		plaintext, err := signcrypt.Open("signcrypt", dR, qS, modifiedCiphertext)
+		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
+			t.Errorf("decrypted invalid ciphertext: %x/%x/%v", ciphertext, plaintext, err)
+		}
+	})
 }

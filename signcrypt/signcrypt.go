@@ -8,6 +8,9 @@ import (
 	"github.com/gtank/ristretto255"
 )
 
+// Overhead is the length, in bytes, of the additional data added to a plaintext to produce a signcrypted ciphertext.
+const Overhead = 32 + 32 + 32
+
 func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand, message []byte) []byte {
 	// Initialize the protocol and mix in the sender and receiver's public keys.
 	p := newplex.NewProtocol(domain)
@@ -51,6 +54,10 @@ func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand
 }
 
 func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciphertext []byte) ([]byte, error) {
+	if len(ciphertext) < Overhead {
+		return nil, newplex.ErrInvalidCiphertext
+	}
+
 	// Initialize the protocol and mix in the sender and receiver's public keys.
 	p := newplex.NewProtocol(domain)
 	p.Mix("sender", qS.Bytes())
