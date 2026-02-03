@@ -8,9 +8,9 @@ import (
 	"github.com/gtank/ristretto255"
 )
 
-func Seal(dS *ristretto255.Scalar, qR *ristretto255.Element, rand, message []byte) []byte {
+func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand, message []byte) []byte {
 	// Initialize the protocol and mix in the sender and receiver's public keys.
-	p := newplex.NewProtocol("signcrypt")
+	p := newplex.NewProtocol(domain)
 	p.Mix("sender", ristretto255.NewIdentityElement().ScalarBaseMult(dS).Bytes())
 	p.Mix("receiver", qR.Bytes())
 
@@ -50,9 +50,9 @@ func Seal(dS *ristretto255.Scalar, qR *ristretto255.Element, rand, message []byt
 	return p.Mask("proof", iOut, s.Bytes())
 }
 
-func Open(dR *ristretto255.Scalar, qS *ristretto255.Element, ciphertext []byte) ([]byte, error) {
+func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciphertext []byte) ([]byte, error) {
 	// Initialize the protocol and mix in the sender and receiver's public keys.
-	p := newplex.NewProtocol("signcrypt")
+	p := newplex.NewProtocol(domain)
 	p.Mix("sender", qS.Bytes())
 	p.Mix("receiver", ristretto255.NewIdentityElement().ScalarBaseMult(dR).Bytes())
 

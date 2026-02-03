@@ -28,10 +28,10 @@ func TestOpen(t *testing.T) {
 	qX := ristretto255.NewIdentityElement().ScalarBaseMult(dX)
 
 	_, _ = drbg.Read(r[:])
-	ciphertext := signcrypt.Seal(dS, qR, r[:], []byte("this is a message"))
+	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r[:], []byte("this is a message"))
 
 	t.Run("valid", func(t *testing.T) {
-		plaintext, err := signcrypt.Open(dR, qS, ciphertext)
+		plaintext, err := signcrypt.Open("signcrypt", dR, qS, ciphertext)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,14 +42,14 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("wrong receiver", func(t *testing.T) {
-		plaintext, err := signcrypt.Open(dX, qS, ciphertext)
+		plaintext, err := signcrypt.Open("signcrypt", dX, qS, ciphertext)
 		if err == nil {
 			t.Errorf("should not have been valid, unsigncrypted = %x", plaintext)
 		}
 	})
 
 	t.Run("wrong sender", func(t *testing.T) {
-		plaintext, err := signcrypt.Open(dR, qX, ciphertext)
+		plaintext, err := signcrypt.Open("signcrypt", dR, qX, ciphertext)
 		if err == nil {
 			t.Errorf("should not have been valid, unsigncrypted = %x", plaintext)
 		}
@@ -58,7 +58,7 @@ func TestOpen(t *testing.T) {
 	t.Run("invalid ephemeral public key", func(t *testing.T) {
 		badQE := slices.Clone(ciphertext)
 		badQE[0] ^= 1
-		plaintext, err := signcrypt.Open(dR, qS, badQE)
+		plaintext, err := signcrypt.Open("signcrypt", dR, qS, badQE)
 		if err == nil {
 			t.Errorf("should not have been valid, unsigncrypted = %x", plaintext)
 		}
@@ -67,7 +67,7 @@ func TestOpen(t *testing.T) {
 	t.Run("invalid message", func(t *testing.T) {
 		badM := slices.Clone(ciphertext)
 		badM[33] ^= 1
-		plaintext, err := signcrypt.Open(dR, qS, badM)
+		plaintext, err := signcrypt.Open("signcrypt", dR, qS, badM)
 		if err == nil {
 			t.Errorf("should not have been valid, unsigncrypted = %x", plaintext)
 		}
@@ -76,7 +76,7 @@ func TestOpen(t *testing.T) {
 	t.Run("invalid I", func(t *testing.T) {
 		badI := slices.Clone(ciphertext)
 		badI[len(badI)-61] ^= 1
-		plaintext, err := signcrypt.Open(dR, qS, badI)
+		plaintext, err := signcrypt.Open("signcrypt", dR, qS, badI)
 		if err == nil {
 			t.Errorf("should not have been valid, unsigncrypted = %x", plaintext)
 		}
@@ -85,7 +85,7 @@ func TestOpen(t *testing.T) {
 	t.Run("invalid s", func(t *testing.T) {
 		badS := slices.Clone(ciphertext)
 		badS[len(badS)-30] ^= 1
-		plaintext, err := signcrypt.Open(dR, qS, badS)
+		plaintext, err := signcrypt.Open("signcrypt", dR, qS, badS)
 		if err == nil {
 			t.Errorf("should not have been valid, unsigncrypted = %x", plaintext)
 		}
@@ -109,7 +109,7 @@ func BenchmarkSeal(b *testing.B) {
 	message := []byte("this is a message")
 	b.ReportAllocs()
 	for b.Loop() {
-		signcrypt.Seal(dS, qR, r[:], message)
+		signcrypt.Seal("signcrypt", dS, qR, r[:], message)
 	}
 }
 
@@ -127,10 +127,10 @@ func BenchmarkOpen(b *testing.B) {
 	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
 
 	_, _ = drbg.Read(r[:])
-	ciphertext := signcrypt.Seal(dS, qR, r[:], []byte("this is a message"))
+	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r[:], []byte("this is a message"))
 
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _ = signcrypt.Open(dR, qS, ciphertext)
+		_, _ = signcrypt.Open("signcrypt", dR, qS, ciphertext)
 	}
 }
