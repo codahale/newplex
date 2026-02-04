@@ -529,42 +529,40 @@ public- and symmetric-key operations.
 
 ### Hybrid Public-Key Encryption
 
-A protocol can be used to build an integrated [ECIES]-style public key encryption scheme:
+A protocol can be used to build an integrated [HPKE]-style public key encryption scheme:
 
-[ECIES]: https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
+[HPKE]: https://www.rfc-editor.org/rfc/rfc9180.html
 
 ```text
-function HPKEEncrypt(receiver.pub, plaintext):
-  ephemeral = P256::KeyGen()                               // Generate an ephemeral key pair.
-  protocol.Init("com.example.hpke")                        // Initialize a protocol with a domain string.
-  protocol.Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  protocol.Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
-  ciphertext || tag = protocol.Seal("message", plaintext)  // Seal the plaintext.
-  return (ephemeral.pub, ciphertext || tag)                // Return the ephemeral public key, ciphertext, and tag.
+function HPKESeal(receiver.pub, sender, plaintext):
+  ephemeral = P256::KeyGen()                                         // Generate an ephemeral key pair.
+  protocol.Init("com.example.hpke")                                  // Initialize a protocol with a domain string.
+  protocol.Mix("sender", sender.pub)                                 // Mix the senders's public key into the protocol.
+  protocol.Mix("receiver", receiver.pub)                             // Mix the receiver's public key into the protocol.
+  protocol.Mix("ephemeral", ephemeral.pub          )                 // Mix the ephemeral public key into the protocol.
+  protocol.Mix("ephemeral ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
+  protocol.Mix("static ecdh", ECDH(receiver.pub, sender.priv))       // Mix the static ECDH shared secret into the protocol.
+  ciphertext || tag = protocol.Seal("message", plaintext)            // Seal the plaintext.
+  return (ephemeral.pub, ciphertext || tag)                          // Return the ephemeral public key, ciphertext, and tag.
 ```
 
 ```text
-function HPKEDecrypt(receiver, ephemeral.pub, ciphertext || tag):
-  protocol.Init("com.example.hpke")                        // Initialize a protocol with a domain string.
-  protocol.Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  protocol.Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ephemeral ECDH shared secret into the protocol.
-  plaintext = protocol.Open("message", ciphertext || tag)  // Open the ciphertext.
+function HPKEOpen(receiver, ephemeral.pub, ciphertext || tag):
+  protocol.Init("com.example.hpke")                                  // Initialize a protocol with a domain string.
+  protocol.Mix("sender", sender.pub)                                 // Mix the senders's public key into the protocol.
+  protocol.Mix("receiver", receiver.pub)                             // Mix the receiver's public key into the protocol.
+  protocol.Mix("ephemeral", ephemeral.pub          )                 // Mix the ephemeral public key into the protocol.
+  protocol.Mix("ephemeral ecdh", ECDH(ephemeral.pub, receiver.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
+  protocol.Mix("static ecdh", ECDH(sender.pub, receiver.priv))       // Mix the static ECDH shared secret into the protocol.
+  plaintext = protocol.Open("message", ciphertext || tag)            // Open the ciphertext.
   return plaintext
 ```
 
-**WARNING:** This construction does not provide authentication in the public key setting. An adversary in possession of
-the receiver's public key (i.e., anyone) can create ciphertexts which will decrypt as valid. In the symmetric key
-setting (i.e., an adversary without the receiver's public key), this is IND-CCA secure, but that setting is not
-realistic. As-is, the tag is more like a checksum than a MAC, preventing modifications only by adversaries who don't
-have the recipient's public key.
-
-Using a static ECDH shared secret (i.e. `ECDH(receiver.pub, sender.priv)`) would add implicit authentication but would
-require a nonce or an ephemeral key to be IND-CCA secure. The resulting scheme would be outsider secure in the public
-key setting (i.e., an adversary in possession of everyone's public keys would be unable to forge or decrypt ciphertexts)
-but not insider secure (i.e., an adversary in possession of the receiver's private key could forge ciphertexts from
-arbitrary senders, a.k.a. key compromise impersonation).
+This construction is outsider-secure for both confidentiality and authenticity, but only insider-secure for
+authenticity. An adversary not in possession of either the sender or receiver's private key will be unable to read
+plaintexts or forge ciphertexts. An adversary in possession of the sender's private key will be unable to read
+plaintexts due to the use of an ephemeral key. An adversary in possession of the receiver's private key will be able to
+forge arbitrary ciphertexts using the sender's public key (i.e. Key Compromise Impersonation).
 
 ### Digital Signatures
 
@@ -656,6 +654,11 @@ function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
   else:
     return ErrInvalidCiphertext                            // Otherwise, return an error.
 ```
+
+This scheme is both outsider- and insider-secure for both confidentiality and authenticity. An outsider adversary in
+possession of both public keys will be unable to read plaintexts or forge ciphertexts. An insider adversary in
+possession of the sender's private key will be unable to read plaintexts. An insider adversary in possession of the
+receiver's private key will be unable to forge ciphertexts.
 
 Because a Newplex protocol is an incremental, stateful way of building a cryptographic construction, this integrated
 signcryption scheme is stronger than generic schemes which combine separate public key encryption and digital signature
