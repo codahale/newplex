@@ -80,6 +80,7 @@ Newplex includes several standard cryptographic constructions implemented as sub
 *   [`newplex/aead`](aead): Implements `cipher.AEAD` with support for additional data.
 *   [`newplex/aestream`](aestream): Implements a streaming authenticated encryption scheme.
 *   [`newplex/digest`](digest): Implements `hash.Hash` (both keyed and unkeyed).
+*   [`newplex/hpke`](hpke): Implements a hybrid public-key encryption scheme.
 *   [`newplex/sig`](sig): Implements EdDSA-style Schnorr digital signatures.
 *   [`newplex/signcrypt`](signcrypt): Implements integrated public-key encryption and signing.
 
