@@ -85,6 +85,8 @@ Newplex includes several standard cryptographic constructions implemented as sub
 * [`newplex/signcrypt`](signcrypt): Implements integrated public-key encryption and signing.
 * [`newplex/siv`](siv): Implements a SIV-style deterministic authentication scheme.
 
+Design details for these are included in [`design.md`](design.md).
+
 ## License
 
 MIT or Apache 2.0.
