@@ -33,6 +33,7 @@ func Seal(domain string, qR *ristretto255.Element, dS *ristretto255.Scalar, rand
 	ssE := ristretto255.NewIdentityElement().ScalarMult(dE, qR)
 	ssS := ristretto255.NewIdentityElement().ScalarMult(dS, qR)
 
+	p.Mix("ephemeral", qE.Bytes())
 	p.Mix("ephemeral ecdh", ssE.Bytes())
 	p.Mix("static ecdh", ssS.Bytes())
 	return p.Seal("message", qE.Bytes(), plaintext)
@@ -55,6 +56,7 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 
 	ssE := ristretto255.NewIdentityElement().ScalarMult(dR, qE)
 	ssS := ristretto255.NewIdentityElement().ScalarMult(dR, qS)
+	p.Mix("ephemeral", qE.Bytes())
 	p.Mix("ephemeral ecdh", ssE.Bytes())
 	p.Mix("static ecdh", ssS.Bytes())
 	return p.Open("message", nil, ciphertext[32:])
