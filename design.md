@@ -25,6 +25,7 @@
     * [Authenticated Encryption with Associated Data (AEAD)](#authenticated-encryption-with-associated-data-aead)
     * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
       * [Bidirectional Streaming](#bidirectional-streaming)
+    * [Deterministic Authenticated Encryption](#deterministic-authenticated-encryption)
   * [Complex Constructions](#complex-constructions)
     * [Hybrid Public-Key Encryption](#hybrid-public-key-encryption)
     * [Digital Signatures](#digital-signatures)
@@ -521,6 +522,43 @@ recv.Mix("sender", "initiator")
 ```
 
 This ensures the protocols being used to send and receive data have different states and therefore different outputs.
+
+### Deterministic Authenticated Encryption
+
+A protocol can be used to implement an SIV-style deterministic authenticated encryption scheme:
+
+```text
+function SIVSeal(key, nonce, ad, plaintext):
+  protocol.Init("com.example.siv")                 // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                         // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                     // Mix the nonce into the protocol.
+  protocol.Mix("ad", ad)                           // Mix the associated data into the protocol.
+  clone = protocol.Clone()                         // Clone the protocol.
+  clone.Mix(plaintext)                             // Mix the plaintext into the clone.
+  tag = clone.Derive("tag", 16)                    // Use the clone to derive a tag.
+  protocol.Mix("tag", tag)                         // Mix the tag into the main protocol.
+  ciphertext = protocol.Mask("message", plaintext) // Mask the plaintext.
+  return ciphertext || tag
+```
+
+```text
+function SIVOpen(key, nonce, ad, ciphertext || tag):
+  protocol.Init("com.example.siv")                   // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                           // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                       // Mix the nonce into the protocol.
+  protocol.Mix("ad", ad)                             // Mix the associated data into the protocol.
+  clone = protocol.Clone()                           // Clone the protocol to use later for tag verification.
+  protocol.Mix("tag", tag)                           // Mix the received tag into the main protocol.
+  plaintext = protocol.Unmask("message", ciphertext) // Unmask the protocol.
+  clone.Mix("message", plaintext)                    // Mix the unmasked, unauthenticated plaintext into the clone.
+  tag' = clone.Derive("tag", 16)                     // Derive an expected tag from the clone.
+  if tag != tag':                                    // If the tags don't match, return an error. Otherwise, the plaintext.
+    return ErrInvalidCiphertext
+  return plaintext
+```
+
+This uses a two-pass approach to deterministic encryption and provides both nonce-misuse resistance (mrAE) and
+deterministic authenticated encryption (DAE) without a nonce.
 
 ## Complex Constructions
 
