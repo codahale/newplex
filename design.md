@@ -30,6 +30,7 @@
     * [Hybrid Public-Key Encryption](#hybrid-public-key-encryption)
     * [Digital Signatures](#digital-signatures)
     * [Signcryption](#signcryption)
+    * [Verifiable Random Function](#verifiable-random-function)
 <!-- TOC -->
 
 ## What is Newplex?
@@ -721,3 +722,52 @@ initial [HPKE-style](#hybrid-public-key-encryption) portion of the protocol can 
 with an ephemeral key pair of their choosing. However, the final portion is the sUF-CMA
 secure [EdDSA-style Schnorr signature scheme](#digital-signatures) from the previous section and unforgeable without the
 sender's private key.
+
+### Verifiable Random Function
+
+A protocol can be used to build a verifiable random function:
+
+```text
+function Prove(d, m, n):
+  protocol.Init("com.example.vrf")                         // Initialize the protocol.
+  protocol.Mix("prover", [d]G)                             // Mix in the prover's public key.
+  protocol.Mix("input", m)                                 // Mix in the input.
+  h = R255::DeriveElement(protocol.Derive("h", 64))        // Derive an element from the protocol state.
+  gamma = [d]H                                             // Calculate the gamma point.
+  protocol.Mix("gamma", gamma)                             // Mix in the gamma point.
+  prf = protocol.Derive("prf", n)                          // Derive n bytes of PRF output.
+  clone = protocol.Clone()                                 // Clone the protocol to generate a nonce.
+  clone.Mix("prover-private", d)                           // Mix in the prover's private key.
+  clone.Mix("rand", rand(32))                              // Mix in a random value.
+  k = R255::ReduceScalar(clone.Derive("commitment", 64))   // Derive a nonce scalar.
+  u = [k]G                                                 // Calculate the two commitment points.
+  v = [k]H
+  protocol.Mix("commitment-u", u)                          // Mix in the two commitment points.
+  protocol.Mix("commitment-v", v)
+  c = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
+  r = k + c * s                                            // Calculate the response scalar.
+  return (prf, c || r || gamma)                            // Return the PRF output and the proof.
+```
+
+```text
+functiom Verify(Q, m, n, c || r || gamma):
+  protocol.Init("com.example.vrf")                          // Initialize the protocol.
+  protocol.Mix("prover", Q)                                 // Mix in the prover's public key.
+  protocol.Mix("input", m)                                  // Mix in the input.
+  h = R255::DeriveElement(protocol.Derive("h", 64))         // Derive an element from the protocol state.
+  protocol.Mix("gamma", gamma)                              // Mix in the gamma point.
+  prf = protocol.Derive("prf", n)                           // Derive n bytes of PRF output.
+  u' = [r]G - [c]q                                          // Calculate the two expected commitment points.
+  v' = [r]H - [c]gamma 
+  protocol.Mix("commitment-u", u')                          // Mix in the two expected commiement points.
+  protocol.Mix("commitment-v", v')
+  c' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive the expected challenge scalar.
+  if c != c':                                               // If it's not the same as the expected challenge scalar, return an error.
+    return ErrInvalidProof
+  return prf                                                // If they're the same, return the PRF output.
+```
+
+This roughly follows the [RFC 9381] ECVRF construction, but uses the stateful nature of the protocol as a running
+transcript of all calculated and observed values.
+
+[RFC 9381]: https://www.rfc-editor.org/rfc/rfc9381.html

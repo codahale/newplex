@@ -84,6 +84,7 @@ Newplex includes several standard cryptographic constructions implemented as sub
 * [`newplex/sig`](sig): Implements EdDSA-style Schnorr digital signatures.
 * [`newplex/signcrypt`](signcrypt): Implements integrated public-key encryption and signing.
 * [`newplex/siv`](siv): Implements a SIV-style deterministic authentication scheme.
+* [`newplex/vrf`](vrf): Implements a verifiable random function.
 
 Design details for these are included in [`design.md`](design.md).
 
