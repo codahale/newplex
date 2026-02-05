@@ -1,4 +1,4 @@
-package sig_test //nolint:cyclop // nested tests
+package sig_test
 
 import (
 	"crypto/sha3"
@@ -10,7 +10,6 @@ import (
 	"github.com/gtank/ristretto255"
 )
 
-//nolint:gocognit // nested tests
 func TestSign(t *testing.T) {
 	drbg := sha3.NewSHAKE128()
 	_, _ = drbg.Write([]byte("newplex digital signature"))

@@ -11,7 +11,6 @@ import (
 	"github.com/codahale/newplex/aestream"
 )
 
-//nolint:gocognit // nested tests
 func TestNewWriter(t *testing.T) {
 	t.Run("round trip", func(t *testing.T) {
 		p1 := newplex.NewProtocol("example")

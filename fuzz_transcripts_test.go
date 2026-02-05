@@ -12,8 +12,6 @@ import (
 
 // FuzzProtocolDivergence generates a random transcript of operations and performs them in on two separate protocol
 // objects in parallel, checking to see that all outputs are the same.
-//
-//nolint:gocognit // It's fine if this is complicated.
 func FuzzProtocolDivergence(f *testing.F) {
 	drbg := sha3.NewSHAKE128()
 	_, _ = drbg.Write([]byte("newplex divergence"))
@@ -104,8 +102,6 @@ func FuzzProtocolDivergence(f *testing.F) {
 // FuzzProtocolReversibility generates a transcript of reversible operations (Mix, Derive, Mask, and Seal) and
 // performs them on a protocol, recording the outputs. It then runs the transcript's duals (Mix, Derive, Unmask, and
 // Open) on another protocol object, ensuring the outputs are the same as the inputs.
-//
-//nolint:gocognit // It's fine if this is complicated.
 func FuzzProtocolReversibility(f *testing.F) {
 	drbg := sha3.NewSHAKE128()
 	_, _ = drbg.Write([]byte("newplex reversibility"))
