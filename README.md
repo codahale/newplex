@@ -1,7 +1,7 @@
 # Newplex
 
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
-hashing, encryption, message authentication codes, and authenticated encryption) in complex protocols. Inspired
+hashing, encryption, message authentication codes, and authenticated encryption) in complex schemes. Inspired
 by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [DuplexWrap], and [Xoodyak]'s
 Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern processors at a
 128-bit security level.
@@ -51,8 +51,8 @@ go build -tags purego ./...
 
 ### Protocol
 
-`Protocol` is a high-level API, designed for easily building complex cryptographic constructions (e.g., hash functions,
-MACs, stream ciphers, AEADs, sessions) with domain separation and state management.
+`Protocol` is a high-level API, designed for easily building complex cryptographic schemes (e.g., hash functions, MACs,
+stream ciphers, AEADs, sessions) with built-in domain separation and state management.
 
 ```go
 // Initialize a protocol with a domain separation string.
@@ -75,7 +75,7 @@ tag := p.Derive("tag", nil, 32)
 
 ### Standard Packages
 
-Newplex includes several standard cryptographic constructions implemented as sub-packages:
+Newplex includes many cryptographic schemes implemented as sub-packages:
 
 * [`newplex/aead`](aead): Implements `cipher.AEAD` with support for additional data.
 * [`newplex/aestream`](aestream): Implements a streaming authenticated encryption scheme.

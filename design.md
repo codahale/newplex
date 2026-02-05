@@ -18,26 +18,26 @@
       * [KDF Chains](#kdf-chains)
     * [`Mask`/`Unmask`](#maskunmask)
     * [`Seal`/`Open`](#sealopen)
-  * [Basic Constructions](#basic-constructions)
-    * [Message Digests](#message-digests)
-    * [Message Authentication Codes](#message-authentication-codes)
-    * [Stream Ciphers](#stream-ciphers)
+  * [Basic Schemes](#basic-schemes)
+    * [Message Digest](#message-digest)
+    * [Message Authentication Code](#message-authentication-code)
+    * [Stream Cipher](#stream-cipher)
     * [Authenticated Encryption with Associated Data (AEAD)](#authenticated-encryption-with-associated-data-aead)
+    * [Deterministic Authenticated Encryption](#deterministic-authenticated-encryption)
+  * [Complex Schemes](#complex-schemes)
     * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
       * [Bidirectional Streaming](#bidirectional-streaming)
-    * [Deterministic Authenticated Encryption](#deterministic-authenticated-encryption)
-  * [Complex Constructions](#complex-constructions)
+    * [Mutually Authenticated Handshake](#mutually-authenticated-handshake)
     * [Hybrid Public-Key Encryption](#hybrid-public-key-encryption)
     * [Digital Signatures](#digital-signatures)
     * [Signcryption](#signcryption)
     * [Verifiable Random Function](#verifiable-random-function)
-    * [Mutually Authenticated Handshake](#mutually-authenticated-handshake)
 <!-- TOC -->
 
 ## What is Newplex?
 
 Newplex provides an incremental, stateful cryptographic primitive for symmetric-key cryptographic operations (e.g.,
-hashing, encryption, message authentication codes, and authenticated encryption) in complex constructions. Inspired
+hashing, encryption, message authentication codes, and authenticated encryption) in complex schemes. Inspired
 by [TupleHash], [STROBE], [Noise Protocol]'s stateful objects, [Merlin] transcripts, [DuplexWrap], and [Xoodyak]'s
 Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/second performance on modern processors at a
 128-bit security level.
@@ -75,7 +75,7 @@ Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/seco
    been on round-reduced versions of the smaller permutations:
 
    | Variant            | Total Rounds | Max Rounds Attacked | % Rounds Broken | Security Margin       |
-   |--------------------|--------------|---------------------|-----------------|-----------------------|
+      |--------------------|--------------|---------------------|-----------------|-----------------------|
    | Simpira-256 (b=2)  | 15           | 9                   | 60%             | Safe (6 rounds left)  |
    | Simpira-384 (b=3)  | 21           | 10                  | 48%             | Safe (11 rounds left) |
    | Simpira-512 (b=4)  | 15           | 8                   | 53%             | Safe (7 rounds left)  |
@@ -176,7 +176,7 @@ A protocol supports the following operations:
 Labels are used for all protocol operations (except `Init`) to provide domain separation of inputs and outputs. This
 ensures that semantically distinct values with identical encodings (e.g., public keys or ECDH shared secrets) result in
 distinctly encoded operations as long as the labels are distinct. Labels should be human-readable values that
-communicate the source of the input or the intended use of the output. The label `server-p256-public-key` is good;
+communicate the source of the input or the intended use of the output. The label `server-r255-public-key` is good;
 `step-3a` is a bad label.
 
 ### `Init`
@@ -356,14 +356,14 @@ present an avenue for influence.
 
 **N.B.:** Unlike `Mask`, `Seal` does not support streaming operations. This is an intentional choice to mitigate the
 accidental disclosure of unauthenticated plaintext and follows the generally recommended practices for API design of
-authenticated encryption. See the [Streaming Authenticated Encryption](#streaming-authenticated-encryption) construction
-for details on how to handle streaming data.
+authenticated encryption. See the [Streaming Authenticated Encryption](#streaming-authenticated-encryption) scheme for
+details on how to handle streaming data.
 
-## Basic Constructions
+## Basic Schemes
 
-By combining operations, we can construct a wide variety of cryptographic schemes using a single protocol.
+By combining operations, we can implement a wide variety of cryptographic schemes using a protocol.
 
-### Message Digests
+### Message Digest
 
 Calculating a message digest is as simple as a `Mix` and a `Derive`:
 
@@ -375,12 +375,11 @@ function MessageDigest(message):
   return digest
 ```
 
-This construction is indistinguishable from a random oracle if Simpira-1024 is indistinguishable from a random
-permutation.
+This scheme is indistinguishable from a random oracle if Simpira-1024 is indistinguishable from a random permutation.
 
-### Message Authentication Codes
+### Message Authentication Code
 
-Adding a key to the previous construction makes it a MAC:
+Adding a key to the previous scheme makes it a MAC:
 
 ```text
 function MAC(key, message):
@@ -394,9 +393,9 @@ function MAC(key, message):
 The use of labels and the encoding of [`Mix` inputs](#mix) ensures that the key and the message will never overlap, even
 if their lengths vary.
 
-This construction is sUF-CMA secure if Simpira-1024 is indistinguishable from a random permutation.
+This scheme is sUF-CMA secure if Simpira-1024 is indistinguishable from a random permutation.
 
-### Stream Ciphers
+### Stream Cipher
 
 A protocol can be used to create a stream cipher:
 
@@ -416,7 +415,7 @@ function StreamDecrypt(key, nonce, ciphertext):
   return plaintext
 ```
 
-This construction is IND-CPA-secure under the following assumptions:
+This scheme is IND-CPA-secure under the following assumptions:
 
 1. Simpira-1024 is indistinguishable from a random permutation.
 2. At least one of the inputs to the protocol is a nonce (i.e., not used for multiple messages).
@@ -453,10 +452,49 @@ function AEADOpen(key, nonce, ad, ciphertext || tag):
   return plaintext                                        // Return the plaintext or an error.
 ```
 
-This construction is IND-CCA2-secure (i.e., both IND-CPA and INT-CTXT) under the following assumptions:
+This scheme is IND-CCA2-secure (i.e., both IND-CPA and INT-CTXT) under the following assumptions:
 
 1. Simpira-1024 is indistinguishable from a random permutation.
 2. At least one of the inputs to the protocol is a nonce (i.e., not used for multiple messages).
+
+### Deterministic Authenticated Encryption
+
+A protocol can be used to implement an SIV-style deterministic authenticated encryption scheme:
+
+```text
+function SIVSeal(key, nonce, ad, plaintext):
+  protocol.Init("com.example.siv")                 // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                         // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                     // Mix the nonce into the protocol.
+  protocol.Mix("ad", ad)                           // Mix the associated data into the protocol.
+  clone = protocol.Clone()                         // Clone the protocol.
+  clone.Mix(plaintext)                             // Mix the plaintext into the clone.
+  tag = clone.Derive("tag", 16)                    // Use the clone to derive a tag.
+  protocol.Mix("tag", tag)                         // Mix the tag into the main protocol.
+  ciphertext = protocol.Mask("message", plaintext) // Mask the plaintext.
+  return ciphertext || tag
+```
+
+```text
+function SIVOpen(key, nonce, ad, ciphertext || tag):
+  protocol.Init("com.example.siv")                   // Initialize a protocol with a domain string.
+  protocol.Mix("key", key)                           // Mix the key into the protocol.
+  protocol.Mix("nonce", nonce)                       // Mix the nonce into the protocol.
+  protocol.Mix("ad", ad)                             // Mix the associated data into the protocol.
+  clone = protocol.Clone()                           // Clone the protocol to use later for tag verification.
+  protocol.Mix("tag", tag)                           // Mix the received tag into the main protocol.
+  plaintext = protocol.Unmask("message", ciphertext) // Unmask the protocol.
+  clone.Mix("message", plaintext)                    // Mix the unmasked, unauthenticated plaintext into the clone.
+  tag' = clone.Derive("tag", 16)                     // Derive an expected tag from the clone.
+  if tag != tag':                                    // If the tags don't match, return an error. Otherwise, the plaintext.
+    return ErrInvalidCiphertext
+  return plaintext
+```
+
+This uses a two-pass approach to deterministic encryption and provides both nonce-misuse resistance (mrAE) and
+deterministic authenticated encryption (DAE) without a nonce.
+
+## Complex Schemes
 
 ### Streaming Authenticated Encryption
 
@@ -526,49 +564,65 @@ recv.Mix("sender", "initiator")
 This ensures the protocols being used to send and receive data have different states and therefore different outputs.
 For a concrete example, see the [Mutually Authenticated Handshake](#mutually-authenticated-handshake) scheme.
 
-### Deterministic Authenticated Encryption
+### Mutually Authenticated Handshake
 
-A protocol can be used to implement an SIV-style deterministic authenticated encryption scheme:
-
-```text
-function SIVSeal(key, nonce, ad, plaintext):
-  protocol.Init("com.example.siv")                 // Initialize a protocol with a domain string.
-  protocol.Mix("key", key)                         // Mix the key into the protocol.
-  protocol.Mix("nonce", nonce)                     // Mix the nonce into the protocol.
-  protocol.Mix("ad", ad)                           // Mix the associated data into the protocol.
-  clone = protocol.Clone()                         // Clone the protocol.
-  clone.Mix(plaintext)                             // Mix the plaintext into the clone.
-  tag = clone.Derive("tag", 16)                    // Use the clone to derive a tag.
-  protocol.Mix("tag", tag)                         // Mix the tag into the main protocol.
-  ciphertext = protocol.Mask("message", plaintext) // Mask the plaintext.
-  return ciphertext || tag
-```
-
-```text
-function SIVOpen(key, nonce, ad, ciphertext || tag):
-  protocol.Init("com.example.siv")                   // Initialize a protocol with a domain string.
-  protocol.Mix("key", key)                           // Mix the key into the protocol.
-  protocol.Mix("nonce", nonce)                       // Mix the nonce into the protocol.
-  protocol.Mix("ad", ad)                             // Mix the associated data into the protocol.
-  clone = protocol.Clone()                           // Clone the protocol to use later for tag verification.
-  protocol.Mix("tag", tag)                           // Mix the received tag into the main protocol.
-  plaintext = protocol.Unmask("message", ciphertext) // Unmask the protocol.
-  clone.Mix("message", plaintext)                    // Mix the unmasked, unauthenticated plaintext into the clone.
-  tag' = clone.Derive("tag", 16)                     // Derive an expected tag from the clone.
-  if tag != tag':                                    // If the tags don't match, return an error. Otherwise, the plaintext.
-    return ErrInvalidCiphertext
-  return plaintext
-```
-
-This uses a two-pass approach to deterministic encryption and provides both nonce-misuse resistance (mrAE) and
-deterministic authenticated encryption (DAE) without a nonce.
-
-## Complex Constructions
-
-Given an elliptic curve group like NIST P-256, a protocol can be used to build complex constructions which integrate
+Given an elliptic curve group like [Ristretto255], a protocol can be used to build more complex schemes which integrate
 public- and symmetric-key operations.
 
+[Ristretto255]: https://www.rfc-editor.org/rfc/rfc9496.html
+
+A protocol can be used to implement a mutually-authenticated, forward-secure handshake with key-compromise impersonation
+resistance (equivalent to the `XX` pattern in the [Noise Protocol Framework][Noise Protocol]):
+
+```text
+function HandshakeInitiator(initiator):
+  iE = R255::KeyGen()                                 // Generate an ephemeral key pair.
+  protocol.Init("com.example.handshake")              // Initialize the protocol.
+  protocol.Mix("ie", iE.pub)                          // Mix the ephemeral public key into the protocol.
+  Send(iE.pub)                                        // Send the ephemeral public key.
+  
+  in = Receive()                                      // Receive the responder's message.
+  rE.pub = R255::Element(in[:32])                     // Decode the responder's ephemeral public key.
+  protocol.Mix("re", rE.pub)                          // Mix the responder's ephemeral public key.
+  protocol.Mix("ie-re", ECDH(rE.pub, iE.priv))        // Mix the ephemeral-ephemeral shared secret.
+  rS.pub = protocol.Open("rs", in[32:])               // Open the responder's static public key.
+  protocol.Mix("ie-rs", ECDH(rS.pub, iE.priv))        // Mix the ephemeral-static shared secret.
+  
+  out = protocol.Seal("is", initiator.pub)            // Seal the initiator's static public key.
+  protocol.Mix("is-re", ECDH(rE.pub, initiator.priv)) // Mix the static-ephemeral shared secret.
+  Send(out)                                           // Send the sealed static public key.
+  
+  send, recv = protocol.Clone(), protocol.Clone()     // Fork the protocol.
+  send.Mix("sender", "initiator")                     // Mix the sender role.
+  recv.Mix("sender", "responder")                     // Mix the sender role.
+  return (send, recv, rS.pub)
+```
+
+```text
+function HandshakeResponder(domain, responder):
+  rE = R255::KeyGen()                                 // Generate an ephemeral key pair.
+  iE.pub = R255::Element(Receive())                   // Receive the initiator's ephemeral public key.
+  protocol.Init("com.example.handshake")              // Initialize the protocol.
+  protocol.Mix("ie", iE.pub)                          // Mix the ephemeral public key into the protocol.
+  protocol.Mix("re", rE.pub)                          // Mix the responder's ephemeral public key.
+  protocol.Mix("ie-re", ECDH(iE.pub, rE.priv))        // Mix the ephemeral-ephemeral shared secret.
+  
+  out = protocol.Seal("rs", responder.pub)            // Seal the responder's static public key.
+  protocol.Mix("ie-rs", ECDH(iE.pub, responder.priv)) // Mix the ephemeral-static shared secret.
+  Send(rE.pub || sealed_qRS)                          // Send the ephemeral key and sealed static key.
+  
+  in = Receive()                                      // Receive the initiator's sealed static key.
+  iS.pub = protocol.Open("is", in)                    // Open the initiator's static public key.
+  protocol.Mix("is-re", ECDH(iS.pub, rE.priv))        // Mix the static-ephemeral shared secret.
+  
+  send, recv = protocol.Clone(), protocol.Clone()     // Fork the protocol.
+  send.Mix("sender", "responder")                     // Mix the sender roles.
+  recv.Mix("sender", "initiator")                     // Mix the sender role.
+  return (send, recv, iS.pub)
+```
+
 ### Hybrid Public-Key Encryption
+
 
 A protocol can be used to build an integrated [HPKE]-style public key encryption scheme:
 
@@ -576,7 +630,7 @@ A protocol can be used to build an integrated [HPKE]-style public key encryption
 
 ```text
 function HPKESeal(receiver.pub, sender, plaintext):
-  ephemeral = P256::KeyGen()                                         // Generate an ephemeral key pair.
+  ephemeral = R255::KeyGen()                                         // Generate an ephemeral key pair.
   protocol.Init("com.example.hpke")                                  // Initialize a protocol with a domain string.
   protocol.Mix("sender", sender.pub)                                 // Mix the senders's public key into the protocol.
   protocol.Mix("receiver", receiver.pub)                             // Mix the receiver's public key into the protocol.
@@ -599,11 +653,11 @@ function HPKEOpen(receiver, ephemeral.pub, ciphertext || tag):
   return plaintext
 ```
 
-This construction is outsider-secure for both confidentiality and authenticity, but only insider-secure for
-authenticity. An adversary not in possession of either the sender or receiver's private key will be unable to read
-plaintexts or forge ciphertexts. An adversary in possession of the sender's private key will be unable to read
-plaintexts due to the use of an ephemeral key. An adversary in possession of the receiver's private key will be able to
-forge arbitrary ciphertexts using the sender's public key (i.e. Key Compromise Impersonation).
+This scheme is outsider-secure for both confidentiality and authenticity, but only insider-secure for authenticity. An
+adversary not in possession of either the sender or receiver's private key will be unable to read plaintexts or forge
+ciphertexts. An adversary in possession of the sender's private key will be unable to read plaintexts due to the use of
+an ephemeral key. An adversary in possession of the receiver's private key will be able to forge arbitrary ciphertexts
+using the sender's public key (i.e. Key Compromise Impersonation).
 
 ### Digital Signatures
 
@@ -611,43 +665,43 @@ A protocol can be used to implement EdDSA-style Schnorr digital signatures:
 
 ```text
 function Sign(signer, message):
-  protocol.Init("com.example.eddsa")                 // Initialize a protocol with a domain string.
-  protocol.Mix("signer", signer.pub)                 // Mix the signer's public key into the protocol.
-  protocol.Mix("message", message)                   // Mix the message into the protocol.
-  (k, I) = P256::KeyGen()                            // Generate a commitment scalar and point.
-  protocol.Mix("commitment", I)                      // Mix the commitment point into the protocol.
-  r = P256::Scalar(protocol.Derive("challenge", 40)) // Derive a challenge scalar.
-  s = signer.priv * r + k                            // Calculate the proof scalar.
-  return (I, s)                                      // Return the commitment point and proof scalar.
+  protocol.Init("com.example.eddsa")                       // Initialize a protocol with a domain string.
+  protocol.Mix("signer", signer.pub)                       // Mix the signer's public key into the protocol.
+  protocol.Mix("message", message)                         // Mix the message into the protocol.
+  (k, I) = R255::KeyGen()                                  // Generate a commitment scalar and point.
+  protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
+  r = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
+  s = signer.priv * r + k                                  // Calculate the proof scalar.
+  return (I, s)                                            // Return the commitment point and proof scalar.
 ```
 
 The resulting signature is strongly bound to both the message and the signer's public key, making it sUF-CMA secure. If
-a non-prime order group like Edwards25519 is used instead of NIST P-256, the verification function must account for
+a non-prime order group like Edwards25519 is used instead of Ristretto255, the verification function must account for
 co-factors to be strongly unforgeable.
 
 ```text
 function Verify(signer.pub, message, I, s):
-  protocol.Init("com.example.eddsa")                  // Initialize a protocol with a domain string.
-  protocol.Mix("signer", signer.pub)                  // Mix the signer's public key into the protocol.
-  protocol.Mix("message", message)                    // Mix the message into the protocol.
-  protocol.Mix("commitment", I)                       // Mix the commitment point into the protocol.
-  r' = P256::Scalar(protocol.Derive("challenge", 40)) // Derive an expected challenge scalar.
-  I' = [s]G - [r']signer.pub                          // Calculate the expected commitment point.
-  return I = I'                                       // The signature is valid if both points are equal.
+  protocol.Init("com.example.eddsa")                        // Initialize a protocol with a domain string.
+  protocol.Mix("signer", signer.pub)                        // Mix the signer's public key into the protocol.
+  protocol.Mix("message", message)                          // Mix the message into the protocol.
+  protocol.Mix("commitment", I)                             // Mix the commitment point into the protocol.
+  r' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive an expected challenge scalar.
+  I' = [s]G - [r']signer.pub                                // Calculate the expected commitment point.
+  return I = I'                                             // The signature is valid if both points are equal.
 ```
 
-An additional variation on this construction uses `Mask` instead of `Mix` to include the commitment point `I` in the
+An additional variation on this scheme uses `Mask` instead of `Mix` to include the commitment point `I` in the
 protocol's state. This makes it impossible to recover the signer's public key from a message and signature (which may be
 desirable for privacy in some contexts) at the expense of making batch verification impossible.
 
-To make this scheme deterministic (or hedged), the P-256 commitment generation can be replaced with a derivation
+To make this scheme deterministic (or hedged), the Ristretto255 commitment generation can be replaced with a derivation
 function using a cloned protocol:
 
 ```text
 function DetCommitment(signer):
   clone = protocol.Clone()
   clone.Mix("signer-private", signer.priv)
-  k = P256::Scalar(clone.Derive("scalar", 40))
+  k = R255::ReduceScalar(clone.Derive("scalar", 64))
   I = [k]G
   return (k, I)
 ```
@@ -665,35 +719,35 @@ strong authentication in the public key setting:
 
 ```text
 function Signcrypt(sender, receiver.pub, plaintext):
-  ephemeral = P256::KeyGen()                               // Generate an ephemeral key pair.
+  ephemeral = R255::KeyGen()                               // Generate an ephemeral key pair.
   protocol.Init("com.example.sc")                          // Initialize a protocol with a domain string.
   protocol.Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
   protocol.Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
   protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
   protocol.Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
   ciphertext = protocol.Mask("message", plaintext)         // Encrypt the plaintext.
-  (k, I) = P256::KeyGen()                                  // Generate a commitment scalar and point.
+  (k, I) = R255::KeyGen()                                  // Generate a commitment scalar and point.
   protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  r = P256::Scalar(protocol.Derive("challenge", 40))       // Derive a challenge scalar.
+  r = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
   s = sender.priv * r + k                                  // Calculate the proof scalar.
   return (ephemeral.pub, ciphertext, I, s)                 // Return the ephemeral public key, ciphertext, and signature.
 ```
 
 ```text
 function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
-  protocol.Init("com.example.sc")                          // Initialize a protocol with a domain string.
-  protocol.Mix("receiver", receiver.pub)                   // Mix the receiver's public key into the protocol.
-  protocol.Mix("sender", sender.pub)                       // Mix the sender's public key into the protocol.
-  protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
-  protocol.Mix("ecdh", ECDH(receiver.priv, ephemeral.pub)) // Mix the ECDH shared secret into the protocol.
-  plaintext = protocol.Unmask("message", ciphertext)       // Decrypt the ciphertext.
-  protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  r' = P256::Scalar(protocol.Derive("challenge", 40))      // Derive an expected challenge scalar.
-  I' = [s]G - [r']sender.pub                               // Calculate the expected commitment point.
+  protocol.Init("com.example.sc")                           // Initialize a protocol with a domain string.
+  protocol.Mix("receiver", receiver.pub)                    // Mix the receiver's public key into the protocol.
+  protocol.Mix("sender", sender.pub)                        // Mix the sender's public key into the protocol.
+  protocol.Mix("ephemeral", ephemeral.pub)                  // Mix the ephemeral public key into the protocol.
+  protocol.Mix("ecdh", ECDH(receiver.priv, ephemeral.pub))  // Mix the ECDH shared secret into the protocol.
+  plaintext = protocol.Unmask("message", ciphertext)        // Decrypt the ciphertext.
+  protocol.Mix("commitment", I)                             // Mix the commitment point into the protocol.
+  r' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive an expected challenge scalar.
+  I' = [s]G - [r']sender.pub                                // Calculate the expected commitment point.
   if I == I':
-    return plaintext                                       // If both points are equal, return the plaintext.
+    return plaintext                                        // If both points are equal, return the plaintext.
   else:
-    return ErrInvalidCiphertext                            // Otherwise, return an error.
+    return ErrInvalidCiphertext                             // Otherwise, return an error.
 ```
 
 This scheme is both outsider- and insider-secure for both confidentiality and authenticity. An outsider adversary in
@@ -701,7 +755,7 @@ possession of both public keys will be unable to read plaintexts or forge cipher
 possession of the sender's private key will be unable to read plaintexts. An insider adversary in possession of the
 receiver's private key will be unable to forge ciphertexts.
 
-Because a Newplex protocol is an incremental, stateful way of building a cryptographic construction, this integrated
+Because a Newplex protocol is an incremental, stateful way of building a cryptographic scheme, this integrated
 signcryption scheme is stronger than generic schemes which combine separate public key encryption and digital signature
 algorithms: Encrypt-Then-Sign (`EtS`) and Sign-then-Encrypt (`StE`).
 
@@ -769,59 +823,7 @@ functiom Verify(Q, m, n, c || r || gamma):
   return prf                                                // If they're the same, return the PRF output.
 ```
 
-This roughly follows the [RFC 9381] ECVRF construction, but uses the stateful nature of the protocol as a running
+This roughly follows the [RFC 9381] ECVRF scheme, but uses the stateful nature of the protocol as a running
 transcript of all calculated and observed values.
 
 [RFC 9381]: https://www.rfc-editor.org/rfc/rfc9381.html
-
-### Mutually Authenticated Handshake
-
-A protocol can be used to implement a mutually-authenticated, forward-secure handshake with key-compromise impersonation
-resistance (equivalent to the `XX` pattern in the [Noise Protocol Framework][Noise Protocol]):
-
-```text
-function HandshakeInitiator(initiator):
-  iE = R255::KeyGen()                                 // Generate an ephemeral key pair.
-  protocol.Init("com.example.handshake")              // Initialize the protocol.
-  protocol.Mix("ie", iE.pub)                          // Mix the ephemeral public key into the protocol.
-  Send(iE.pub)                                        // Send the ephemeral public key.
-  
-  in = Receive()                                      // Receive the responder's message.
-  rE.pub = R255::Element(in[:32])                     // Decode the responder's ephemeral public key.
-  protocol.Mix("re", rE.pub)                          // Mix the responder's ephemeral public key.
-  protocol.Mix("ie-re", ECDH(rE.pub, iE.priv))        // Mix the ephemeral-ephemeral shared secret.
-  rS.pub = protocol.Open("rs", in[32:])               // Open the responder's static public key.
-  protocol.Mix("ie-rs", ECDH(rS.pub, iE.priv))        // Mix the ephemeral-static shared secret.
-  
-  out = protocol.Seal("is", initiator.pub)            // Seal the initiator's static public key.
-  protocol.Mix("is-re", ECDH(rE.pub, initiator.priv)) // Mix the static-ephemeral shared secret.
-  Send(out)                                           // Send the sealed static public key.
-  
-  send, recv = protocol.Clone(), protocol.Clone()     // Fork the protocol.
-  send.Mix("sender", "initiator")                     // Mix the sender role.
-  recv.Mix("sender", "responder")                     // Mix the sender role.
-  return (send, recv, rS.pub)
-```
-
-```text
-function HandshakeResponder(domain, responder):
-  rE = R255::KeyGen()                                 // Generate an ephemeral key pair.
-  iE.pub = R255::Element(Receive())                   // Receive the initiator's ephemeral public key.
-  protocol.Init("com.example.handshake")              // Initialize the protocol.
-  protocol.Mix("ie", iE.pub)                          // Mix the ephemeral public key into the protocol.
-  protocol.Mix("re", rE.pub)                          // Mix the responder's ephemeral public key.
-  protocol.Mix("ie-re", ECDH(iE.pub, rE.priv))        // Mix the ephemeral-ephemeral shared secret.
-  
-  out = protocol.Seal("rs", responder.pub)            // Seal the responder's static public key.
-  protocol.Mix("ie-rs", ECDH(iE.pub, responder.priv)) // Mix the ephemeral-static shared secret.
-  Send(rE.pub || sealed_qRS)                          // Send the ephemeral key and sealed static key.
-  
-  in = Receive()                                      // Receive the initiator's sealed static key.
-  iS.pub = protocol.Open("is", in)                    // Open the initiator's static public key.
-  protocol.Mix("is-re", ECDH(iS.pub, rE.priv))        // Mix the static-ephemeral shared secret.
-  
-  send, recv = protocol.Clone(), protocol.Clone()     // Fork the protocol.
-  send.Mix("sender", "responder")                     // Mix the sender roles.
-  recv.Mix("sender", "initiator")                     // Mix the sender role.
-  return (send, recv, iS.pub)
-```

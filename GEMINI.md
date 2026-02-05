@@ -35,11 +35,7 @@ This project uses standard Go testing, fuzzing, and benchmarking.
   If there are any linter warnings you can fix yourself, do so. Otherwise, wait for feedback from someone else as to how to proceed. 
 
 ### 2. Fuzzing
-Fuzz tests are located in `fuzz_constructions_test.go` and `fuzz_transcripts_test.go`. When modifying `duplex.go` or `protocol.go`, run relevant fuzzers to ensure stability.
-```bash
-go test -fuzz=FuzzConstructions -fuzztime=10s
-go test -fuzz=FuzzTranscripts -fuzztime=10s
-```
+Fuzz tests are located in `fuzz_schemes_test.go` and `fuzz_transcripts_test.go`. When modifying `duplex.go` or `protocol.go`, run relevant fuzzers to ensure stability.
 
 ### 3. Benchmarking
 Performance is a key feature (10+ Gb/s). Always verify performance impacts when touching core paths. Before beginning to
