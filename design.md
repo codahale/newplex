@@ -18,6 +18,7 @@
       * [KDF Chains](#kdf-chains)
     * [`Mask`/`Unmask`](#maskunmask)
     * [`Seal`/`Open`](#sealopen)
+    * [`Clone`](#clone)
   * [Basic Schemes](#basic-schemes)
     * [Message Digest](#message-digest)
     * [Message Authentication Code](#message-authentication-code)
@@ -136,10 +137,10 @@ are equivalent to a single `Squeeze` operation with the concatenation of the seq
 
 ### `Ratchet`
 
-The `Ratchet` operation calls `Permute`, then overwrites the first 256 bits of the duplex's rate with zeros. This
-irreversibly modifies the duplex's state, preventing potential rollback attacks and establishing forward secrecy. An
-attacker who recovers the post-ratchet state will be unable to reconstruct the missing 256 bits and thus unable to
-invert the permutation to recover prior states.
+The `Ratchet` operation calls `Permute`, then overwrites the first 256 bits of the duplex's rate with zeros and advances
+the rate position past them. This irreversibly modifies the duplex's state, preventing potential rollback attacks and
+establishing forward secrecy. An attacker who recovers the post-ratchet state will be unable to reconstruct the missing
+256 bits and thus unable to invert the permutation to recover prior states.
 
 ### `Encrypt`/`Decrypt`
 
@@ -172,6 +173,7 @@ A protocol supports the following operations:
   a key.
 * `Seal`/`Open`: Encrypt and decrypt a message, using an authenticator tag to ensure the ciphertext has not been
   modified.
+* `Clone`: Create a copy of the protocol's current state.
 
 Labels are used for all protocol operations (except `Init`) to provide domain separation of inputs and outputs. This
 ensures that semantically distinct values with identical encodings (e.g., public keys or ECDH shared secrets) result in
@@ -359,6 +361,12 @@ accidental disclosure of unauthenticated plaintext and follows the generally rec
 authenticated encryption. See the [Streaming Authenticated Encryption](#streaming-authenticated-encryption) scheme for
 details on how to handle streaming data.
 
+### `Clone`
+
+The `Clone` operation returns a copy of the protocol's current state. This allows for the creation of divergent protocol
+states from a common ancestor (e.g., for [forking a protocol](#bidirectional-streaming) or [deterministic
+encryption](#deterministic-authenticated-encryption)).
+
 ## Basic Schemes
 
 By combining operations, we can implement a wide variety of cryptographic schemes using a protocol.
@@ -468,7 +476,7 @@ function SIVSeal(key, nonce, ad, plaintext):
   protocol.Mix("nonce", nonce)                     // Mix the nonce into the protocol.
   protocol.Mix("ad", ad)                           // Mix the associated data into the protocol.
   clone = protocol.Clone()                         // Clone the protocol.
-  clone.Mix(plaintext)                             // Mix the plaintext into the clone.
+  clone.Mix("message", plaintext)                  // Mix the plaintext into the clone.
   tag = clone.Derive("tag", 16)                    // Use the clone to derive a tag.
   protocol.Mix("tag", tag)                         // Mix the tag into the main protocol.
   ciphertext = protocol.Mask("message", plaintext) // Mask the plaintext.
@@ -634,7 +642,7 @@ function HPKESeal(receiver.pub, sender, plaintext):
   protocol.Init("com.example.hpke")                                  // Initialize a protocol with a domain string.
   protocol.Mix("sender", sender.pub)                                 // Mix the senders's public key into the protocol.
   protocol.Mix("receiver", receiver.pub)                             // Mix the receiver's public key into the protocol.
-  protocol.Mix("ephemeral", ephemeral.pub          )                 // Mix the ephemeral public key into the protocol.
+  protocol.Mix("ephemeral", ephemeral.pub)                           // Mix the ephemeral public key into the protocol.
   protocol.Mix("ephemeral ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ephemeral ECDH shared secret into the protocol.
   protocol.Mix("static ecdh", ECDH(receiver.pub, sender.priv))       // Mix the static ECDH shared secret into the protocol.
   ciphertext || tag = protocol.Seal("message", plaintext)            // Seal the plaintext.
@@ -642,7 +650,7 @@ function HPKESeal(receiver.pub, sender, plaintext):
 ```
 
 ```text
-function HPKEOpen(receiver, ephemeral.pub, ciphertext || tag):
+function HPKEOpen(receiver, sender.pub, ephemeral.pub, ciphertext || tag):
   protocol.Init("com.example.hpke")                                  // Initialize a protocol with a domain string.
   protocol.Mix("sender", sender.pub)                                 // Mix the senders's public key into the protocol.
   protocol.Mix("receiver", receiver.pub)                             // Mix the receiver's public key into the protocol.
@@ -789,8 +797,8 @@ function Prove(d, m, n):
   protocol.Mix("prover", [d]G)                             // Mix in the prover's public key.
   protocol.Mix("input", m)                                 // Mix in the input.
   h = R255::DeriveElement(protocol.Derive("h", 64))        // Derive an element from the protocol state.
-  gamma = [d]H                                             // Calculate the gamma point.
-  protocol.Mix("gamma", gamma)                             // Mix in the gamma point.
+  Gamma = [d]H                                             // Calculate the gamma point.
+  protocol.Mix("gamma", Gamma)                             // Mix in the gamma point.
   prf = protocol.Derive("prf", n)                          // Derive n bytes of PRF output.
   clone = protocol.Clone()                                 // Clone the protocol to generate a nonce.
   clone.Mix("prover-private", d)                           // Mix in the prover's private key.
@@ -802,20 +810,20 @@ function Prove(d, m, n):
   protocol.Mix("commitment-v", v)
   c = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
   r = k + c * s                                            // Calculate the response scalar.
-  return (prf, c || r || gamma)                            // Return the PRF output and the proof.
+  return (prf, c || r || Gamma)                            // Return the PRF output and the proof.
 ```
 
 ```text
-functiom Verify(Q, m, n, c || r || gamma):
+function Verify(Q, m, n, c || r || Gamma):
   protocol.Init("com.example.vrf")                          // Initialize the protocol.
   protocol.Mix("prover", Q)                                 // Mix in the prover's public key.
   protocol.Mix("input", m)                                  // Mix in the input.
   h = R255::DeriveElement(protocol.Derive("h", 64))         // Derive an element from the protocol state.
-  protocol.Mix("gamma", gamma)                              // Mix in the gamma point.
+  protocol.Mix("gamma", Gamma)                              // Mix in the gamma point.
   prf = protocol.Derive("prf", n)                           // Derive n bytes of PRF output.
-  u' = [r]G - [c]q                                          // Calculate the two expected commitment points.
-  v' = [r]H - [c]gamma 
-  protocol.Mix("commitment-u", u')                          // Mix in the two expected commiement points.
+  u' = [r]G - [c]Q                                          // Calculate the two expected commitment points.
+  v' = [r]H - [c]Gamma 
+  protocol.Mix("commitment-u", u')                          // Mix in the two expected commitment points.
   protocol.Mix("commitment-v", v')
   c' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive the expected challenge scalar.
   if c != c':                                               // If it's not the same as the expected challenge scalar, return an error.

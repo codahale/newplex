@@ -113,7 +113,7 @@ func (s *sealWriter) Close() error {
 }
 
 func (s *sealWriter) sealAndWrite(p []byte) error {
-	// Encode a header with a 4-byte big endian block length and seal it.
+	// Encode a header with a 3-byte big endian block length and seal it.
 	s.buf = slices.Grow(s.buf[:0], headerSize+newplex.TagSize+len(p)+newplex.TagSize)
 	header := s.buf[:headerSize]
 	putUint24(header, uint32(len(p))) //nolint:gosec // len(p) <= MaxBlockSize
