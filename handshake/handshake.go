@@ -44,6 +44,7 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 	// Mix the initiator's ephemeral public key into the protocol.
 	p.Mix("ie", out)
 
+	// Wait for the responder's response.
 	finish = func(in []byte) (send, recv *newplex.Protocol, qRS *ristretto255.Element, out []byte, err error) {
 		qIS := ristretto255.NewIdentityElement().ScalarBaseMult(dIS)
 
@@ -140,6 +141,7 @@ func Respond(domain string, rand io.Reader, dRS *ristretto255.Scalar, in []byte)
 	iErS := ristretto255.NewIdentityElement().ScalarMult(dRS, qIE)
 	p.Mix("ie-rs", iErS.Bytes())
 
+	// Wait for the initiator's response.
 	finish = func(in []byte) (send, recv *newplex.Protocol, qIS *ristretto255.Element, err error) {
 		// Open the initiator's static public key.
 		in, err = p.Open("is", nil, in)
