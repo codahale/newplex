@@ -34,6 +34,7 @@
     * [Digital Signatures](#digital-signatures)
     * [Signcryption](#signcryption)
     * [Verifiable Random Function](#verifiable-random-function)
+    * [Password-Authenticated Key Exchange](#password-authenticated-key-exchange)
 <!-- TOC -->
 
 ## What is Newplex?
@@ -854,3 +855,47 @@ This roughly follows the [RFC 9381] ECVRF scheme, but uses the stateful nature o
 transcript of all calculated and observed values.
 
 [RFC 9381]: https://www.rfc-editor.org/rfc/rfc9381.html
+
+### Password-Authenticated Key Exchange
+
+A protocol can be used as the basis of a [CPace]-style password-authenticated key exchange:
+
+```text
+function PAKEInitiate(initiator, responder, session, password):
+  protocol.Init("com.example.pake")                         // Initialize the protocol with the data.
+  protocol.Mix("initiator", initiator)
+  protocol.Mix("responder", responder)
+  protocol.Mix("session", session)
+  protocol.Mix("password", password)
+  P = R255::DeriveElement(protocol.Derive("generator", 64)) // Derive an element from the data.
+  a = R255::ReduceScalar(Rand(64))                          // Generate a random scalar.
+  A = [a]P                                                  // Calculate and send the initiator element.
+  Send(A)
+  B = Receive()                                             // Receive the responder element.
+  protocol.Mix("initiator-message", A)                      // Mix in the two exchanged elements as received.
+  protocol.Mix("responder-message", B)
+  K = [a]B                                                  // Calculate the key element.
+  protocol.Mix("key-element", K)                            // Mix it into the protocol.
+  return protocol
+```
+
+```text
+function PAKERespond(initiator, responder, session, password):
+  protocol.Init("com.example.pake")                         // Initialize the protocol with the data.
+  protocol.Mix("initiator", initiator)
+  protocol.Mix("responder", responder)
+  protocol.Mix("session", session)
+  protocol.Mix("password", password)
+  P = R255::DeriveElement(protocol.Derive("generator", 64)) // Derive an element from the data.
+  b = R255::ReduceScalar(Rand(64))                          // Generate a random scalar.
+  B = [B]P                                                  // Calculate and send the responder element.
+  Send(B)
+  A = Receive()                                             // Receive the initiator element.
+  protocol.Mix("initiator-message", A)                      // Mix in the two exchange elements as received.
+  protocol.Mix("responder-message", B)
+  K = [b]A                                                  // Calculate the key point.
+  protocol.Mix("key-element", K)                            // Mix it into the protocol.
+  return protocol
+```
+
+[Cpace]: https://www.ietf.org/archive/id/draft-irtf-cfrg-cpace-06.html

@@ -82,6 +82,7 @@ Newplex includes many cryptographic schemes implemented as sub-packages:
 * [`newplex/digest`](digest): Implements `hash.Hash` (both keyed and unkeyed).
 * [`newplex/handshake`](handshake): Implements a mutually authenticated handshake.
 * [`newplex/hpke`](hpke): Implements a hybrid public-key encryption scheme.
+* [`newplex/pake`](pake): Implements a CPace-style password-authenticated key exchange (PAKE).
 * [`newplex/sig`](sig): Implements EdDSA-style Schnorr digital signatures.
 * [`newplex/signcrypt`](signcrypt): Implements integrated public-key encryption and signing.
 * [`newplex/siv`](siv): Implements a SIV-style deterministic authentication scheme.
