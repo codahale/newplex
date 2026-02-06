@@ -39,22 +39,22 @@ func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader)
 	if err != nil {
 		panic(err)
 	}
-	i := ristretto255.NewIdentityElement().ScalarBaseMult(k)
+	r := ristretto255.NewIdentityElement().ScalarBaseMult(k)
+	rOut := r.Bytes()
 
-	// Mask the commitment point. This a) provides signer confidentiality unless the verifier has both the signer's
-	// public key and the message and b) makes the protocol's state dependent on the commitment.
-	iOut := p.Mask("commitment", nil, i.Bytes())
+	// Mix in the commitment point.
+	p.Mix("commitment", rOut)
 
 	// Derive a challenge scalar from the signer's public key, the message, and the commitment point.
-	r, err := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
+	c, err := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
 	if err != nil {
 		panic(err)
 	}
 
-	// Calculate the proof scalar s = d * r + k and mask it.
-	s := ristretto255.NewScalar().Multiply(d, r)
+	// Calculate the proof scalar s = d * c + k.
+	s := ristretto255.NewScalar().Multiply(d, c)
 	s = s.Add(s, k)
-	return p.Mask("proof", iOut, s.Bytes()), nil
+	return append(rOut, s.Bytes()...), nil
 }
 
 // Verify uses the given Ristretto255 public key and signature to verify the contents of the given reader. Returns true
@@ -62,7 +62,7 @@ func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader)
 //
 // Returns any error from the underlying reader.
 func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reader) (bool, error) {
-	// Valid signatures consist of a 32-byte masked point and a 32-byte masked scalar.
+	// Valid signatures consist of a 32-byte point and a 32-byte scalar.
 	if len(sig) != Size {
 		return false, nil
 	}
@@ -77,25 +77,25 @@ func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reade
 	}
 	_ = w.Close()
 
-	// Unmask the received commitment point. As we do not use it for calculations, leave it encoded.
-	receivedI := p.Unmask("commitment", nil, sig[:32])
+	// Mix in the received commitment point. As we do not use it for calculations, leave it encoded.
+	p.Mix("commitment", sig[:32])
 
 	// Derive an expected challenge scalar from the signer's public key, the message, and the commitment point.
-	expectedR, err := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
+	c, err := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
 	if err != nil {
 		panic(err)
 	}
 
-	// Unmask the proof scalar. If not canonically encoded, the signature is invalid.
-	s, _ := ristretto255.NewScalar().SetCanonicalBytes(p.Unmask("proof", nil, sig[32:]))
+	// Decode the proof scalar. If not canonically encoded, the signature is invalid.
+	s, _ := ristretto255.NewScalar().SetCanonicalBytes(sig[32:])
 	if s == nil {
 		return false, nil
 	}
 
-	// Calculate the expected commitment point: [s]G - [r']Q
-	negR := ristretto255.NewScalar().Negate(expectedR)
-	expectedI := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(negR, q, s)
+	// Calculate the expected commitment point: [s]G - [c']Q
+	negC := ristretto255.NewScalar().Negate(c)
+	expectedR := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(negC, q, s)
 
 	// If the received and expected commitment points are equal (as compared in encoded form), the signature is valid.
-	return bytes.Equal(receivedI, expectedI.Bytes()), nil
+	return bytes.Equal(sig[:32], expectedR.Bytes()), nil
 }

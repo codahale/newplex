@@ -676,11 +676,11 @@ function Sign(signer, message):
   protocol.Init("com.example.eddsa")                       // Initialize a protocol with a domain string.
   protocol.Mix("signer", signer.pub)                       // Mix the signer's public key into the protocol.
   protocol.Mix("message", message)                         // Mix the message into the protocol.
-  (k, I) = R255::KeyGen()                                  // Generate a commitment scalar and point.
-  protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  r = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
-  s = signer.priv * r + k                                  // Calculate the proof scalar.
-  return (I, s)                                            // Return the commitment point and proof scalar.
+  (k, R) = R255::KeyGen()                                  // Generate a commitment scalar and point.
+  protocol.Mix("commitment", R)                            // Mix the commitment point into the protocol.
+  c = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
+  s = signer.priv * c + k                                  // Calculate the proof scalar.
+  return (R, s)                                            // Return the commitment point and proof scalar.
 ```
 
 The resulting signature is strongly bound to both the message and the signer's public key, making it sUF-CMA secure. If
@@ -688,17 +688,17 @@ a non-prime order group like Edwards25519 is used instead of Ristretto255, the v
 co-factors to be strongly unforgeable.
 
 ```text
-function Verify(signer.pub, message, I, s):
+function Verify(signer.pub, message, R, s):
   protocol.Init("com.example.eddsa")                        // Initialize a protocol with a domain string.
   protocol.Mix("signer", signer.pub)                        // Mix the signer's public key into the protocol.
   protocol.Mix("message", message)                          // Mix the message into the protocol.
-  protocol.Mix("commitment", I)                             // Mix the commitment point into the protocol.
-  r' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive an expected challenge scalar.
-  I' = [s]G - [r']signer.pub                                // Calculate the expected commitment point.
-  return I = I'                                             // The signature is valid if both points are equal.
+  protocol.Mix("commitment", R)                             // Mix the commitment point into the protocol.
+  c' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive an expected challenge scalar.
+  R' = [s]G - [c']signer.pub                                // Calculate the expected commitment point.
+  return R = R'                                             // The signature is valid if both points are equal.
 ```
 
-An additional variation on this scheme uses `Mask` instead of `Mix` to include the commitment point `I` in the
+An additional variation on this scheme uses `Mask` instead of `Mix` to include the commitment point `R` in the
 protocol's state. This makes it impossible to recover the signer's public key from a message and signature (which may be
 desirable for privacy in some contexts) at the expense of making batch verification impossible.
 
@@ -710,14 +710,17 @@ function DetCommitment(signer):
   clone = protocol.Clone()
   clone.Mix("signer-private", signer.priv)
   k = R255::ReduceScalar(clone.Derive("scalar", 64))
-  I = [k]G
-  return (k, I)
+  R = [k]G
+  return (k, R)
 ```
 
 This results in a commitment scalar which is derived from both the original protocol's state (i.e., domain string,
 signer's public key, message) and the clone's later state (i.e., signer's private key).
 
 A hedged variant would mix in a random value into the clone before derivation.
+
+Finally, there is a short signature variant of this scheme in which the signature is `(c,s)` and the verifier
+reconstructs `R = [s]G - [c]P` and then compares `c'` to `c` to verify.
 
 ### Signcryption
 
