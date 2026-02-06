@@ -8,6 +8,7 @@
 package simpira1024
 
 const (
+	// Width is the permutation's width in bytes.
 	Width = 128
 )
 

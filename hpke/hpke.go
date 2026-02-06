@@ -17,6 +17,7 @@ import (
 	"github.com/gtank/ristretto255"
 )
 
+// Overhead is the size, in bytes, of the additional data added to a message by Seal.
 const Overhead = 32 + newplex.TagSize
 
 // Seal encrypts the given plaintext for the owner of the given public key.

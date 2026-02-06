@@ -127,6 +127,7 @@ func (m *MixWriter) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
+// Close ends the Mix operation and marks the underlying protocol as available for other operations.
 func (m *MixWriter) Close() error {
 	if m.closed {
 		return nil
