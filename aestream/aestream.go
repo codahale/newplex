@@ -26,23 +26,88 @@ const MaxBlockSize = 1<<24 - 1
 // ErrBlockTooLarge is returned when a reading a block which is larger than the specified maximum block size.
 var ErrBlockTooLarge = errors.New("newplex: block size > max block size")
 
+// Writer encrypts written data in blocks, ensuring both confidentiality and authenticity.
+type Writer struct {
+	p            *newplex.Protocol
+	w            io.Writer
+	buf          []byte
+	closed       bool
+	maxBlockSize int
+}
+
 // NewWriter wraps the given newplex.Protocol and io.Writer with a streaming authenticated encryption writer.
 //
 // The returned io.WriteCloser MUST be closed for the encrypted stream to be valid. The provided newplex.Protocol MUST
 // NOT be used while the writer is open.
 //
 // NewWriter panics if maxBlockSize is less than 1 or greater than MaxBlockSize.
-func NewWriter(p *newplex.Protocol, w io.Writer, maxBlockSize int) io.WriteCloser {
+func NewWriter(p *newplex.Protocol, w io.Writer, maxBlockSize int) *Writer {
 	if maxBlockSize < 1 || maxBlockSize > MaxBlockSize {
 		panic("newplex: invalid max block size")
 	}
-	return &sealWriter{
+	return &Writer{
 		p:            p,
 		w:            w,
 		buf:          make([]byte, 0, 1024),
 		closed:       false,
 		maxBlockSize: maxBlockSize,
 	}
+}
+
+func (s *Writer) Write(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	total := len(p)
+	for len(p) > 0 {
+		blockLen := min(len(p), s.maxBlockSize)
+		err = s.sealAndWrite(p[:blockLen])
+		if err != nil {
+			return total - len(p), err
+		}
+		p = p[blockLen:]
+	}
+
+	return total, nil
+}
+
+// Close ends the stream with a terminal block, ensuring no further writes can be made to the stream.
+func (s *Writer) Close() error {
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+
+	// Encode and seal a header for a zero-length block.
+	if err := s.sealAndWrite(nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Writer) sealAndWrite(p []byte) error {
+	// Encode a header with a 3-byte big endian block length and seal it.
+	s.buf = slices.Grow(s.buf[:0], headerSize+newplex.TagSize+len(p)+newplex.TagSize)
+	header := s.buf[:headerSize]
+	putUint24(header, uint32(len(p))) //nolint:gosec // len(p) <= MaxBlockSize
+	encryptedHeader := s.p.Seal("header", header[:0], header)
+
+	// Seal the block, append it to the header, and send it.
+	block := s.p.Seal("block", encryptedHeader, p)
+	if _, err := s.w.Write(block); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Reader decrypts written data in blocks, ensuring both confidentiality and authenticity.
+type Reader struct {
+	p             *newplex.Protocol
+	r             io.Reader
+	buf, blockBuf []byte
+	eos           bool
+	maxBlockSize  int
 }
 
 // NewReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption reader. See
@@ -62,8 +127,8 @@ func NewWriter(p *newplex.Protocol, w io.Writer, maxBlockSize int) io.WriteClose
 // maxBlockSize) before authenticating the block. This creates a potential denial-of-service vector where a malicious
 // stream can cause the reader to allocate large amounts of memory. To mitigate this, set maxBlockSize to a reasonable
 // limit for your application (e.g., 64KiB or 1MiB) rather than the default MaxBlockSize (16MiB).
-func NewReader(p *newplex.Protocol, r io.Reader, maxBlockSize int) io.Reader {
-	return &openReader{
+func NewReader(p *newplex.Protocol, r io.Reader, maxBlockSize int) *Reader {
+	return &Reader{
 		p:            p,
 		r:            r,
 		buf:          make([]byte, 0, 1024),
@@ -73,69 +138,7 @@ func NewReader(p *newplex.Protocol, r io.Reader, maxBlockSize int) io.Reader {
 	}
 }
 
-type sealWriter struct {
-	p            *newplex.Protocol
-	w            io.Writer
-	buf          []byte
-	closed       bool
-	maxBlockSize int
-}
-
-func (s *sealWriter) Write(p []byte) (n int, err error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	total := len(p)
-	for len(p) > 0 {
-		blockLen := min(len(p), s.maxBlockSize)
-		err = s.sealAndWrite(p[:blockLen])
-		if err != nil {
-			return total - len(p), err
-		}
-		p = p[blockLen:]
-	}
-
-	return total, nil
-}
-
-func (s *sealWriter) Close() error {
-	if s.closed {
-		return nil
-	}
-	s.closed = true
-
-	// Encode and seal a header for a zero-length block.
-	if err := s.sealAndWrite(nil); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *sealWriter) sealAndWrite(p []byte) error {
-	// Encode a header with a 3-byte big endian block length and seal it.
-	s.buf = slices.Grow(s.buf[:0], headerSize+newplex.TagSize+len(p)+newplex.TagSize)
-	header := s.buf[:headerSize]
-	putUint24(header, uint32(len(p))) //nolint:gosec // len(p) <= MaxBlockSize
-	encryptedHeader := s.p.Seal("header", header[:0], header)
-
-	// Seal the block, append it to the header, and send it.
-	block := s.p.Seal("block", encryptedHeader, p)
-	if _, err := s.w.Write(block); err != nil {
-		return err
-	}
-	return nil
-}
-
-type openReader struct {
-	p             *newplex.Protocol
-	r             io.Reader
-	buf, blockBuf []byte
-	eos           bool
-	maxBlockSize  int
-}
-
-func (o *openReader) Read(p []byte) (n int, err error) {
+func (o *Reader) Read(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -174,7 +177,7 @@ func (o *openReader) Read(p []byte) (n int, err error) {
 	}
 }
 
-func (o *openReader) readAndOpen(label string, n int) ([]byte, error) {
+func (o *Reader) readAndOpen(label string, n int) ([]byte, error) {
 	o.buf = slices.Grow(o.buf[:0], n+newplex.TagSize)
 	data := o.buf[:n+newplex.TagSize]
 	_, err := io.ReadFull(o.r, data)
@@ -206,6 +209,6 @@ func putUint24(b []byte, v uint32) {
 }
 
 var (
-	_ io.WriteCloser = (*sealWriter)(nil)
-	_ io.Reader      = (*openReader)(nil)
+	_ io.WriteCloser = (*Writer)(nil)
+	_ io.Reader      = (*Reader)(nil)
 )
