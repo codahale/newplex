@@ -3,6 +3,7 @@
 <!-- TOC -->
 * [The Design Of Newplex](#the-design-of-newplex)
   * [What is Newplex?](#what-is-newplex)
+    * [What's The Point?](#whats-the-point)
   * [The Permutation](#the-permutation)
   * [The Duplex](#the-duplex)
     * [`Permute`](#permute)
@@ -56,6 +57,21 @@ Cyclist mode, Newplex uses the [Simpira-1024] permutation to provide 10+ Gb/seco
 [Xoodyak]: https://keccak.team/xoodyak.html
 
 [Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
+
+### What's The Point?
+
+There are two major benefits to using an approach like Newplex to implement a cryptographic scheme or protocol:
+
+1. **Simplicity.** Instead of having to select a set of primitives (e.g., hash functions, KDFs, AEADs, polynomial MACs,
+   etc.), figure out the various requirements and restrictions of each, and carefully connect them together to ensure
+   none are being misused, Newplex provides a single primitive with a core set of distinct operations.
+2. **Soundness.** Newplex has cryptographic practices like domain separation built-in, and the fact that a Newplex
+   protocol is stateful establishes a clear forward flow of data within a scheme. This eliminates vulnerabilities in
+   which output values don't depend on the full set of inputs (e.g., [MQV], [HMQV], and many [Fiat-Shamir] transforms).
+ 
+[MQV]: https://dl.acm.org/doi/10.1145/501978.501981
+[HMQV]: https://eprint.iacr.org/2010/136.pdf
+[Fiat-Shamir]: https://blog.trailofbits.com/2022/04/13/part-1-coordinated-disclosure-of-vulnerabilities-affecting-girault-bulletproofs-and-plonk/
 
 ## The Permutation
 
