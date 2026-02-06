@@ -28,6 +28,7 @@
     * [Deterministic Authenticated Encryption](#deterministic-authenticated-encryption)
   * [Complex Schemes](#complex-schemes)
     * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
+      * [Dual Ratchet](#dual-ratchet)
       * [Bidirectional Streaming](#bidirectional-streaming)
     * [Mutually Authenticated Handshake](#mutually-authenticated-handshake)
     * [Hybrid Public-Key Encryption](#hybrid-public-key-encryption)
@@ -568,6 +569,44 @@ both to the receiver. An empty block is used to mark the end of the stream. The 
 decrypts it, decodes it into a block length, reads an encrypted block of that length and its authentication tag, then
 opens the sealed block. When it encounters the empty block, it returns EOF. If the stream terminates before that, an
 invalid ciphertext error is returned.
+
+#### Dual Ratchet
+
+This scheme can be augmented with a public key ratchet by including a ratchet key with each header/block.
+
+When sending:
+
+```text
+...
+  while |plaintext| > 0:
+    pblock = Read(plaintext)                   // Read a block of plaintext.
+    pheader = BEU24(|pblock|)                  // Encode the block length as a 3-byte unsigned big endian integer.
+    cheader = protocol.Seal("header", pheader) // Seal the header.
+    dE = R255::ReduceScalar(rand(64))          // Generate an ephemeral Ristretto255 key pair.
+    qE = [dE]G
+    cratchet = protocol.Seal("ratchet", qE)    // Seal the ratchet key.
+    protocol.Mix("ratchet-key", [dE]qS)        // Mix the shared secret into the protocol.
+    cblock = protocol.Seal("block", pblock)    // Seal the block.
+    Write(ciphertext, cheader || cblock)       // Write the sealed header and sealed block.
+...
+```
+
+When receiving:
+
+```text
+...
+  while |ciphertext| > 0:
+    cheader = Read(ciphertext, 3+16)           // Read a sealed 3-byte header and 16-byte tag.
+    pheader = protocol.Open("header", cheader) // Open the sealed header.
+    if pheader == ErrInvalidCiphertext:        // Error if the header is not authenticated.
+      return ErrInvalidCiphertext
+    cratchet = Read(ciphertext, 32+16)         // Read a sealed ephemeral public key.
+    qE = protocol.Open("ratchet", cratchet)    // Open and decode the ephemeral public key.
+    if qE == ErrInvalidCiphertext:
+      return ErrInvalidCiphertext
+    protocol.Mix("ratchet-key", [dR]qE)        // Mix the shared secret into the protocol.
+...
+```
 
 #### Bidirectional Streaming
 
