@@ -112,9 +112,9 @@ type MixWriter struct {
 	closed bool
 }
 
-// Clone returns a clone of the writer's protocol with the Mix operation completed. The original writer and protocol
+// Fork returns a clone of the writer's protocol with the Mix operation completed. The original writer and protocol
 // remain unmodified.
-func (m *MixWriter) Clone() Protocol {
+func (m *MixWriter) Fork() Protocol {
 	p := *m.p
 	p.streaming = false
 	p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
@@ -217,15 +217,9 @@ func (c *cryptReader) Close() error {
 	return nil
 }
 
-type cloneWriteCloser interface {
-	io.WriteCloser
-
-	Clone() Protocol
-}
-
 var (
-	_ cloneWriteCloser = (*MixWriter)(nil)
-	_ io.ReadCloser    = (*mixReader)(nil)
-	_ io.ReadCloser    = (*cryptReader)(nil)
-	_ io.WriteCloser   = (*cryptWriter)(nil)
+	_ io.WriteCloser = (*MixWriter)(nil)
+	_ io.ReadCloser  = (*mixReader)(nil)
+	_ io.ReadCloser  = (*cryptReader)(nil)
+	_ io.WriteCloser = (*cryptWriter)(nil)
 )

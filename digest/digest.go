@@ -53,7 +53,7 @@ func (d *digest) Write(p []byte) (n int, err error) {
 }
 
 func (d *digest) Sum(b []byte) []byte {
-	p := d.w.Clone()
+	p := d.w.Fork()
 	return p.Derive("digest", b, d.size)
 }
 
