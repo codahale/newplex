@@ -20,7 +20,8 @@ import (
 // Overhead is the size, in bytes, of the additional data added to a message by Seal.
 const Overhead = 32 + newplex.TagSize
 
-// Seal encrypts the given plaintext for the owner of the given public key.
+// Seal encrypts the given plaintext for the owner of the given public key, using the given sender's private key and
+// user-provided random data.
 func Seal(domain string, qR *ristretto255.Element, dS *ristretto255.Scalar, rand, plaintext []byte) []byte {
 	p := newplex.NewProtocol(domain)
 	p.Mix("sender", ristretto255.NewIdentityElement().ScalarBaseMult(dS).Bytes())

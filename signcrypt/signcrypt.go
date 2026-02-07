@@ -11,7 +11,7 @@ import (
 // Overhead is the length, in bytes, of the additional data added to a plaintext to produce a signcrypted ciphertext.
 const Overhead = 32 + 32 + 32
 
-// Seal encrypts and signs the message the protect its confidentiality and authenticity. Only the owner of the
+// Seal encrypts and signs the message to protect its confidentiality and authenticity. Only the owner of the
 // receiver's private key can decrypt it, and only the owner of the sender's private key could have sent it.
 func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand, message []byte) []byte {
 	// Initialize the protocol and mix in the sender and receiver's public keys.

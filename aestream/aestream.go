@@ -55,6 +55,9 @@ type Writer struct {
 // The returned io.WriteCloser MUST be closed for the encrypted stream to be valid. The provided newplex.Protocol MUST
 // NOT be used while the writer is open.
 //
+// For maximum throughput and transmission efficiency, the use of a bufio.Writer wrapper is strongly recommended.
+// Unbuffered writes will result in blocks the length of each write, rather than blocks of the maximum size.
+//
 // NewWriter panics if maxBlockSize is less than 1 or greater than MaxBlockSize.
 func NewWriter(p *newplex.Protocol, w io.Writer, maxBlockSize int) *Writer {
 	if maxBlockSize < 1 || maxBlockSize > MaxBlockSize {
@@ -152,9 +155,6 @@ type Reader struct {
 // If the stream has been modified or truncated, a newplex.ErrInvalidCiphertext is returned.
 //
 // The provided newplex.Protocol MUST NOT be used while the reader is open.
-//
-// For maximum throughput and transmission efficiency, the use of a bufio.Writer wrapper is strongly recommended.
-// Unbuffered writes will result in blocks the length of each write, rather than blocks of the maximum size.
 //
 // WARNING: The reader allocates a buffer of size equal to the block length specified in the stream header (up to
 // maxBlockSize) before authenticating the block. This creates a potential denial-of-service vector where a malicious
