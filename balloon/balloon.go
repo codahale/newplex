@@ -57,11 +57,11 @@ func Hash(domain string, password, salt []byte, spaceCost, timeCost, parallelism
 						other := binary.LittleEndian.Uint32(idxBlock) % spaceCost
 						hash(&h, &cnt, buf[m][:], buf[other][:], buf[m][:])
 					}
-
-					// Step 3. Extract output from buffer.
-					res[p] = buf[spaceCost-1]
 				}
 			}
+
+			// Step 3. Extract output from buffer.
+			res[p] = buf[spaceCost-1]
 		})
 	}
 	wg.Wait()
