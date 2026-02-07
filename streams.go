@@ -1,7 +1,6 @@
 package newplex
 
 import (
-	"errors"
 	"io"
 
 	"github.com/codahale/newplex/internal/tuplehash"
@@ -39,7 +38,8 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 // To avoid encrypting the written slices in-place, this writer copies the data before encrypting. As such, it is
 // slightly slower than its MaskReader counterpart.
 //
-// If a Write call returns an error, then the Protocol will be out of sync and must be discarded.
+// If a Write call returns an error, then the Protocol will be desynchronized from the underlying writer and must be
+// discarded.
 //
 // N.B.: The returned io.WriteCloser must be closed for the Mask operation to be complete. While the returned
 // io.WriteCloser is open, any other operation on the Protocol will panic.
@@ -74,7 +74,8 @@ func (p *Protocol) MaskReader(label string, r io.Reader) io.ReadCloser {
 // To avoid decrypting the written slices in-place, this writer copies the data before decrypting. As such, it is
 // slightly slower than its UnmaskReader counterpart.
 //
-// If a Write call returns an error, then the Protocol will be out of sync and must be discarded.
+// If a Write call returns an error, then the Protocol will be desynchronized from the underlying writer and must be
+// discarded.
 //
 // N.B.: The returned io.WriteCloser must be closed for the Unmask operation to be complete. While the
 // returned io.WriteCloser is open, any other operation on the Protocol will panic.
@@ -174,15 +175,9 @@ type cryptWriter struct {
 func (c *cryptWriter) Write(p []byte) (n int, err error) {
 	c.buf = append(c.buf[:0], p...)
 	c.f(c.buf, c.buf)
-	for n < len(c.buf) {
-		nn, err := c.w.Write(c.buf[n:])
-		n += nn
-		c.n += uint64(nn) //nolint:gosec // n can't be <0
-		if err != nil && !errors.Is(err, io.ErrShortWrite) {
-			return n, err
-		}
-	}
-	return n, nil
+	n, err = c.w.Write(c.buf)
+	c.n += uint64(n) //nolint:gosec // n can't be <0
+	return n, err
 }
 
 func (c *cryptWriter) Close() error {
