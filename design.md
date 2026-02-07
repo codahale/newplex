@@ -793,25 +793,25 @@ function Signcrypt(sender, receiver.pub, plaintext):
   protocol.Mix("ephemeral", ephemeral.pub)                 // Mix the ephemeral public key into the protocol.
   protocol.Mix("ecdh", ECDH(receiver.pub, ephemeral.priv)) // Mix the ECDH shared secret into the protocol.
   ciphertext = protocol.Mask("message", plaintext)         // Encrypt the plaintext.
-  (k, I) = R255::KeyGen()                                  // Generate a commitment scalar and point.
-  protocol.Mix("commitment", I)                            // Mix the commitment point into the protocol.
-  r = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
-  s = sender.priv * r + k                                  // Calculate the proof scalar.
-  return (ephemeral.pub, ciphertext, I, s)                 // Return the ephemeral public key, ciphertext, and signature.
+  (k, R) = R255::KeyGen()                                  // Generate a commitment scalar and point.
+  protocol.Mix("commitment", R)                            // Mix the commitment point into the protocol.
+  c = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
+  s = sender.priv * c + k                                  // Calculate the proof scalar.
+  return (ephemeral.pub, ciphertext, R, s)                 // Return the ephemeral public key, ciphertext, and signature.
 ```
 
 ```text
-function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, I, s):
+function Unsigncrypt(receiver, sender.pub, ephemeral.pub, ciphertext, R, s):
   protocol.Init("com.example.sc")                           // Initialize a protocol with a domain string.
   protocol.Mix("receiver", receiver.pub)                    // Mix the receiver's public key into the protocol.
   protocol.Mix("sender", sender.pub)                        // Mix the sender's public key into the protocol.
   protocol.Mix("ephemeral", ephemeral.pub)                  // Mix the ephemeral public key into the protocol.
   protocol.Mix("ecdh", ECDH(receiver.priv, ephemeral.pub))  // Mix the ECDH shared secret into the protocol.
   plaintext = protocol.Unmask("message", ciphertext)        // Decrypt the ciphertext.
-  protocol.Mix("commitment", I)                             // Mix the commitment point into the protocol.
-  r' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive an expected challenge scalar.
-  I' = [s]G - [r']sender.pub                                // Calculate the expected commitment point.
-  if I == I':
+  protocol.Mix("commitment", R)                             // Mix the commitment point into the protocol.
+  c' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive an expected challenge scalar.
+  R' = [s]G - [c']sender.pub                                // Calculate the expected commitment point.
+  if R == R':
     return plaintext                                        // If both points are equal, return the plaintext.
   else:
     return ErrInvalidCiphertext                             // Otherwise, return an error.
