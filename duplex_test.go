@@ -6,6 +6,11 @@ import (
 	"testing"
 )
 
+// This helper is introduced *only* in the test build of this package and is only used for clarity in these tests.
+func (d *duplex) String() string {
+	return hex.EncodeToString(d.state[:d.pos]) + "^" + hex.EncodeToString(d.state[d.pos:rate]) + "|" + hex.EncodeToString(d.state[rate:])
+}
+
 func TestDuplex_Absorb(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		d := exampleDuplex()
@@ -78,17 +83,34 @@ func TestDuplex_Permute(t *testing.T) {
 }
 
 func TestDuplex_Ratchet(t *testing.T) {
-	d := exampleDuplex()
+	t.Run("simple", func(t *testing.T) {
+		d := exampleDuplex()
 
-	if got, want := d.String(), "0102030405060708090a^0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|0000000000000000000000000000000000000000000000000000000000000000"; got != want {
-		t.Errorf("state = \n%s\nwant  = \n%s", got, want)
-	}
+		if got, want := d.String(), "0102030405060708090a^0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|0000000000000000000000000000000000000000000000000000000000000000"; got != want {
+			t.Errorf("state = \n%s\nwant  = \n%s", got, want)
+		}
 
-	d.ratchet()
+		d.ratchet()
 
-	if got, want := d.String(), "0000000000000000000000000000000000000000000000000000000000000000^6f36adc5a0f68f3d2da03d19a84ae4380528de5800187836dd604febeb3321a25fc4e1096e95dc6c17c806b81911c3d76624b8df38ff8ee2b6aa7727af63ce5e|7842524c4c22b359a254f465950454a26607efd25b116f83b4da2aafb89fd388"; got != want {
-		t.Errorf("state = \n%s\nwant  = \n%s", got, want)
-	}
+		if got, want := d.String(), "0000000000000000000000000000000000000000000000000000000000000000^6f36adc5a0f68f3d2da03d19a84ae4380528de5800187836dd604febeb3321a25fc4e1096e95dc6c17c806b81911c3d76624b8df38ff8ee2b6aa7727af63ce5e|7842524c4c22b359a254f465950454a26607efd25b116f83b4da2aafb89fd388"; got != want {
+			t.Errorf("state = \n%s\nwant  = \n%s", got, want)
+		}
+	})
+
+	t.Run("freshly permuted", func(t *testing.T) {
+		d := exampleDuplex()
+		d.permute()
+
+		if got, want := d.String(), "^833a396d75b724a025afa7efda2c35beef0c7ab0f468874d1556fc1f92989fa76f36adc5a0f68f3d2da03d19a84ae4380528de5800187836dd604febeb3321a25fc4e1096e95dc6c17c806b81911c3d76624b8df38ff8ee2b6aa7727af63ce5e|7842524c4c22b359a254f465950454a26607efd25b116f83b4da2aafb89fd388"; got != want {
+			t.Errorf("state = \n%s\nwant  = \n%s", got, want)
+		}
+
+		d.ratchet()
+
+		if got, want := d.String(), "0000000000000000000000000000000000000000000000000000000000000000^6f36adc5a0f68f3d2da03d19a84ae4380528de5800187836dd604febeb3321a25fc4e1096e95dc6c17c806b81911c3d76624b8df38ff8ee2b6aa7727af63ce5e|7842524c4c22b359a254f465950454a26607efd25b116f83b4da2aafb89fd388"; got != want {
+			t.Errorf("state = \n%s\nwant  = \n%s", got, want)
+		}
+	})
 }
 
 func TestDuplex_Encrypt(t *testing.T) {
@@ -267,10 +289,6 @@ func exampleDuplex() duplex {
 	d.absorb([]byte{1, 2, 3, 4, 5})
 	d.absorb([]byte{6, 7, 8, 9, 10})
 	return d
-}
-
-func (d *duplex) String() string {
-	return hex.EncodeToString(d.state[:d.pos]) + "^" + hex.EncodeToString(d.state[d.pos:rate]) + "|" + hex.EncodeToString(d.state[rate:])
 }
 
 func BenchmarkDuplex_Absorb(b *testing.B) {

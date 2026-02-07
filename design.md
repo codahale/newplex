@@ -155,10 +155,10 @@ are equivalent to a single `Squeeze` operation with the concatenation of the seq
 
 ### `Ratchet`
 
-The `Ratchet` operation calls `Permute`, then overwrites the first 256 bits of the duplex's rate with zeros and advances
-the rate position past them. This irreversibly modifies the duplex's state, preventing potential rollback attacks and
-establishing forward secrecy. An attacker who recovers the post-ratchet state will be unable to reconstruct the missing
-256 bits and thus unable to invert the permutation to recover prior states.
+The `Ratchet` operation calls `Permute` if any of the rate has been used, then overwrites the first 256 bits of the
+duplex's rate with zeros and advances the rate position past them. This irreversibly modifies the duplex's state,
+preventing potential rollback attacks and establishing forward secrecy. An attacker who recovers the post-ratchet state
+will be unable to reconstruct the missing 256 bits and thus unable to invert the permutation to recover prior states.
 
 ### `Encrypt`/`Decrypt`
 

@@ -103,9 +103,11 @@ func (d *duplex) permute() {
 	d.pos = 0
 }
 
-// ratchet applies the Simpira-1024 permutation, then zeros out 256 bits of the rate, preventing rollback.
+// ratchet applies the Simpira-1024 permutation if needed, then zeros out 256 bits of the rate, preventing rollback.
 func (d *duplex) ratchet() {
-	d.permute()
+	if d.pos > 0 {
+		d.permute()
+	}
 	// Zero out a portion of the rate equal to the size of the capacity and advance past it. This ensures the security
 	// margin for state recovery (i.e., the size of the capacity) applies to rollback attacks as well.
 	const ratchetSize = capacity
