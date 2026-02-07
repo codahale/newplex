@@ -39,7 +39,7 @@ On AMD64 and ARM64 architectures, newplex uses the AES-NI instruction set to ach
 architectures, or if the `purego` build tag is used, it uses a much-slower Go implementation with a bitsliced,
 constant-time AES round implementation.
 
-The AMD64 implementation requires the AES-NI and SSE2 instructions sets, which are ubiquitous.
+The AMD64 implementation requires the AES-NI and SSE2 instruction sets, which are ubiquitous.
 
 The ARM64 implementation requires the ARMv8 Crypto Extensions and ASIMD (NEON) support.
 

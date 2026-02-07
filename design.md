@@ -283,7 +283,7 @@ Consequently, Newplex protocols have the following security properties:
 
 ### `Mask`/`Unmask`
 
-The `Mask` and `Unmask` operations accept a label and an input and encrypts or decrypts them using the protocol's
+The `Mask` and `Unmask` operations accept a label and an input and encrypt or decrypt them using the protocol's
 state and the label.
 
 ```text
@@ -673,7 +673,7 @@ function HandshakeResponder(domain, responder):
   
   out = protocol.Seal("rs", responder.pub)            // Seal the responder's static public key.
   protocol.Mix("ie-rs", ECDH(iE.pub, responder.priv)) // Mix the ephemeral-static shared secret.
-  Send(rE.pub || sealed_qRS)                          // Send the ephemeral key and sealed static key.
+  Send(rE.pub || out)                                 // Send the ephemeral key and sealed static key.
   
   in = Receive()                                      // Receive the initiator's sealed static key.
   iS.pub = protocol.Open("is", in)                    // Open the initiator's static public key.
@@ -927,7 +927,7 @@ function PAKERespond(initiator, responder, session, password):
   protocol.Mix("password", password)
   P = R255::DeriveElement(protocol.Derive("generator", 64)) // Derive an element from the data.
   b = R255::ReduceScalar(Rand(64))                          // Generate a random scalar.
-  B = [B]P                                                  // Calculate and send the responder element.
+  B = [b]P                                                  // Calculate and send the responder element.
   Send(B)
   A = Receive()                                             // Receive the initiator element.
   protocol.Mix("initiator-message", A)                      // Mix in the two exchange elements as received.
