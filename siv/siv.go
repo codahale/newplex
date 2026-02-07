@@ -60,21 +60,30 @@ func (a *aead) Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, erro
 		panic("newplex/siv: invalid nonce size")
 	}
 
+	if len(ciphertext) < newplex.TagSize {
+		return nil, newplex.ErrInvalidCiphertext
+	}
+
+	ciphertext, receivedTag := ciphertext[:len(ciphertext)-newplex.TagSize], ciphertext[len(ciphertext)-newplex.TagSize:]
+
 	p := a.p.Clone()
 	p.Mix("nonce", nonce)
 	p.Mix("ad", additionalData)
 	clone := p.Clone()
 
-	p.Mix("tag", ciphertext[len(ciphertext)-newplex.TagSize:])
-	plaintext := p.Unmask("message", nil, ciphertext[:len(ciphertext)-newplex.TagSize])
+	p.Mix("tag", receivedTag)
+
+	ret := p.Unmask("message", dst, ciphertext)
+	plaintext := ret[len(dst):]
 
 	clone.Mix("message", plaintext)
-	tag := clone.Derive("tag", nil, newplex.TagSize)
-	if subtle.ConstantTimeCompare(tag, ciphertext[len(ciphertext)-newplex.TagSize:]) == 0 {
+	expectedTag := clone.Derive("tag", nil, newplex.TagSize)
+	if subtle.ConstantTimeCompare(expectedTag, receivedTag) == 0 {
+		clear(plaintext)
 		return nil, newplex.ErrInvalidCiphertext
 	}
 
-	return append(dst, plaintext...), nil
+	return ret, nil
 }
 
 var _ cipher.AEAD = (*aead)(nil)
