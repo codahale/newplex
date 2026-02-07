@@ -19,6 +19,15 @@ import (
 	"github.com/gtank/ristretto255"
 )
 
+const (
+	// RequestSize is the size, in bytes, of the initiator's request.
+	RequestSize = 32
+	// ResponseSize is the size, in bytes, of the responder's response.
+	ResponseSize = 32 + 32 + newplex.TagSize
+	// ConfirmationSize is the size, in bytes, of the initiator's confirmation.
+	ConfirmationSize = 32 + newplex.TagSize
+)
+
 // ErrInvalidHandshake is returned when some aspect of the handshake is cryptographically invalid.
 var ErrInvalidHandshake = errors.New("newplex/handshake: invalid handshake")
 
@@ -28,7 +37,7 @@ type InitiatorFinish = func(in []byte) (send, recv *newplex.Protocol, qRS *ristr
 
 // Initiate starts the handshake from the initiator role, returning a finish function, a payload, and potentially an
 // error. If no error is returned, the payload should be transmitted to the responder.
-func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish InitiatorFinish, out []byte, err error) {
+func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish InitiatorFinish, request []byte, err error) {
 	// Initialize a protocol.
 	p := newplex.NewProtocol(domain)
 
@@ -39,17 +48,17 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 	}
 	dIE, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
 	qIE := ristretto255.NewIdentityElement().ScalarBaseMult(dIE)
-	out = qIE.Bytes()
+	request = qIE.Bytes()
 
 	// Mix the initiator's ephemeral public key into the protocol.
-	p.Mix("ie", out)
+	p.Mix("ie", request)
 
 	// Wait for the responder's response.
-	finish = func(in []byte) (send, recv *newplex.Protocol, qRS *ristretto255.Element, out []byte, err error) {
+	finish = func(response []byte) (send, recv *newplex.Protocol, qRS *ristretto255.Element, confirmation []byte, err error) {
 		qIS := ristretto255.NewIdentityElement().ScalarBaseMult(dIS)
 
 		// Decode the responder's ephemeral public key.
-		qRE, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(in[:32])
+		qRE, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(response[:32])
 		if qRE == nil {
 			return nil, nil, nil, nil, ErrInvalidHandshake
 		}
@@ -62,13 +71,13 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 		p.Mix("ie-re", iErE.Bytes())
 
 		// Open the responder's static public key.
-		in, err = p.Open("rs", nil, in[32:])
+		response, err = p.Open("rs", nil, response[32:])
 		if err != nil {
 			return nil, nil, nil, nil, ErrInvalidHandshake
 		}
 
 		// Decode the responder's static public key.
-		qRS, _ = ristretto255.NewIdentityElement().SetCanonicalBytes(in)
+		qRS, _ = ristretto255.NewIdentityElement().SetCanonicalBytes(response)
 		if qRS == nil {
 			return nil, nil, nil, nil, ErrInvalidHandshake
 		}
@@ -78,7 +87,7 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 		p.Mix("ie-rs", iErS.Bytes())
 
 		// Seal the initiator's static public key.
-		out = p.Seal("is", nil, qIS.Bytes())
+		confirmation = p.Seal("is", nil, qIS.Bytes())
 
 		// Calculate and mix in the static-ephemral shared secret.
 		iSrE := ristretto255.NewIdentityElement().ScalarMult(dIS, qRE)
@@ -90,24 +99,26 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 		send.Mix("sender", []byte("initiator"))
 		recv.Mix("sender", []byte("responder"))
 
-		return send, recv, qRS, out, nil
+		// Return the forked protocols and the confirmation.
+		return send, recv, qRS, confirmation, nil
 	}
 
-	return finish, out, nil
+	// Return the finish function and the initiate message.
+	return finish, request, nil
 }
 
 // ResponderFinish is a callback which accepts a payload from a initiator and completes the handshake, returning a pair
 // of keyed protocol for sending and receiving, plus the initiator's static public key.
-type ResponderFinish = func(in []byte) (send, recv *newplex.Protocol, qIS *ristretto255.Element, err error)
+type ResponderFinish = func(confirmation []byte) (send, recv *newplex.Protocol, qIS *ristretto255.Element, err error)
 
 // Respond accepts the handshake from the responder's role, given a domain separation string, a source of random data,
 // a static private key, and the initiator's payload. Returns a finish function and a payload to be transmitted to the
 // initiator.
-func Respond(domain string, rand io.Reader, dRS *ristretto255.Scalar, in []byte) (finish ResponderFinish, out []byte, err error) {
+func Respond(domain string, rand io.Reader, dRS *ristretto255.Scalar, request []byte) (finish ResponderFinish, response []byte, err error) {
 	qRS := ristretto255.NewIdentityElement().ScalarBaseMult(dRS)
 
 	// Decode the initiator's ephemeral public key.
-	qIE, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(in)
+	qIE, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(request)
 	if qIE == nil {
 		return nil, nil, err
 	}
@@ -125,32 +136,32 @@ func Respond(domain string, rand io.Reader, dRS *ristretto255.Scalar, in []byte)
 	}
 	dRE, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
 	qRE := ristretto255.NewIdentityElement().ScalarBaseMult(dRE)
-	out = qRE.Bytes()
+	response = qRE.Bytes()
 
 	// Mix in the responder's ephemeral public key.
-	p.Mix("re", out)
+	p.Mix("re", response)
 
 	// Calculate and mix in the ephemeral-ephemeral shared secret.
 	iErE := ristretto255.NewIdentityElement().ScalarMult(dRE, qIE)
 	p.Mix("ie-re", iErE.Bytes())
 
 	// Seal the responder's static public key.
-	out = p.Seal("rs", out, qRS.Bytes())
+	response = p.Seal("rs", response, qRS.Bytes())
 
 	// Calculate and mix in the ephemeral-static shared secret.
 	iErS := ristretto255.NewIdentityElement().ScalarMult(dRS, qIE)
 	p.Mix("ie-rs", iErS.Bytes())
 
-	// Wait for the initiator's response.
-	finish = func(in []byte) (send, recv *newplex.Protocol, qIS *ristretto255.Element, err error) {
+	// Wait for the initiator's confirmation.
+	finish = func(confirmation []byte) (send, recv *newplex.Protocol, qIS *ristretto255.Element, err error) {
 		// Open the initiator's static public key.
-		in, err = p.Open("is", nil, in)
+		confirmation, err = p.Open("is", nil, confirmation)
 		if err != nil {
 			return nil, nil, nil, ErrInvalidHandshake
 		}
 
 		// Decode the initiator's static public key.
-		qIS, _ = ristretto255.NewIdentityElement().SetCanonicalBytes(in)
+		qIS, _ = ristretto255.NewIdentityElement().SetCanonicalBytes(confirmation)
 		if qIS == nil {
 			return nil, nil, nil, ErrInvalidHandshake
 		}
@@ -165,8 +176,10 @@ func Respond(domain string, rand io.Reader, dRS *ristretto255.Scalar, in []byte)
 		send.Mix("sender", []byte("responder"))
 		recv.Mix("sender", []byte("initiator"))
 
+		// Return the forked protocols and the initiator's public key.
 		return send, recv, qIS, nil
 	}
 
-	return finish, out, nil
+	// Return the finish function and the response.
+	return finish, response, nil
 }
