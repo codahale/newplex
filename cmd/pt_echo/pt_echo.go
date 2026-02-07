@@ -3,7 +3,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"io"
 	"log/slog"
 	"net"
 )
@@ -28,22 +30,14 @@ func main() {
 		}
 
 		go func() {
-			log.Info("accepted new connection")
+			log.Info("accepted new connection", "addr", conn.RemoteAddr())
 			defer func() {
 				_ = conn.Close()
-				log.Info("closed connection")
+				log.Info("closed connection", "addr", conn.RemoteAddr())
 			}()
 
-			for {
-				buf := make([]byte, 1024)
-				size, err := conn.Read(buf)
-				if err != nil {
-					return
-				}
-				data := buf[:size]
-				if _, err := conn.Write(data); err != nil {
-					log.Error("error writing data", "err", err)
-				}
+			if _, err := io.Copy(conn, conn); err != nil && !errors.Is(err, net.ErrClosed) {
+				log.Error("error echoing data", "err", err)
 			}
 		}()
 	}

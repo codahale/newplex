@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"io"
 	"log/slog"
@@ -85,7 +86,8 @@ func main() {
 				panic(err)
 			}
 			log.Info("handshake established", "pk", hex.EncodeToString(qRS.Bytes()))
-			if _, err := client.Write(confirmation); err != nil {
+			_, err = client.Write(confirmation)
+			if err != nil {
 				panic(err)
 			}
 
@@ -97,16 +99,23 @@ func main() {
 			r.Ratchet = ratchet
 			w := aestream.NewWriter(send, client, aestream.MaxBlockSize)
 			w.Ratchet = ratchet
+			defer func() {
+				log.Info("closing aestream")
+				err = w.Close()
+				if err != nil {
+					log.Error("error closing aestream", "err", err)
+				}
+			}()
 
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				if _, err := io.Copy(w, conn); err != nil {
+				if _, err := io.Copy(w, conn); err != nil && !errors.Is(err, net.ErrClosed) {
 					log.Error("error reading from client", "err", err)
 				}
 				cancel()
 			}()
 			go func() {
-				if _, err := io.Copy(conn, r); err != nil {
+				if _, err := io.Copy(conn, r); err != nil && !errors.Is(err, net.ErrClosed) {
 					log.Error("error writing to server", "err", err)
 				}
 				cancel()

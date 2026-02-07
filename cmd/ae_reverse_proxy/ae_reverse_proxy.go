@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"io"
 	"log/slog"
@@ -50,6 +51,12 @@ func main() {
 		}
 
 		go func() {
+			log.Info("accepted new connection", "addr", conn.RemoteAddr())
+			defer func() {
+				_ = conn.Close()
+				log.Info("closed connection")
+			}()
+
 			request := make([]byte, handshake.RequestSize)
 			_, err = io.ReadFull(conn, request)
 			if err != nil {
@@ -77,6 +84,7 @@ func main() {
 				log.Error("error connecting", "err", err)
 				return
 			}
+			log.Info("handshake established", "pk", hex.EncodeToString(qIS.Bytes()))
 
 			ratchet := &ecdhratchet.Ratchet{
 				Receiver: dRS,
@@ -86,11 +94,12 @@ func main() {
 			r.Ratchet = ratchet
 			w := aestream.NewWriter(send, conn, aestream.MaxBlockSize)
 			w.Ratchet = ratchet
-
-			log.Info("accepted new connection", "addr", conn.RemoteAddr())
 			defer func() {
-				_ = conn.Close()
-				log.Info("closed connection")
+				log.Info("closing aestream")
+				err = w.Close()
+				if err != nil {
+					log.Error("error closing aestream", "err", err)
+				}
 			}()
 
 			log.Info("connecting", "addr", *connect)
@@ -106,13 +115,13 @@ func main() {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				if _, err := io.Copy(client, r); err != nil {
+				if _, err := io.Copy(client, r); err != nil && !errors.Is(err, net.ErrClosed) {
 					log.Error("error reading from client", "err", err)
 				}
 				cancel()
 			}()
 			go func() {
-				if _, err := io.Copy(w, client); err != nil {
+				if _, err := io.Copy(w, client); err != nil && !errors.Is(err, net.ErrClosed) {
 					log.Error("error writing to server", "err", err)
 				}
 				cancel()
