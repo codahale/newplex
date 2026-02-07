@@ -43,13 +43,10 @@ type digest struct {
 	base, p newplex.Protocol
 	w       *newplex.MixWriter
 	size    int
-	n       uint64
 }
 
 func (d *digest) Write(p []byte) (n int, err error) {
-	n, err = d.w.Write(p)
-	d.n += uint64(n) //nolint:gosec // n is always >= 0
-	return n, err
+	return d.w.Write(p)
 }
 
 func (d *digest) Sum(b []byte) []byte {
@@ -60,7 +57,6 @@ func (d *digest) Sum(b []byte) []byte {
 func (d *digest) Reset() {
 	d.p = d.base.Clone()
 	d.w = d.p.MixWriter("message", io.Discard)
-	d.n = 0
 }
 
 func (d *digest) Size() int {
