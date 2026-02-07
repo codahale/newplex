@@ -868,20 +868,20 @@ function Prove(d, m, n):
   protocol.Mix("commitment-u", u)                          // Mix in the two commitment points.
   protocol.Mix("commitment-v", v)
   c = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive a challenge scalar.
-  r = k + c * s                                            // Calculate the response scalar.
-  return (prf, c || r || Gamma)                            // Return the PRF output and the proof.
+  s = k + c * d                                            // Calculate the response scalar.
+  return (prf, Gamma || c || s)                            // Return the PRF output and the proof.
 ```
 
 ```text
-function Verify(Q, m, n, c || r || Gamma):
+function Verify(Q, m, n, Gamma || c || s):
   protocol.Init("com.example.vrf")                          // Initialize the protocol.
   protocol.Mix("prover", Q)                                 // Mix in the prover's public key.
   protocol.Mix("input", m)                                  // Mix in the input.
   h = R255::DeriveElement(protocol.Derive("h", 64))         // Derive an element from the protocol state.
   protocol.Mix("gamma", Gamma)                              // Mix in the gamma point.
   prf = protocol.Derive("prf", n)                           // Derive n bytes of PRF output.
-  u' = [r]G - [c]Q                                          // Calculate the two expected commitment points.
-  v' = [r]H - [c]Gamma 
+  u' = [s]G - [c]Q                                          // Calculate the two expected commitment points.
+  v' = [s]H - [c]Gamma 
   protocol.Mix("commitment-u", u')                          // Mix in the two expected commitment points.
   protocol.Mix("commitment-v", v')
   c' = R255::ReduceScalar(protocol.Derive("challenge", 64)) // Derive the expected challenge scalar.

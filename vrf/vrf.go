@@ -38,11 +38,11 @@ func Prove(domain string, d *ristretto255.Scalar, rand, m []byte, n int) (prf, p
 
 	// Calculate a challenge and a response.
 	c, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
-	r := ristretto255.NewScalar().Multiply(c, d)
-	r = r.Add(r, k)
+	s := ristretto255.NewScalar().Multiply(c, d)
+	s = s.Add(s, k)
 
 	// Return the PRF output and the proof.
-	return prf, append(append(c.Bytes(), r.Bytes()...), gamma.Bytes()...)
+	return prf, append(append(gamma.Bytes(), c.Bytes()...), s.Bytes()...)
 }
 
 // Verify checks the given proof against the given message. If the proof is valid, returns true and n bytes of PRF
@@ -53,10 +53,11 @@ func Verify(domain string, q *ristretto255.Element, m, proof []byte, n int) (val
 	}
 
 	// Parse the proof.
-	c, _ := ristretto255.NewScalar().SetCanonicalBytes(proof[:32])
-	r, _ := ristretto255.NewScalar().SetCanonicalBytes(proof[32:64])
-	gamma, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(proof[64:])
-	if c == nil || r == nil || gamma == nil {
+	proofGamma := proof[:32]
+	gamma, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(proofGamma)
+	c, _ := ristretto255.NewScalar().SetCanonicalBytes(proof[32:64])
+	s, _ := ristretto255.NewScalar().SetCanonicalBytes(proof[64:])
+	if c == nil || s == nil || gamma == nil {
 		return false, nil
 	}
 
@@ -68,13 +69,13 @@ func Verify(domain string, q *ristretto255.Element, m, proof []byte, n int) (val
 	h, _ := ristretto255.NewIdentityElement().SetUniformBytes(p.Derive("point", nil, 64))
 
 	// Mix in gamma and calculate the PRF output.
-	p.Mix("gamma", proof[64:])
+	p.Mix("gamma", proofGamma)
 	prf = p.Derive("prf", nil, n)
 
 	// Calculate the commitment points.
 	negC := ristretto255.NewScalar().Negate(c)
-	u := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(negC, q, r)
-	v := ristretto255.NewIdentityElement().VarTimeMultiScalarMult([]*ristretto255.Scalar{r, negC}, []*ristretto255.Element{h, gamma})
+	u := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(negC, q, s)
+	v := ristretto255.NewIdentityElement().VarTimeMultiScalarMult([]*ristretto255.Scalar{s, negC}, []*ristretto255.Element{h, gamma})
 	p.Mix("commitment-u", u.Bytes())
 	p.Mix("commitment-v", v.Bytes())
 
