@@ -38,6 +38,9 @@ permutation, and using wider instructions like `VAESENC` do not seem to improve 
 * **VAES/AVX-512**: Used VEX-encoded instructions to avoid unnecessary moves. Required an entirely new implementation,
   as AVX-512 isn't widely deployed yet. ~1% improvement in performance. I reverted this one because the
   maintenance/testing overhead wasn't worth the benefit.
+* **More Pipelining**: The really significant improvement came from pointing Gemini at the Simpira reference code and
+  telling it to look for optimization strategies. It batched more rounds into a combined operation, which resulted in
+  hitting the same performance as the ARM64 implementation post-fusion optimizations.
 
 ### ARM64
 
