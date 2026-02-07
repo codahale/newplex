@@ -645,17 +645,16 @@ function HandshakeInitiator(initiator):
   protocol.Mix("ie", iE.pub)                          // Mix the ephemeral public key into the protocol.
   Send(iE.pub)                                        // Send the ephemeral public key.
   
-  in = Receive()                                      // Receive the responder's message.
-  rE.pub = R255::Element(in[:32])                     // Decode the responder's ephemeral public key.
+  response = Receive()                                // Receive the responder's message.
+  rE.pub = R255::Element(response[:32])               // Decode the responder's ephemeral public key.
   protocol.Mix("re", rE.pub)                          // Mix the responder's ephemeral public key.
   protocol.Mix("ie-re", ECDH(rE.pub, iE.priv))        // Mix the ephemeral-ephemeral shared secret.
-  rS.pub = protocol.Open("rs", in[32:])               // Open the responder's static public key.
+  rS.pub = protocol.Open("rs", response[32:])         // Open the responder's static public key.
   protocol.Mix("ie-rs", ECDH(rS.pub, iE.priv))        // Mix the ephemeral-static shared secret.
+  confirmation = protocol.Seal("is", initiator.pub)   // Seal the initiator's static public key.
+  Send(confirmation)                                  // Send the sealed static public key.
   
-  out = protocol.Seal("is", initiator.pub)            // Seal the initiator's static public key.
   protocol.Mix("is-re", ECDH(rE.pub, initiator.priv)) // Mix the static-ephemeral shared secret.
-  Send(out)                                           // Send the sealed static public key.
-  
   send, recv = protocol.Clone(), protocol.Clone()     // Fork the protocol.
   send.Mix("sender", "initiator")                     // Mix the sender role.
   recv.Mix("sender", "responder")                     // Mix the sender role.
@@ -664,24 +663,23 @@ function HandshakeInitiator(initiator):
 
 ```text
 function HandshakeResponder(domain, responder):
-  rE = R255::KeyGen()                                 // Generate an ephemeral key pair.
-  iE.pub = R255::Element(Receive())                   // Receive the initiator's ephemeral public key.
-  protocol.Init("com.example.handshake")              // Initialize the protocol.
-  protocol.Mix("ie", iE.pub)                          // Mix the ephemeral public key into the protocol.
-  protocol.Mix("re", rE.pub)                          // Mix the responder's ephemeral public key.
-  protocol.Mix("ie-re", ECDH(iE.pub, rE.priv))        // Mix the ephemeral-ephemeral shared secret.
+  request = Receive()                                     // Receive the initiator's request.
+  rE = R255::KeyGen()                                     // Generate an ephemeral key pair.
+  iE.pub = R255::Element(request)                         // Decode the initiator's ephemeral public key.
+  protocol.Init("com.example.handshake")                  // Initialize the protocol.
+  protocol.Mix("ie", iE.pub)                              // Mix the ephemeral public key into the protocol.
+  protocol.Mix("re", rE.pub)                              // Mix the responder's ephemeral public key.
+  protocol.Mix("ie-re", ECDH(iE.pub, rE.priv))            // Mix the ephemeral-ephemeral shared secret.
+  response = rE.pub || protocol.Seal("rs", responder.pub) // Seal the responder's static public key.
+  Send(response)                                          // Send the ephemeral key and sealed static key.
   
-  out = protocol.Seal("rs", responder.pub)            // Seal the responder's static public key.
-  protocol.Mix("ie-rs", ECDH(iE.pub, responder.priv)) // Mix the ephemeral-static shared secret.
-  Send(rE.pub || out)                                 // Send the ephemeral key and sealed static key.
-  
-  in = Receive()                                      // Receive the initiator's sealed static key.
-  iS.pub = protocol.Open("is", in)                    // Open the initiator's static public key.
-  protocol.Mix("is-re", ECDH(iS.pub, rE.priv))        // Mix the static-ephemeral shared secret.
-  
-  send, recv = protocol.Clone(), protocol.Clone()     // Fork the protocol.
-  send.Mix("sender", "responder")                     // Mix the sender roles.
-  recv.Mix("sender", "initiator")                     // Mix the sender role.
+  confirmation = Receive()                                // Receive the initiator's sealed static key.
+  protocol.Mix("ie-rs", ECDH(iE.pub, responder.priv))     // Mix the ephemeral-static shared secret.
+  iS.pub = protocol.Open("is", confirmation)              // Open the initiator's static public key.
+  protocol.Mix("is-re", ECDH(iS.pub, rE.priv))            // Mix the static-ephemeral shared secret.
+  send, recv = protocol.Clone(), protocol.Clone()         // Fork the protocol.
+  send.Mix("sender", "responder")                         // Mix the sender roles.
+  recv.Mix("sender", "initiator")                         // Mix the sender role.
   return (send, recv, iS.pub)
 ```
 
