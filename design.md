@@ -31,6 +31,7 @@
       * [Dual Ratchet](#dual-ratchet)
       * [Bidirectional Streaming](#bidirectional-streaming)
     * [Mutually Authenticated Handshake](#mutually-authenticated-handshake)
+    * [Asynchronous Double Ratchet](#asynchronous-double-ratchet)
     * [Hybrid Public-Key Encryption](#hybrid-public-key-encryption)
     * [Digital Signatures](#digital-signatures)
     * [Signcryption](#signcryption)
@@ -682,6 +683,33 @@ function HandshakeResponder(domain, responder):
   recv.Mix("sender", "initiator")                         // Mix the sender role.
   return (send, recv, iS.pub)
 ```
+
+### Asynchronous Double Ratchet
+
+A protocol can be used to implement an asynchronous double ratchet, similar to the Signal Protocol's [double ratchet],
+but using Newplex's stateful nature for the symmetric ratchet. Bidirectional protocols (e.g., `send`, `recv`) can be
+established [by forking a shared state protocol](#bidirectional-streaming).
+
+```text
+function RatchetSend(send, remote.pub, plaintext):
+  ephemeral = R255::KeyGen()                               // Generate an ephemeral key pair.
+  ciphertext = send.Mask("ratchet-pk", ephemeral.pub)      // Mask the ephemeral public key.
+  send.Mix("ratchet-ss", ECDH(remote.pub, ephemeral.priv)) // Mix the shared secret into the protocol.
+  return send.Seal("message", ciphertext, plaintext)       // Seal the message.
+```
+
+```text
+function RatchetRecv(recv, local.priv, ciphertext):
+  ephemeral.pub = recv.Unmask("ratchet-pk", ciphertext[:32]) // Unmask the ephemeral public key.
+  recv.Mix("ratchet-ss", ECDH(ephemeral.pub, local.priv)     // Mix the shared secret into the protocol.
+  return recv.Open("message", ciphertext[32:])               // Open the message.
+```
+
+This scheme provides forward secrecy and break-in recovery for asynchronous messaging. Each message carries a new
+ephemeral public key, which is used to derive a shared secret with the recipient's static public key. This shared secret
+is then mixed into the protocol state, ratcheting it forward.
+
+[double ratchet]: https://signal.org/docs/specifications/doubleratchet/
 
 ### Hybrid Public-Key Encryption
 

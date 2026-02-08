@@ -77,6 +77,7 @@ tag := p.Derive("tag", nil, 32)
 
 Newplex includes many cryptographic schemes implemented as sub-packages:
 
+* [`newplex/adratchet`](adratchet): Implements a Signal-like asynchronous double ratchet.
 * [`newplex/aead`](aead): Implements `cipher.AEAD` with support for additional data.
 * [`newplex/aestream`](aestream): Implements a streaming authenticated encryption scheme.
 * [`newplex/aestream/ecdhratchet`](aestream/ecdhratchet): Implements an ECDH ratchet for `aestream`.
