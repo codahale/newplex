@@ -1,6 +1,7 @@
 package newplex
 
 import (
+	"crypto/cipher"
 	"io"
 
 	"github.com/codahale/newplex/internal/tuplehash"
@@ -32,76 +33,34 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 	return &mixReader{p: p, r: r, n: 0, closed: false}
 }
 
-// MaskWriter updates the protocol's state using the given label and encrypts whatever data is written to the wrapped
-// io.Writer.
+// MaskStream updates the protocol's state using the given label and returns a cipher.Stream which will mask any data
+// passed to it.
 //
-// To avoid encrypting the written slices in-place, this writer copies the data before encrypting. As such, it is
-// slightly slower than its MaskReader counterpart.
+// N.B.: The returned CryptStream must be closed for the Mask operation to be complete. While the returned
+// CryptStream is open, any other operation on the Protocol will panic.
 //
-// If a Write call returns an error, then the Protocol will be desynchronized from the underlying writer and must be
-// discarded.
-//
-// N.B.: The returned io.WriteCloser must be closed for the Mask operation to be complete. While the returned
-// io.WriteCloser is open, any other operation on the Protocol will panic.
-//
-// MaskWriter panics if a streaming operation is currently active.
-func (p *Protocol) MaskWriter(label string, w io.Writer) io.WriteCloser {
+// MaskStream panics if a streaming operation is currently active.
+func (p *Protocol) MaskStream(label string) *CryptStream {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
-	return &cryptWriter{p: p, f: p.duplex.encrypt, w: w, n: 0, buf: nil, closed: false}
+	return &CryptStream{p: p, f: p.duplex.encrypt, n: 0, closed: false}
 }
 
-// MaskReader updates the protocol's state using the given label and encrypts whatever data is read
-// from the wrapped io.Reader.
+// UnmaskStream updates the protocol's state using the given label and returns a cipher.Stream which will unmask any
+// data passed to it.
 //
-// N.B.: The returned io.ReadCloser must be closed for the Mask operation to be complete. While the
-// returned io.ReadCloser is open, any other operation on the Protocol will panic.
+// N.B.: The returned CryptStream must be closed for the Unmask operation to be complete. While the returned
+// CryptStream is open, any other operation on the Protocol will panic.
 //
-// MaskReader panics if a streaming operation is currently active.
-func (p *Protocol) MaskReader(label string, r io.Reader) io.ReadCloser {
+// UnmaskStream panics if a streaming operation is currently active.
+func (p *Protocol) UnmaskStream(label string) *CryptStream {
 	p.checkStreaming()
 	p.streaming = true
 	p.absorbMetadata(opCrypt, label)
 	p.duplex.permute()
-	return &cryptReader{p: p, f: p.duplex.encrypt, r: r, n: 0, closed: false}
-}
-
-// UnmaskWriter updates the protocol's state using the given label and decrypts whatever data is written to the wrapped
-// io.Writer.
-//
-// To avoid decrypting the written slices in-place, this writer copies the data before decrypting. As such, it is
-// slightly slower than its UnmaskReader counterpart.
-//
-// If a Write call returns an error, then the Protocol will be desynchronized from the underlying writer and must be
-// discarded.
-//
-// N.B.: The returned io.WriteCloser must be closed for the Unmask operation to be complete. While the
-// returned io.WriteCloser is open, any other operation on the Protocol will panic.
-//
-// UnmaskWriter panics if a streaming operation is currently active.
-func (p *Protocol) UnmaskWriter(label string, w io.Writer) io.WriteCloser {
-	p.checkStreaming()
-	p.streaming = true
-	p.absorbMetadata(opCrypt, label)
-	p.duplex.permute()
-	return &cryptWriter{p: p, f: p.duplex.decrypt, w: w, n: 0, buf: nil, closed: false}
-}
-
-// UnmaskReader updates the protocol's state using the given label and decrypts whatever data is read from the wrapped
-// io.Reader.
-//
-// N.B.: The returned io.ReadCloser must be closed for the Unmask operation to be complete. While the returned
-// io.ReadCloser is open, any other operation on the Protocol will panic.
-//
-// UnmaskReader panics if a streaming operation is currently active.
-func (p *Protocol) UnmaskReader(label string, r io.Reader) io.ReadCloser {
-	p.checkStreaming()
-	p.streaming = true
-	p.absorbMetadata(opCrypt, label)
-	p.duplex.permute()
-	return &cryptReader{p: p, f: p.duplex.decrypt, r: r, n: 0, closed: false}
+	return &CryptStream{p: p, f: p.duplex.decrypt, n: 0, closed: false}
 }
 
 // MixWriter allows for the incremental processing of a stream of data into a single Mix operation on a protocol.
@@ -163,50 +122,31 @@ func (m *mixReader) Close() error {
 	return nil
 }
 
-type cryptWriter struct {
+// CryptStream implements a streaming version of a protocol's Mask or Unmask operation.
+//
+// N.B.: After the stream has been masked or unmasked, the caller MUST call Close in order to complete the operation.
+type CryptStream struct {
 	p      *Protocol
 	f      func(dst, src []byte)
-	w      io.Writer
-	n      uint64
-	buf    []byte
-	closed bool
-}
-
-func (c *cryptWriter) Write(p []byte) (n int, err error) {
-	c.buf = append(c.buf[:0], p...)
-	c.f(c.buf, c.buf)
-	n, err = c.w.Write(c.buf)
-	c.n += uint64(n) //nolint:gosec // n can't be <0
-	return n, err
-}
-
-func (c *cryptWriter) Close() error {
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	c.p.duplex.absorb(tuplehash.AppendRightEncode(nil, c.n))
-	c.p.duplex.ratchet()
-	c.p.streaming = false
-	return nil
-}
-
-type cryptReader struct {
-	p      *Protocol
-	f      func(dst, src []byte)
-	r      io.Reader
 	n      uint64
 	closed bool
 }
 
-func (c *cryptReader) Read(p []byte) (n int, err error) {
-	n, err = c.r.Read(p)
-	c.n += uint64(n) //nolint:gosec // n can't be <0
-	c.f(p[:n], p[:n])
-	return n, err
+// XORKeyStream XORs each byte in the given slice with a byte from the cipher's key stream. Dst and src must overlap
+// entirely or not at all.
+//
+// If len(dst) < len(src), XORKeyStream should panic. It is acceptable to pass a dst bigger than src, and in that case,
+// XORKeyStream will only update dst[:len(src)] and will not touch the rest of dst.
+//
+// Multiple calls to XORKeyStream behave as if the concatenation of the src buffers was passed in a single run. That is,
+// Stream maintains state and does not reset at each XORKeyStream call.
+func (c *CryptStream) XORKeyStream(dst, src []byte) {
+	c.n += uint64(len(src))
+	c.f(dst, src)
 }
 
-func (c *cryptReader) Close() error {
+// Close ends the Mask or Unmask operation and marks the underlying protocol as available for other operations.
+func (c *CryptStream) Close() error {
 	if c.closed {
 		return nil
 	}
@@ -220,6 +160,5 @@ func (c *cryptReader) Close() error {
 var (
 	_ io.WriteCloser = (*MixWriter)(nil)
 	_ io.ReadCloser  = (*mixReader)(nil)
-	_ io.ReadCloser  = (*cryptReader)(nil)
-	_ io.WriteCloser = (*cryptWriter)(nil)
+	_ cipher.Stream  = (*CryptStream)(nil)
 )
