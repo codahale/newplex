@@ -34,7 +34,7 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 }
 
 // MaskStream updates the protocol's state using the given label and returns a cipher.Stream which will mask any data
-// passed to it.
+// passed to it. This can be used with cipher.StreamReader or cipher.StreamWriter to mask data during IO operations.
 //
 // N.B.: The returned CryptStream must be closed for the Mask operation to be complete. While the returned
 // CryptStream is open, any other operation on the Protocol will panic.
@@ -49,7 +49,8 @@ func (p *Protocol) MaskStream(label string) *CryptStream {
 }
 
 // UnmaskStream updates the protocol's state using the given label and returns a cipher.Stream which will unmask any
-// data passed to it.
+// data passed to it. This can be used with cipher.StreamReader or cipher.StreamWriter to unmask data during IO
+// operations.
 //
 // N.B.: The returned CryptStream must be closed for the Unmask operation to be complete. While the returned
 // CryptStream is open, any other operation on the Protocol will panic.
