@@ -28,5 +28,5 @@ func Example_keyed() {
 	fmt.Printf("%x\n", sum)
 
 	// Output:
-	// 138dd42413488d09f8d746fa45145dd1
+	// 3104cbff524195a4428b5072a7a0f75c
 }

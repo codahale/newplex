@@ -25,8 +25,8 @@ func TestDigest_Size(t *testing.T) {
 
 func TestDigest_BlockSize(t *testing.T) {
 	h := digest.New("test")
-	if bs := h.BlockSize(); bs != 96 {
-		t.Errorf("BlockSize() = %d, want 96", bs)
+	if bs := h.BlockSize(); bs != 94 {
+		t.Errorf("BlockSize() = %d, want 94", bs)
 	}
 }
 

@@ -51,7 +51,13 @@ func (d *digest) Write(p []byte) (n int, err error) {
 
 func (d *digest) Sum(b []byte) []byte {
 	p := d.w.Fork()
-	return p.Derive("digest", b, d.size)
+	var label string
+	if d.size == KeyedSize {
+		label = "tag"
+	} else {
+		label = "digest"
+	}
+	return p.Derive(label, b, d.size)
 }
 
 func (d *digest) Reset() {
@@ -64,7 +70,7 @@ func (d *digest) Size() int {
 }
 
 func (d *digest) BlockSize() int {
-	return 96 // newplex rate (768 bits)
+	return 94 // newplex rate (752 bits)
 }
 
 var _ hash.Hash = (*digest)(nil)
