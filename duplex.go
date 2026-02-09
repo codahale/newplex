@@ -4,7 +4,6 @@ import (
 	"crypto/subtle"
 	"encoding"
 	"errors"
-	"math/bits"
 
 	"github.com/codahale/newplex/internal/simpira1024"
 )
@@ -36,16 +35,8 @@ func (d *duplex) beginOp(op byte) {
 	d.posBegin = d.pos + 1
 
 	// Absorb the old operation pointer and the operation code.
-	d.state[d.pos] ^= byte(oldBegin)
-	d.pos++
-	if d.pos == rate {
-		d.permute()
-	}
-	d.state[d.pos] ^= op
-	d.pos++
-	if d.pos == rate {
-		d.permute()
-	}
+	d.absorbByte(byte(oldBegin))
+	d.absorbByte(op)
 }
 
 // absorb updates the duplex's state with the given data, running the permutation as the state becomes fully updated.
@@ -63,17 +54,22 @@ func (d *duplex) absorb(b []byte) {
 	}
 }
 
-// absorbLE absorbs the little-endian form of the given value without the trailing zeros.
-func (d *duplex) absorbLE(value uint64) {
-	n := (bits.Len64(value|1) + 7) / 8
-	for range n {
-		d.state[d.pos] ^= byte(value)
-		d.pos++
-		if d.pos == rate {
-			d.permute()
-		}
-		value >>= 8
+// absorbByte absorbs a single byte.
+func (d *duplex) absorbByte(b byte) {
+	d.state[d.pos] ^= b
+	d.pos++
+	if d.pos == rate {
+		d.permute()
 	}
+}
+
+// absorbLEB128 absorbs the LEB128 form of the given value.
+func (d *duplex) absorbLEB128(x uint64) {
+	for x >= 0x80 {
+		d.absorbByte(byte(x) | 0x80)
+		x >>= 7
+	}
+	d.absorbByte(byte(x))
 }
 
 // squeeze fills the given slice with data from the duplex's state, running the permutation as the state becomes

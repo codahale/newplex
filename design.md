@@ -279,7 +279,7 @@ function Derive(label, n):
   duplex.BeginOp(op=0x03)
   duplex.Absorb(label)
   duplex.BeginOp(op=0x03|0x80)
-  duplex.Absorb(LE(n))
+  duplex.Absorb(LEB128(n))
   duplex.Permute()
   prf = duplex.Squeeze(n)
   duplex.Ratchet()
@@ -287,9 +287,9 @@ function Derive(label, n):
 ```
 
 Like `Mix`, `Derive` is structured as two sub-operations with distinct operation codes. The first absorbs the label, the
-second absorbs the length `n`, encoded as a little-endian integer with no leading zeros. To ensure the duplex's state is
-indistinguishable from random, it permutes the duplex and squeezes the requested output from the duplex. Finally, the
-duplex's state is ratcheted to prevent rollback.
+second absorbs the length `n`, encoded with LEB128. To ensure the duplex's state is indistinguishable from random, it
+permutes the duplex and squeezes the requested output from the duplex. Finally, the duplex's state is ratcheted to
+prevent rollback.
 
 **N.B.:** A `Derive` operation's output depends on both the label and the output length.
 
@@ -378,7 +378,7 @@ function Seal(label, plaintext):
   duplex.BeginOp(op=0x05)
   duplex.Absorb(label)
   duplex.BeginOp(op=0x05|0x80)
-  duplex.Absorb(LE(|plaintext|))
+  duplex.Absorb(LEB128(|plaintext|))
   duplex.Permute()
   ciphertext = duplex.Encrypt(plaintext)
   duplex.Permute()
@@ -390,7 +390,7 @@ function Open(label, ciphertext || tag):
   duplex.BeginOp(op=0x05)
   duplex.Absorb(label)
   duplex.BeginOp(op=0x05|0x80)
-  duplex.Absorb(LE(|ciphertext|))
+  duplex.Absorb(LEB128(|ciphertext|))
   duplex.Permute()
   plaintext = duplex.Decrypt(ciphertext)
   duplex.Permute()
@@ -401,10 +401,10 @@ function Open(label, ciphertext || tag):
   return plaintext
 ```
 
-`Seal` absorbs the label in a sub-operation, begins a second sub-operation, then permutes the duplex's state to ensure
-indistinguishability. It then encrypts the plaintext with the duplex's state and permutes the duplex's state again to
-make it fully dependent on the plaintext. Finally, it squeezes a 16-byte tag and ratchets the duplex's state to prevent
-rollback.
+`Seal` absorbs the label in a sub-operation, begins a second sub-operation, absorbs the LEB128-encoded plaintext length,
+then permutes the duplex's state to ensure indistinguishability. It then encrypts the plaintext with the duplex's state
+and permutes the duplex's state again to make it fully dependent on the plaintext. Finally, it squeezes a 16-byte tag
+and ratchets the duplex's state to prevent rollback.
 
 `Open` is identical but uses the duplex to decrypt the data and compares the received tag to an expected tag derived
 from the received plaintext. If the two are equal (using a constant-time comparison function), the plaintext is

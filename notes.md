@@ -116,9 +116,10 @@ the `pad10*1` scheme to avoid zero-appending attacks. This design records operat
 spatially. Operations with multiple inputs (i.e., everything but `Init`) get separated into two sub-operations: one with
 an operation code with its high bit cleared (e.g., `0x02`) for the label, and one with the high bit set (e.g.,
 `0x02|0x80`) for the input. This ensures that labels and inputs cannot collide, even when encoded in the same block. The
-resulting code is very simple, albeit a little slower. To encode lengths in `Derive`, `Seal`, etc., I went with a
-little-endian representation that strips leading zeros (e.g., `0xDEAD` -> `[0xAD, 0xDE]`), which is both concise and
-fast.
+resulting code is very simple, albeit a little slower. To encode lengths in `Derive`, `Seal`, etc., I initially went
+with a little-endian representation that strips leading zeros, but realized that wasn't prefix-free (e.g.,
+`absorbLE(0xAD)` is a prefix of `absorbLE(0xDEAD)`). Given that it's always followed with a `permute` call, that was
+OK, but I switched that to LEB128 because a) it's prefix-free and b) it's an existing standard.
 
 The use of a padding scheme also allows Newplex to hew closely to the existing security proofs for sponges and duplexes,
 most of which depend on the specifics of the padding.
