@@ -8,7 +8,7 @@ import (
 	"github.com/gtank/ristretto255"
 )
 
-func Example() {
+func Example_oprf() {
 	drbg := sha3.NewSHAKE128()
 	_, _ = drbg.Write([]byte("newplex oprf"))
 	var r [64]byte

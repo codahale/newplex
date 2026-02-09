@@ -24,7 +24,7 @@ func Blind(domain string, input []byte) (blind *ristretto255.Scalar, blindedElem
 		// Generate a random blind scalar.
 		var r [64]byte
 		if _, err := rand.Read(r[:]); err != nil {
-			return nil, nil, err
+			panic(err)
 		}
 		blind, _ = ristretto255.NewScalar().SetUniformBytes(r[:])
 
