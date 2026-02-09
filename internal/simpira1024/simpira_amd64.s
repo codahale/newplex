@@ -32,8 +32,8 @@
 	MOVAPS X14, s3; \
 	MOVAPS X15, t1
 
-// func permuteAsm(state *[128]byte)
-TEXT ·permuteAsm(SB), NOSPLIT, $0
+// func permute(state *[128]byte)
+TEXT ·permute(SB), NOSPLIT, $0
 	MOVQ state+0(FP), DI
 
 	MOVOU 0(DI), X0   // x0

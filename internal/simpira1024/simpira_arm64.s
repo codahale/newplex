@@ -14,8 +14,8 @@
 	VEOR t2.B16, dst.B16, dst.B16; \
 	ADD $1, R1
 
-// func permuteAsm(state *[128]byte)
-TEXT ·permuteAsm(SB), NOSPLIT, $0
+// func permute(state *[128]byte)
+TEXT ·permute(SB), NOSPLIT, $0
 	MOVD state+0(FP), R0
 	
 	VLD1 (R0), [V0.B16]
