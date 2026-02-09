@@ -117,7 +117,7 @@ There are two major benefits to using an approach like Newplex to implement a cr
 ## The Duplex
 
 The core of Newplex is a relatively basic [cryptographic duplex][duplex], with a width of 1024 bits, a capacity of 256
-bits, 16 bits of padding, and a rate of 768 bits (i.e. `B=1024`, `C=256`, `P=16` `R=752`).
+bits, 16 bits of padding, and an effective rate of 752 bits (i.e. `B=1024`, `C=256`, `P=16` `R=752`).
 
 [duplex]: https://keccak.team/sponge_duplex.html
 
@@ -130,8 +130,8 @@ This provides the following security levels:
 | Indistinguishability | 128          | `c/2`   | birthday bound   |
 
 The duplex provides a small number of operations: `Permute`, `Absorb`, `BeginOp`, `Squeeze`, `Ratchet`, and `Encrypt`/
-`Decrypt`. It reserves two bytes of the rate for padding, so inputs and outputs are processed in blocks of a maximum of
-752 bits.
+`Decrypt`. It reserves two bytes of the rate for padding, so inputs and outputs are processed in blocks of at most 752
+bits.
 
 The duplex is initialized with a 1024-bit state, a position index `pos` which is always in the range `[0, R)`, and an
 operation position index `posBegin`, all of which begin with zero values.
@@ -188,7 +188,7 @@ are equivalent to a single `Squeeze` operation with the concatenation of the seq
 ### `Ratchet`
 
 The `Ratchet` operation calls `Permute` if any of the rate has been used, then overwrites the first 256 bits of the
-duplex's rate with zeros and advances the rate position past them. This irreversibly modifies the duplex's state,
+duplex's rate with zeros, and advances the rate position past them. This irreversibly modifies the duplex's state,
 preventing potential rollback attacks and establishing forward secrecy. An attacker who recovers the post-ratchet state
 will be unable to reconstruct the missing 256 bits and thus unable to invert the permutation to recover prior states.
 
