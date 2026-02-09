@@ -51,33 +51,37 @@ func Example_voprf() {
 	// server PRF = c44bc4cee8492ff0a709dea0df31c17a
 }
 
-func TestVerifiableFinalize_Identity(t *testing.T) {
-	input := []byte("this is a sensitive input")
-	blind := ristretto255.NewScalar()
-	q := ristretto255.NewIdentityElement()
-	evaluatedElement := ristretto255.NewIdentityElement()
-	blindedElement := ristretto255.NewIdentityElement()
-	c := ristretto255.NewScalar()
-	s := ristretto255.NewScalar()
+func TestVerifiableFinalize(t *testing.T) {
+	t.Run("identity points", func(t *testing.T) {
+		input := []byte("this is a sensitive input")
+		blind := ristretto255.NewScalar()
+		q := ristretto255.NewIdentityElement()
+		evaluatedElement := ristretto255.NewIdentityElement()
+		blindedElement := ristretto255.NewIdentityElement()
+		c := ristretto255.NewScalar()
+		s := ristretto255.NewScalar()
 
-	_, err := oprf.VerifiableFinalize("example", input, blind, q, evaluatedElement, blindedElement, c, s, 16)
-	if err == nil {
-		t.Error("should have failed with identity public key")
-	}
+		_, err := oprf.VerifiableFinalize("example", input, blind, q, evaluatedElement, blindedElement, c, s, 16)
+		if err == nil {
+			t.Error("should have failed with identity public key")
+		}
 
-	q = ristretto255.NewGeneratorElement()
-	_, err = oprf.VerifiableFinalize("example", input, blind, q, evaluatedElement, blindedElement, c, s, 16)
-	if err == nil {
-		t.Error("should have failed with identity blinded/evaluated elements")
-	}
+		q = ristretto255.NewGeneratorElement()
+		_, err = oprf.VerifiableFinalize("example", input, blind, q, evaluatedElement, blindedElement, c, s, 16)
+		if err == nil {
+			t.Error("should have failed with identity blinded/evaluated elements")
+		}
+	})
 }
 
-func TestVerifiableBlindEvaluate_Identity(t *testing.T) {
-	d := ristretto255.NewScalar()
-	blindedElement := ristretto255.NewIdentityElement()
+func TestVerifiableBlindEvaluate(t *testing.T) {
+	t.Run("identity points", func(t *testing.T) {
+		d := ristretto255.NewScalar()
+		blindedElement := ristretto255.NewIdentityElement()
 
-	_, _, _, err := oprf.VerifiableBlindEvaluate("example", d, blindedElement)
-	if err == nil {
-		t.Error("should have failed with identity blinded element")
-	}
+		_, _, _, err := oprf.VerifiableBlindEvaluate("example", d, blindedElement)
+		if err == nil {
+			t.Error("should have failed with identity blinded element")
+		}
+	})
 }
