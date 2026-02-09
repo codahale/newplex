@@ -8,6 +8,12 @@ import (
 	"github.com/codahale/newplex/internal/simpira1024"
 )
 
+// IsHardwareAccelerated returns true if the underlying implementation is using AES instructions. If false, the
+// implementation is using a constant-time software implementation of the AES round, which will be much, much slower.
+func IsHardwareAccelerated() bool {
+	return simpira1024.UseAESNI
+}
+
 // duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-1024 permutation, has a width
 // of 1024 bits, a capacity of 256 bits, and a rate of 768 bits. This offers 128 bits of security for collision
 // resistance, 256 bits of security for state recovery, and 128 bits of security for birthday-bound

@@ -333,6 +333,12 @@ func exampleDuplex() duplex {
 	return d
 }
 
+func TestIsHardwareAccelerated(t *testing.T) {
+	if !IsHardwareAccelerated() {
+		t.Log("AES instructions not detected")
+	}
+}
+
 func BenchmarkDuplex_Absorb(b *testing.B) {
 	for _, length := range lengths {
 		b.Run(length.name, func(b *testing.B) {
