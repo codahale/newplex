@@ -16,8 +16,8 @@ const Overhead = 32 + 32 + 32
 func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand, message []byte) []byte {
 	// Initialize the protocol and mix in the sender and receiver's public keys.
 	p := newplex.NewProtocol(domain)
-	p.Mix("sender", ristretto255.NewIdentityElement().ScalarBaseMult(dS).Bytes())
 	p.Mix("receiver", qR.Bytes())
+	p.Mix("sender", ristretto255.NewIdentityElement().ScalarBaseMult(dS).Bytes())
 
 	// Clone the protocol and mix in the sender's private key, the user-supplied randomness, and the message. Use the
 	// clone to derive an ephemeral private ky and commitment scalar which are unique to the inputs.
@@ -35,6 +35,10 @@ func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand
 
 	// Mix in the ephemeral public key.
 	p.Mix("ephemeral", qE.Bytes())
+
+	// Mix in the ECDH shared secret.
+	ss := ristretto255.NewIdentityElement().ScalarMult(dE, qR)
+	p.Mix("ecdh", ss.Bytes())
 
 	// Mask the message.
 	ciphertext := p.Mask("message", qE.Bytes(), message)
@@ -64,8 +68,8 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 
 	// Initialize the protocol and mix in the sender and receiver's public keys.
 	p := newplex.NewProtocol(domain)
-	p.Mix("sender", qS.Bytes())
 	p.Mix("receiver", ristretto255.NewIdentityElement().ScalarBaseMult(dR).Bytes())
+	p.Mix("sender", qS.Bytes())
 
 	// Mix in the ephemeral public key and decode it.
 	p.Mix("ephemeral", ciphertext[:32])
@@ -73,6 +77,10 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 	if qE == nil {
 		return nil, newplex.ErrInvalidCiphertext
 	}
+
+	// Mix in the ECDH shared secret.
+	ss := ristretto255.NewIdentityElement().ScalarMult(dR, qE)
+	p.Mix("ecdh", ss.Bytes())
 
 	// Unmask the message.
 	plaintext := p.Unmask("message", nil, ciphertext[32:len(ciphertext)-64])
