@@ -3,8 +3,8 @@ package newplex
 import (
 	"crypto/subtle"
 	"encoding"
-	"encoding/binary"
 	"errors"
+	"math/bits"
 
 	"github.com/codahale/newplex/internal/simpira1024"
 )
@@ -14,8 +14,38 @@ import (
 // resistance, 256 bits of security for state recovery, and 128 bits of security for birthday-bound
 // indistinguishability.
 type duplex struct {
-	state [width]byte
-	pos   int
+	state         [width]byte
+	pos, posBegin int
+}
+
+// permute pads the block with the operation beginning and SHA-3's pad10*1 scheme, then runs the Simpira-1024
+// permutation.
+func (d *duplex) permute() {
+	d.state[d.pos] ^= byte(d.posBegin)
+	d.state[d.pos+1] ^= 0x01
+	d.state[unpaddedRate-1] ^= 0x80
+	simpira1024.Permute(&d.state)
+	d.pos = 0
+	d.posBegin = 0
+}
+
+// beginOp updates the duplex's operation pointer and absorbs the old operation pointer and an operation code.
+func (d *duplex) beginOp(op byte) {
+	// Update the operation pointer.
+	oldBegin := d.posBegin
+	d.posBegin = d.pos + 1
+
+	// Absorb the old operation pointer and the operation code.
+	d.state[d.pos] ^= byte(oldBegin)
+	d.pos++
+	if d.pos == rate {
+		d.permute()
+	}
+	d.state[d.pos] ^= op
+	d.pos++
+	if d.pos == rate {
+		d.permute()
+	}
 }
 
 // absorb updates the duplex's state with the given data, running the permutation as the state becomes fully updated.
@@ -30,6 +60,19 @@ func (d *duplex) absorb(b []byte) {
 			d.permute()
 		}
 		b = b[remain:]
+	}
+}
+
+// absorbLE absorbs the little-endian form of the given value without the trailing zeros.
+func (d *duplex) absorbLE(value uint64) {
+	n := (bits.Len64(value|1) + 7) / 8
+	for range n {
+		d.state[d.pos] ^= byte(value)
+		d.pos++
+		if d.pos == rate {
+			d.permute()
+		}
+		value >>= 8
 	}
 }
 
@@ -97,12 +140,6 @@ func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 	}
 }
 
-// permute resets the duplex's state index and applies the Simpira-1024 permutation to its 1024-bit state.
-func (d *duplex) permute() {
-	simpira1024.Permute(&d.state)
-	d.pos = 0
-}
-
 // ratchet applies the Simpira-1024 permutation if needed, then zeros out 256 bits of the rate, preventing rollback.
 func (d *duplex) ratchet() {
 	if d.pos > 0 {
@@ -121,11 +158,11 @@ func (d *duplex) UnmarshalBinary(data []byte) error {
 	if len(data) != len(d.state)+2 {
 		return errors.New("newplex: invalid state length")
 	}
-	idx := int(binary.LittleEndian.Uint16(data[:2]))
-	if idx >= rate {
+	if data[0] >= rate || data[1] >= rate {
 		return errors.New("newplex: invalid duplex state")
 	}
-	d.pos = idx
+	d.pos = int(data[0])
+	d.posBegin = int(data[1])
 	copy(d.state[:], data[2:])
 	return nil
 }
@@ -133,7 +170,7 @@ func (d *duplex) UnmarshalBinary(data []byte) error {
 // AppendBinary appends the binary representation of the duplex's state to the given slice. It implements
 // encoding.BinaryAppender.
 func (d *duplex) AppendBinary(b []byte) ([]byte, error) {
-	return append(binary.LittleEndian.AppendUint16(b, uint16(d.pos)), d.state[:]...), nil //nolint:gosec // pos < 1024
+	return append(append(b, byte(d.pos), byte(d.posBegin)), d.state[:]...), nil
 }
 
 // MarshalBinary returns the binary representation of the duplex's state. It implements encoding.BinaryMarshaler.
@@ -148,7 +185,9 @@ var (
 )
 
 const (
-	width    = simpira1024.Width // The width of the permutation in bytes.
-	capacity = 32                // The duplex's capacity in bytes.
-	rate     = width - capacity  // The rate of the duplex as determined by its width and capacity.
+	width        = simpira1024.Width      // The width of the permutation in bytes.
+	capacity     = 32                     // The duplex's capacity in bytes.
+	unpaddedRate = width - capacity       // The duplex's rate without padding.
+	padding      = 2                      // The duplex uses two bytes for padding each block.
+	rate         = unpaddedRate - padding // The rate of the duplex with padding.
 )

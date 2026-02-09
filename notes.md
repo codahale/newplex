@@ -101,22 +101,31 @@ phase like encryption.
 I also looked at non-linear modifications to the duplex state as a potential marking mechanism, but the number of
 distinct operations which would need to unambiguously modify the state is high.
 
-Instead, adopting the TupleHash design of using a recoverable encoding to unambiguously structure the inputs as a single
-input string seemed like the best approach. This adds a small amount of overhead, with each label and input requiring
-a pre- or appended length, but it maps very nicely onto the RO-KDFn construction from Backendal et al.'s "Key Derivation
-Functions Without a Grain of Salt". The spatial relationship between the inputs is exactly preserved in the
-modifications to the duplex's state, making both analysis and implementation straight-forward.
+For a while, adopting the TupleHash design of using a recoverable encoding to unambiguously structure the inputs as a
+single input string seemed like the best approach. This adds a small amount of overhead, with each label and input
+requiring a pre- or appended length. It preserves the distinction between label and input spatially in the duplex's
+state, which is nice, but the fact that `left_encode`/`right_encode` have common ambiguous encoded forms makes this
+not viable. In the context of TupleHash, it's fine -- `right_encode` is used exclusively for the desired output length,
+and the standard SHA-3 `pad10*1` padding scheme prevents in-block collisions. In the context of an unpadded duplex, it
+allows for a significant degree of unwanted ambiguity. It's _probably_ fine, but I'd rather build on a sturdier
+foundation.
+
+Instead, I landed on the way STROBE handles operations. It reserves two bytes of the rate for padding. When an operation
+begins, it records the duplex's position. When it permutes, it includes the operation's position in the input and uses
+the `pad10*1` scheme to avoid zero-appending attacks. This design records operation boundaries in the duplex's state
+spatially. Operations with multiple inputs (i.e., everything but `Init`) get separated into two sub-operations: one with
+an operation code with its high bit cleared (e.g., `0x02`) for the label, and one with the high bit set (e.g.,
+`0x02|0x80`) for the input. This ensures that labels and inputs cannot collide, even when encoded in the same block. The
+resulting code is very simple, albeit a little slower. To encode lengths in `Derive`, `Seal`, etc., I went with a
+little-endian representation that strips leading zeros (e.g., `0xDEAD` -> `[0xAD, 0xDE]`), which is both concise and
+fast.
+
+The use of a padding scheme also allows Newplex to hew closely to the existing security proofs for sponges and duplexes,
+most of which depend on the specifics of the padding.
 
 ## Varint Encodings
 
-I spent a long time looking at various space-efficient integer encoding schemes and have settled on TupleHash's
-`left_encode`/`right_encode`.
-
-### TupleHash
-
-TupleHash uses two functions, `left_encode` and `right_encode`, which are just the big-endian encoding of an integer,
-stripped of the leading zeros, and with the byte length either prepended or appended. It uses a minimum of two bytes to
-encode a value, but can be implemented in a very concise and branchless form.
+I spent a long time looking at various space-efficient integer encoding schemes.
 
 ### QUIC
 
@@ -146,3 +155,17 @@ with is a rough start.
 To make a distinct second encoding, we could simply invert the continuation bits. This is fairly space-efficient, but
 ends up having a slightly slower runtime than TupleHash due to the conditional in the hot loop. It's also very difficult
 to make an implementation of it which plays nicely with Go's escape analysis.
+
+### TupleHash
+
+TupleHash uses two functions, `left_encode` and `right_encode`, which are just the big-endian encoding of an integer,
+stripped of the leading zeros, and with the byte length either prepended or appended. It uses a minimum of two bytes to
+encode a value, but can be implemented in a very concise and branchless form.
+
+It still contains a category of ambiguously-encoded forms. To begin, the mapping from integer to big-endian bytestring
+is perfectly bijective. The only remaining possible ambiguity, then, are encoded forms which are palindromic:
+
+```text
+[1, 1]     // left_encode(1) | right_encode(1)
+[2, 3, 2]  // left_encode(770) | right_encode(515)
+```

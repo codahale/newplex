@@ -22,8 +22,6 @@ import (
 	"encoding"
 	"errors"
 	"slices"
-
-	"github.com/codahale/newplex/internal/tuplehash"
 )
 
 // TagSize is the number of bytes added to the plaintext by the Seal operation.
@@ -47,7 +45,8 @@ type Protocol struct {
 // data like timestamps or user IDs. A good format is "application-name.protocol-name".
 func NewProtocol(domain string) Protocol {
 	var p Protocol
-	p.absorbMetadata(opInit, domain)
+	p.duplex.beginOp(opInit)
+	p.duplex.absorb([]byte(domain))
 	return p
 }
 
@@ -56,9 +55,10 @@ func NewProtocol(domain string) Protocol {
 // Mix panics if a streaming operation is currently active.
 func (p *Protocol) Mix(label string, input []byte) {
 	p.checkStreaming()
-	p.absorbMetadata(opMix, label)
+	p.duplex.beginOp(opMix)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opMix | 0x80)
 	p.duplex.absorb(input)
-	p.duplex.absorb(tuplehash.AppendRightEncode(nil, uint64(len(input))))
 }
 
 // Derive updates the protocol's state with the given label and output length and then generates n bytes of pseudorandom
@@ -71,7 +71,10 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 		panic("invalid argument to Derive: n cannot be negative")
 	}
 
-	p.absorbMetadataAndLen(opDerive, label, n)
+	p.duplex.beginOp(opDerive)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opDerive | 0x80)
+	p.duplex.absorbLE(uint64(n))
 
 	ret, prf := sliceForAppend(dst, n)
 	p.duplex.permute()
@@ -95,10 +98,11 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 	p.checkStreaming()
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
-	p.absorbMetadata(opCrypt, label)
+	p.duplex.beginOp(opCrypt)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opCrypt | 0x80)
 	p.duplex.permute()
 	p.duplex.encrypt(ciphertext, plaintext)
-	p.duplex.absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))))
 	p.duplex.ratchet()
 	return ret
 }
@@ -115,10 +119,11 @@ func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 func (p *Protocol) Unmask(label string, dst, ciphertext []byte) []byte {
 	p.checkStreaming()
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
-	p.absorbMetadata(opCrypt, label)
+	p.duplex.beginOp(opCrypt)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opCrypt | 0x80)
 	p.duplex.permute()
 	p.duplex.decrypt(plaintext, ciphertext)
-	p.duplex.absorb(tuplehash.AppendRightEncode(nil, uint64(len(plaintext))))
 	p.duplex.ratchet()
 	return ret
 }
@@ -137,8 +142,10 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
 
-	p.absorbMetadataAndLen(opAuthCrypt, label, len(plaintext))
-
+	p.duplex.beginOp(opAuthCrypt)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opAuthCrypt | 0x80)
+	p.duplex.absorbLE(uint64(len(plaintext)))
 	p.duplex.permute()
 	p.duplex.encrypt(ciphertext, plaintext)
 	p.duplex.permute()
@@ -170,8 +177,10 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	ciphertext, receivedTag := ciphertextAndTag[:len(plaintext)], ciphertextAndTag[len(plaintext):]
 	var expectedTag [TagSize]byte
 
-	p.absorbMetadataAndLen(opAuthCrypt, label, len(plaintext))
-
+	p.duplex.beginOp(opAuthCrypt)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opAuthCrypt | 0x80)
+	p.duplex.absorbLE(uint64(len(plaintext)))
 	p.duplex.permute()
 	p.duplex.decrypt(plaintext, ciphertext)
 	p.duplex.permute()
@@ -223,25 +232,6 @@ func (p *Protocol) checkStreaming() {
 	if p.streaming {
 		panic("newplex: protocol is currently streaming")
 	}
-}
-
-func (p *Protocol) absorbMetadata(op byte, label string) {
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label))
-	metadata[0] = op
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label)))
-	metadata = append(metadata, label...)
-
-	p.duplex.absorb(metadata)
-}
-
-func (p *Protocol) absorbMetadataAndLen(op byte, label string, n int) {
-	metadata := make([]byte, 1, 1+tuplehash.MaxSize+len(label)+tuplehash.MaxSize)
-	metadata[0] = op
-	metadata = tuplehash.AppendLeftEncode(metadata, uint64(len(label)))
-	metadata = append(metadata, label...)
-	metadata = tuplehash.AppendRightEncode(metadata, uint64(n)) //nolint:gosec // n > 0
-
-	p.duplex.absorb(metadata)
 }
 
 var (

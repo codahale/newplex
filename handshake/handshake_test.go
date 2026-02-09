@@ -62,8 +62,8 @@ func Example() {
 	// Output:
 	// responder: 8c7d6822f5ad36aebf115ef5c90ce95147f40ed6bf3dd4953cf92827fbf72c7c
 	// initiator: 768d2a68dc4a6f3c8e8a7737044d3d80b6ece637da643bf61abc62893b364575
-	// responder send: 6386a90d9772a426effd7e987577f3ff
-	// initiator recv: 6386a90d9772a426effd7e987577f3ff
-	// initiator send: 3bc57a5b4398169bffbef6a48d16af95
-	// responder recv: 3bc57a5b4398169bffbef6a48d16af95
+	// responder send: d5c31a338dc303e698594e341a27a45e
+	// initiator recv: d5c31a338dc303e698594e341a27a45e
+	// initiator send: c2dce9632b06cf31c99f2847bb8f151e
+	// responder recv: c2dce9632b06cf31c99f2847bb8f151e
 }

@@ -8,6 +8,7 @@
   * [The Duplex](#the-duplex)
     * [`Permute`](#permute)
     * [`Absorb`](#absorb)
+    * [`BeginOp`](#beginop)
     * [`Squeeze`](#squeeze)
     * [`Ratchet`](#ratchet)
     * [`Encrypt`/`Decrypt`](#encryptdecrypt)
@@ -71,9 +72,11 @@ There are two major benefits to using an approach like Newplex to implement a cr
 2. **Soundness.** Newplex has cryptographic practices like domain separation built-in, and the fact that a Newplex
    protocol is stateful establishes a clear forward flow of data within a scheme. This eliminates vulnerabilities in
    which output values don't depend on the full set of inputs (e.g., [MQV], [HMQV], and many [Fiat-Shamir] transforms).
- 
+
 [MQV]: https://dl.acm.org/doi/10.1145/501978.501981
+
 [HMQV]: https://eprint.iacr.org/2010/136.pdf
+
 [Fiat-Shamir]: https://blog.trailofbits.com/2022/04/13/part-1-coordinated-disclosure-of-vulnerabilities-affecting-girault-bulletproofs-and-plonk/
 
 ## The Permutation
@@ -95,7 +98,7 @@ There are two major benefits to using an approach like Newplex to implement a cr
    been on round-reduced versions of the smaller permutations:
 
    | Variant            | Total Rounds | Max Rounds Attacked | % Rounds Broken | Security Margin       |
-      |--------------------|--------------|---------------------|-----------------|-----------------------|
+   |--------------------|--------------|---------------------|-----------------|-----------------------|
    | Simpira-256 (b=2)  | 15           | 9                   | 60%             | Safe (6 rounds left)  |
    | Simpira-384 (b=3)  | 21           | 10                  | 48%             | Safe (11 rounds left) |
    | Simpira-512 (b=4)  | 15           | 8                   | 53%             | Safe (7 rounds left)  |
@@ -114,7 +117,7 @@ There are two major benefits to using an approach like Newplex to implement a cr
 ## The Duplex
 
 The core of Newplex is a relatively basic [cryptographic duplex][duplex], with a width of 1024 bits, a capacity of 256
-bits, and a rate of 768 bits (i.e. `b=1024`, `c=256`, `r=768`).
+bits, 16 bits of padding, and a rate of 768 bits (i.e. `B=1024`, `C=256`, `P=16` `R=752`).
 
 [duplex]: https://keccak.team/sponge_duplex.html
 
@@ -126,28 +129,56 @@ This provides the following security levels:
 | State/Key Recovery   | 256          | `c`     | (assuming K≥256) |
 | Indistinguishability | 128          | `c/2`   | birthday bound   |
 
-The duplex provides a small number of operations: `Permute`, `Absorb`, `Squeeze`, `Ratchet`, and `Encrypt`/`Decrypt`. It
-provides no padding or framing scheme and only permutes its state when an operation's input is larger than the duplex's
-remaining rate. As such, it is a building block for higher level operations and should be considered cryptographic
-hazmat.
+The duplex provides a small number of operations: `Permute`, `Absorb`, `BeginOp`, `Squeeze`, `Ratchet`, and `Encrypt`/
+`Decrypt`. It reserves two bytes of the rate for padding, so inputs and outputs are processed in blocks of a maximum of
+752 bits.
+
+The duplex is initialized with a 1024-bit state, a position index `pos` which is always in the range `[0, R)`, and an
+operation position index `posBegin`, all of which begin with zero values.
 
 ### `Permute`
 
-The `Permute` operation runs the [Simpira-1024] permutation on the duplex's entire state and resets its rate index to
-zero.
+The `Permute` operation absorbs the `posBegin` index, pads the rate with SHA-3's `pad10*1` scheme, runs
+the [Simpira-1024] permutation, and resets both position indexes:
+
+```text
+function Permute():
+  state[pos] ^= posBegin
+  state[pos+1] ^= 0x01
+  state[R+1] ^= 0x80
+  Simpira1024(state)
+  pos = posBegin = 0
+```
 
 ### `Absorb`
 
-The `Absorb` operation XORs the duplex's remaining rate with the input in blocks of up to 768 bits. When the duplex's
+The `Absorb` operation XORs the duplex's remaining rate with the input in blocks of up to 752 bits. When the duplex's
 rate is exhausted, it calls `Permute`.
 
 **N.B.:** `Absorb` does not call `Permute` at the end of the operation, therefore a sequence of `Absorb` operations are
 equivalent to a single `Absorb` operation with the concatenation of the sequence's inputs (e.g.
 `Absorb('A'); Absorb('B')` is equivalent to `Absorb('AB')`).
 
+### `BeginOp`
+
+The `BeginOp` operation absorbs the `posBegin` index, sets `posBegin` to the current position, and absorbs an operation
+code:
+
+```text
+function BeginOp(op):
+  v = posBegin
+  posBegin = pos + 1
+  Absorb(v)
+  Absorb(op)
+```
+
+This technique, borrowed from the [STROBE] framework, allows for variable-length inputs without delimiters or length
+encodings. Absorbing the position of the previous operation into the duplex's state eliminates collisions within a
+single block, and the `Permute` function carries the `posBegin` value into the next block.
+
 ### `Squeeze`
 
-The `Squeeze` operation returns the duplex's remaining rate in blocks of up to 768 bits. When the duplex's rate is
+The `Squeeze` operation returns the duplex's remaining rate in blocks of up to 752 bits. When the duplex's rate is
 exhausted, it calls `Permute`.
 
 **N.B.:** `Squeeze` does not call `Permute` at the end of the operation, therefore a sequence of `Squeeze` operations
@@ -163,10 +194,10 @@ will be unable to reconstruct the missing 256 bits and thus unable to invert the
 
 ### `Encrypt`/`Decrypt`
 
-The `Encrypt` operation XORs the duplex's remaining rate with the input in blocks of up to 768 bits, returning the
+The `Encrypt` operation XORs the duplex's remaining rate with the input in blocks of up to 752 bits, returning the
 result as the ciphertext. When the duplex's rate is exhausted, it calls `Permute`.
 
-The `Decrypt` operation XORs the ciphertext with the duplex's remaining rate in blocks of up to 768 bits, returning the
+The `Decrypt` operation XORs the ciphertext with the duplex's remaining rate in blocks of up to 752 bits, returning the
 result as the plaintext. It then replaces the duplex's rate with the ciphertext. When the duplex's rate is exhausted, it
 calls `Permute`.
 
@@ -202,16 +233,16 @@ communicate the source of the input or the intended use of the output. The label
 
 ### `Init`
 
-An `Init` operation initializes a new, all-zero duplex, and absorbs a domain separation string with it.
+An `Init` operation initializes a new, all-zero duplex, segments it with an initialization operation code, and absorbs a
+domain separation string.
 
 ```text
 function Init(domain):
-  duplex.Absorb(0x01 || left_encode(|domain|) || domain)
+  duplex.BeginOp(op=0x01)
+  duplex.Absorb(domain)
 ``` 
 
-`Init` encodes the length of the domain in bytes using the `left_encode` function from [NIST SP 800-185][TupleHash].
-This ensures an unambiguous and recoverable encoding for the data absorbed by the duplex. The `Init` operation is only
-performed once, when a protocol is initialized.
+The `Init` operation is only performed once, when a protocol is initialized.
 
 The BLAKE3 recommendations for KDF context strings apply equally to Newplex protocol domains:
 
@@ -228,12 +259,15 @@ dependent on them.
 
 ```text
 function Mix(label, input):
-  duplex.Absorb(0x02 || left_encode(|label|) || label || input || right_encode(|input|))
+  duplex.BeginOp(op=0x02)
+  duplex.Absorb(label)
+  duplex.BeginOp(op=0x02|0x80)
+  duplex.Absorb(input)
 ```
 
-`Mix` encodes the length of the label in bytes and the length of the input in bytes using the `left_encode` and
-`right_encode` functions from [NIST SP 800-185], respectively. The use of `right_encode` allows `Mix` operations to
-accept inputs whose lengths are not initially known without introducing encoding ambiguities.
+`Mix` structures the operation as two sub-operations: one for the operation label, another for the operation input. To
+distinguish between the two, the operation code of the first sub-operation has its low bit cleared; the second has its
+high bit set.
 
 ### `Derive`
 
@@ -242,16 +276,20 @@ state, the label, and the output length.
 
 ```text
 function Derive(label, n):
-  duplex.Absorb(0x03 || left_encode(|label|) || label || right_encode(n))
+  duplex.BeginOp(op=0x03)
+  duplex.Absorb(label)
+  duplex.BeginOp(op=0x03|0x80)
+  duplex.Absorb(LE(n))
   duplex.Permute()
   prf = duplex.Squeeze(n)
   duplex.Ratchet()
   return prf
 ```
 
-`Derive` encodes the label and output length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
-state is indistinguishable from random, and squeezes the requested output from the duplex. Finally, the duplex's state
-is ratcheted to prevent rollback.
+Like `Mix`, `Derive` is structured as two sub-operations with distinct operation codes. The first absorbs the label, the
+second absorbs the length `n`, encoded as a little-endian integer with no leading zeros. To ensure the duplex's state is
+indistinguishable from random, it permutes the duplex and squeezes the requested output from the duplex. Finally, the
+duplex's state is ratcheted to prevent rollback.
 
 **N.B.:** A `Derive` operation's output depends on both the label and the output length.
 
@@ -289,26 +327,28 @@ state and the label.
 
 ```text
 function Mask(label, plaintext):
-  duplex.Absorb(0x04 || left_encode(|label|) || label)
+  duplex.BeginOp(op=0x04)
+  duplex.Absorb(label)
+  duplex.BeginOp(op=0x04|0x80)
   duplex.Permute()
   ciphertext = duplex.Encrypt(plaintext)
-  duplex.Absorb(right_encode(|plaintext|))
   duplex.Ratchet()
   return ciphertext
   
 function Unmask(label, ciphertext):
-  duplex.Absorb(0x04 || left_encode(|label|) || label)
+  duplex.BeginOp(op=0x04)
+  duplex.Absorb(label)
+  duplex.BeginOp(op=0x04|0x80)
   duplex.Permute()
   plaintext = duplex.Decrypt(ciphertext)
-  duplex.Absorb(right_encode(|plaintext|))
   duplex.Ratchet()
   return plaintext
 ```
 
-`Mask` encodes the label, absorbs it into the duplex, permutes the duplex to ensure the duplex's state is
-indistinguishable from random, and encrypts the input with the duplex. The total length of the plaintext is absorbed,
-and the duplex's state is permuted to ensure the duplex's capacity is dependent on the plaintext length. Finally, the
-duplex's state is ratcheted to prevent rollback.
+`Mask` absorbs the label in a sub-operation, begins a second sub-operation, then permutes the duplex's state to ensure
+indistinguishability. It then encrypts the plaintext with the duplex's state. Finally, it ratchets the duplex's state to
+prevent rollback. The `pad10*1` scheme in [`Permute`](#permute) ensures that the resulting state is dependent on the
+plaintext's length once the operation has concluded.
 
 `Unmask` is identical but uses the duplex to decrypt the data.
 
@@ -335,7 +375,10 @@ authentication tag. The `Open` operation verifies the tag, returning an error if
 
 ```text
 function Seal(label, plaintext):
-  duplex.Absorb(0x05 || left_encode(|label|) || label || right_encode(|plaintext|))
+  duplex.BeginOp(op=0x05)
+  duplex.Absorb(label)
+  duplex.BeginOp(op=0x05|0x80)
+  duplex.Absorb(LE(|plaintext|))
   duplex.Permute()
   ciphertext = duplex.Encrypt(plaintext)
   duplex.Permute()
@@ -344,7 +387,10 @@ function Seal(label, plaintext):
   return ciphertext || tag
   
 function Open(label, ciphertext || tag):
-  duplex.Absorb(0x05 || left_encode(|label|) || label || right_encode(|ciphertext|))
+  duplex.BeginOp(op=0x05)
+  duplex.Absorb(label)
+  duplex.BeginOp(op=0x05|0x80)
+  duplex.Absorb(LE(|ciphertext|))
   duplex.Permute()
   plaintext = duplex.Decrypt(ciphertext)
   duplex.Permute()
@@ -355,12 +401,14 @@ function Open(label, ciphertext || tag):
   return plaintext
 ```
 
-`Seal` encodes the label and plaintext length, absorbs it into the duplex, permutes the duplex to ensure the duplex's
-state is indistinguishable from random, and encrypts the input with the duplex. Next, the duplex is permuted again, and
-a 16-byte tag is squeezed from the duplex's state. Finally, the duplex's state ratcheted to prevent rollback.
+`Seal` absorbs the label in a sub-operation, begins a second sub-operation, then permutes the duplex's state to ensure
+indistinguishability. It then encrypts the plaintext with the duplex's state and permutes the duplex's state again to
+make it fully dependent on the plaintext. Finally, it squeezes a 16-byte tag and ratchets the duplex's state to prevent
+rollback.
 
 `Open` is identical but uses the duplex to decrypt the data and compares the received tag to an expected tag derived
-from the received plaintext. If the two are equal, the plaintext is returned. Otherwise, an error is returned.
+from the received plaintext. If the two are equal (using a constant-time comparison function), the plaintext is
+returned. Otherwise, an error is returned.
 
 `Seal` and `Open` provide IND-CCA2 security if one of the protocol's inputs includes a probabilistic value, like a
 nonce.
@@ -712,7 +760,6 @@ is then mixed into the protocol state, ratcheting it forward.
 [double ratchet]: https://signal.org/docs/specifications/doubleratchet/
 
 ### Hybrid Public-Key Encryption
-
 
 A protocol can be used to build an integrated [HPKE]-style public key encryption scheme:
 

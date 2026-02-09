@@ -27,10 +27,10 @@ func Example() {
 	fmt.Printf("Derive('sixth', 8) = %x\n", sixth)
 
 	// Output:
-	// Derive('third', 8) = 05f09801216ea9d1
-	// Mask('fourth', 'this is an example') = da0b8cacd3b9c16f0447b9ead5ededb11ae3
-	// Seal('fifth', 'this is an example') = fe05d9f43d40a8050650e9e203bff0728eba91583453b14aa3faa270254cdb2d6ba2
-	// Derive('sixth', 8) = 58e60e022a1612fe
+	// Derive('third', 8) = bb09a619519d600a
+	// Mask('fourth', 'this is an example') = cfcc388b87c4190da2c47f893e2d9669e5f7
+	// Seal('fifth', 'this is an example') = 656985bc0a8d69364d60c7cbeedcebb9a8d43a683f4805f8984048cbfddb656707c3
+	// Derive('sixth', 8) = 0fafd5f5de14a998
 }
 
 func ExampleProtocol_mac() {
@@ -57,7 +57,7 @@ func ExampleProtocol_mac() {
 	fmt.Printf("tag = %x\n", tag)
 
 	// Output:
-	// tag = c68835e914b0c010ca2fa83be90972a6
+	// tag = 3dccea5ccc32e63a3a350a12cf0daaae
 }
 
 func ExampleProtocol_stream() {
@@ -96,7 +96,7 @@ func ExampleProtocol_stream() {
 	fmt.Printf("plaintext  = %s\n", plaintext)
 
 	// Output:
-	// ciphertext = f2cb9b510444679accc92d
+	// ciphertext = 9c7ea99403ca6a64c1f27a
 	// plaintext  = hello world
 }
 
@@ -146,7 +146,7 @@ func ExampleProtocol_aead() {
 	fmt.Printf("plaintext  = %s\n", plaintext)
 
 	// Output:
-	// ciphertext = 4c6bb592669ca389c72934719ebd340cfca25d159ef378d27dfd9a
+	// ciphertext = 45d008c972b2bda66937f183b53de0ed3d4afc81dafd38cb7d2649
 	// plaintext  = hello world
 }
 
@@ -205,6 +205,6 @@ func ExampleProtocol_hpke() {
 	fmt.Printf("plaintext  = %s\n", plaintext)
 
 	// Output:
-	// ciphertext = 672e904ba78b50b56f896d4b9c2f8018aecfd34038523a6faa4e82e37be4281fb503e7fbc35792545a5b650c208300ac9a4f31b9740ab0758f4c0f
+	// ciphertext = 672e904ba78b50b56f896d4b9c2f8018aecfd34038523a6faa4e82e37be4281f46fc41c065ca0d3e82233c9e4a21b7d952e7181737e1ea55e07877
 	// plaintext  = hello world
 }

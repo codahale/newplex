@@ -3,8 +3,6 @@ package newplex
 import (
 	"crypto/cipher"
 	"io"
-
-	"github.com/codahale/newplex/internal/tuplehash"
 )
 
 // MixWriter updates the protocol's state using the given label and whatever data is written to the wrapped io.Writer.
@@ -16,8 +14,10 @@ import (
 func (p *Protocol) MixWriter(label string, w io.Writer) *MixWriter {
 	p.checkStreaming()
 	p.streaming = true
-	p.absorbMetadata(opMix, label)
-	return &MixWriter{p: p, w: w, n: 0, closed: false}
+	p.duplex.beginOp(opMix)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opMix | 0x80)
+	return &MixWriter{p: p, w: w, closed: false}
 }
 
 // MixReader updates the protocol's state using the given label and whatever data is read from the wrapped io.Reader.
@@ -29,8 +29,10 @@ func (p *Protocol) MixWriter(label string, w io.Writer) *MixWriter {
 func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 	p.checkStreaming()
 	p.streaming = true
-	p.absorbMetadata(opMix, label)
-	return &mixReader{p: p, r: r, n: 0, closed: false}
+	p.duplex.beginOp(opMix)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opMix | 0x80)
+	return &mixReader{p: p, r: r, closed: false}
 }
 
 // MaskStream updates the protocol's state using the given label and returns a cipher.Stream which will mask any data
@@ -43,9 +45,11 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 func (p *Protocol) MaskStream(label string) *CryptStream {
 	p.checkStreaming()
 	p.streaming = true
-	p.absorbMetadata(opCrypt, label)
+	p.duplex.beginOp(opCrypt)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opCrypt | 0x80)
 	p.duplex.permute()
-	return &CryptStream{p: p, f: p.duplex.encrypt, n: 0, closed: false}
+	return &CryptStream{p: p, f: p.duplex.encrypt, closed: false}
 }
 
 // UnmaskStream updates the protocol's state using the given label and returns a cipher.Stream which will unmask any
@@ -59,16 +63,17 @@ func (p *Protocol) MaskStream(label string) *CryptStream {
 func (p *Protocol) UnmaskStream(label string) *CryptStream {
 	p.checkStreaming()
 	p.streaming = true
-	p.absorbMetadata(opCrypt, label)
+	p.duplex.beginOp(opCrypt)
+	p.duplex.absorb([]byte(label))
+	p.duplex.beginOp(opCrypt | 0x80)
 	p.duplex.permute()
-	return &CryptStream{p: p, f: p.duplex.decrypt, n: 0, closed: false}
+	return &CryptStream{p: p, f: p.duplex.decrypt, closed: false}
 }
 
 // MixWriter allows for the incremental processing of a stream of data into a single Mix operation on a protocol.
 type MixWriter struct {
 	p      *Protocol
 	w      io.Writer
-	n      uint64
 	closed bool
 }
 
@@ -77,14 +82,12 @@ type MixWriter struct {
 func (m *MixWriter) Fork() Protocol {
 	p := *m.p
 	p.streaming = false
-	p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
 	return p
 }
 
 func (m *MixWriter) Write(p []byte) (n int, err error) {
 	n, err = m.w.Write(p)
 	m.p.duplex.absorb(p[:n])
-	m.n += uint64(n) //nolint:gosec // n can't be <0
 	return n, err
 }
 
@@ -94,7 +97,6 @@ func (m *MixWriter) Close() error {
 		return nil
 	}
 	m.closed = true
-	m.p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
 	m.p.streaming = false
 	return nil
 }
@@ -102,13 +104,11 @@ func (m *MixWriter) Close() error {
 type mixReader struct {
 	p      *Protocol
 	r      io.Reader
-	n      uint64
 	closed bool
 }
 
 func (m *mixReader) Read(p []byte) (n int, err error) {
 	n, err = m.r.Read(p)
-	m.n += uint64(n) //nolint:gosec // n can't be <0
 	m.p.duplex.absorb(p[:n])
 	return n, err
 }
@@ -118,7 +118,6 @@ func (m *mixReader) Close() error {
 		return nil
 	}
 	m.closed = true
-	m.p.duplex.absorb(tuplehash.AppendRightEncode(nil, m.n))
 	m.p.streaming = false
 	return nil
 }
@@ -129,7 +128,6 @@ func (m *mixReader) Close() error {
 type CryptStream struct {
 	p      *Protocol
 	f      func(dst, src []byte)
-	n      uint64
 	closed bool
 }
 
@@ -142,7 +140,6 @@ type CryptStream struct {
 // Multiple calls to XORKeyStream behave as if the concatenation of the src buffers was passed in a single run. That is,
 // Stream maintains state and does not reset at each XORKeyStream call.
 func (c *CryptStream) XORKeyStream(dst, src []byte) {
-	c.n += uint64(len(src))
 	c.f(dst, src)
 }
 
@@ -152,7 +149,6 @@ func (c *CryptStream) Close() error {
 		return nil
 	}
 	c.closed = true
-	c.p.duplex.absorb(tuplehash.AppendRightEncode(nil, c.n))
 	c.p.duplex.ratchet()
 	c.p.streaming = false
 	return nil
