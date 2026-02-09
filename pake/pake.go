@@ -43,9 +43,9 @@ func Respond(domain string, initiatorID, responderID, sessionID, password, rand,
 func exchange(domain string, initiatorID, responderID, sessionID, password, rand []byte, initiator bool) (finisher Finish, out []byte) {
 	// Initialize a protocol and mix in the various data.
 	p := newplex.NewProtocol(domain)
-	p.Mix("initiator-id", initiatorID)
-	p.Mix("responder-id", responderID)
-	p.Mix("session-id", sessionID)
+	p.Mix("initiator", initiatorID)
+	p.Mix("responder", responderID)
+	p.Mix("session", sessionID)
 	p.Mix("password", password)
 
 	// Derive a base point from the protocol state.
