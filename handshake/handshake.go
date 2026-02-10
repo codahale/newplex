@@ -120,7 +120,7 @@ func Respond(domain string, rand io.Reader, dRS *ristretto255.Scalar, request []
 	// Decode the initiator's ephemeral public key.
 	qIE, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(request)
 	if qIE == nil {
-		return nil, nil, err
+		return nil, nil, ErrInvalidHandshake
 	}
 
 	// Initialize a protocol.
