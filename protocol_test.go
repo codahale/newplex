@@ -19,6 +19,16 @@ func TestNewProtocol(t *testing.T) {
 	}
 }
 
+func TestProtocol_String(t *testing.T) {
+	p := newplex.NewProtocol("example")
+
+	for range 4 { // test multiple times for idempotency
+		if got, want := p.String(), "Protocol(5956a03899935f84)"; got != want {
+			t.Errorf("String() = %s, want = %s", got, want)
+		}
+	}
+}
+
 func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
 	l, r := p.Fork("side", "l", "r")

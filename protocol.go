@@ -21,6 +21,7 @@ import (
 	"crypto/subtle"
 	"encoding"
 	"errors"
+	"fmt"
 	"slices"
 )
 
@@ -49,6 +50,12 @@ func NewProtocol(domain string) Protocol {
 	p.duplex.absorbByte(opInit)
 	p.duplex.absorb([]byte(domain))
 	return p
+}
+
+// String returns a safe string representation of the protocol's state for debugging purposed.
+func (p *Protocol) String() string {
+	clone := *p
+	return fmt.Sprintf("Protocol(%x)", clone.Derive("debug", nil, 8))
 }
 
 // Mix updates the protocol's state using the given label and input.
