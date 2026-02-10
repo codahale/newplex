@@ -3,6 +3,7 @@ package testdata
 
 import (
 	"crypto/sha3"
+	"io"
 
 	"github.com/gtank/ristretto255"
 )
@@ -33,7 +34,9 @@ func (d *DRBG) KeyPair() (*ristretto255.Scalar, *ristretto255.Element) {
 	return x, y
 }
 
-// Read implements io.Reader, allowing the DRBG to be used where a random source is required.
-func (d *DRBG) Read(p []byte) (n int, err error) {
-	return d.h.Read(p)
+// Reader returns pseudorandom reader seeded with a value from this DRBG.
+func (d *DRBG) Reader() io.Reader {
+	h := sha3.NewSHAKE128()
+	_, _ = h.Write(d.Data(32))
+	return h
 }

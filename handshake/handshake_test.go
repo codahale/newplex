@@ -21,7 +21,7 @@ func Example() {
 	// Initiator sends out to the responder.
 
 	// Responder accepts the handshake and responds.
-	responderFinish, out, err := handshake.Respond("example", drbg, dRS, out)
+	responderFinish, out, err := handshake.Respond("example", drbg.Reader(), dRS, out)
 	if err != nil {
 		panic(err)
 	}
@@ -53,8 +53,8 @@ func Example() {
 	// Output:
 	// responder: 8c7d6822f5ad36aebf115ef5c90ce95147f40ed6bf3dd4953cf92827fbf72c7c
 	// initiator: 768d2a68dc4a6f3c8e8a7737044d3d80b6ece637da643bf61abc62893b364575
-	// responder send: d5c31a338dc303e698594e341a27a45e
-	// initiator recv: d5c31a338dc303e698594e341a27a45e
-	// initiator send: c2dce9632b06cf31c99f2847bb8f151e
-	// responder recv: c2dce9632b06cf31c99f2847bb8f151e
+	// responder send: ef46331e27b2264707dd34bfd22e1b6d
+	// initiator recv: ef46331e27b2264707dd34bfd22e1b6d
+	// initiator send: b69de2cc2ca3f4680a0a28321788b306
+	// responder recv: b69de2cc2ca3f4680a0a28321788b306
 }
