@@ -33,7 +33,7 @@ func TestInitiate(t *testing.T) {
 		drbg := testdata.New("newplex handshake")
 		dIS, _ := drbg.KeyPair()
 
-		_, _, err := handshake.Initiate("example", dIS, &errReader{})
+		_, _, err := handshake.Initiate("example", dIS, &testdata.ErrReader{Err: errors.New("it's bad")})
 		if err == nil {
 			t.Error("expected error from rand failure, got nil")
 		}
@@ -81,7 +81,7 @@ func TestRespond(t *testing.T) {
 		_, qIE := drbg.KeyPair()
 		request := qIE.Bytes()
 
-		_, _, err := handshake.Respond("example", &errReader{}, dRS, request)
+		_, _, err := handshake.Respond("example", &testdata.ErrReader{Err: errors.New("oh no")}, dRS, request)
 		if err == nil {
 			t.Error("expected error from rand failure, got nil")
 		}
@@ -177,12 +177,6 @@ func TestHandshake(t *testing.T) {
 			t.Errorf("expected ErrInvalidHandshake, got %v", err)
 		}
 	})
-}
-
-type errReader struct{}
-
-func (e *errReader) Read(_ []byte) (n int, err error) {
-	return 0, errors.New("reader error")
 }
 
 func Example() {

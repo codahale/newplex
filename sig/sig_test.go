@@ -26,7 +26,7 @@ func TestSign(t *testing.T) {
 	})
 
 	t.Run("reader failure", func(t *testing.T) {
-		_, err := sig.Sign("sig", d, drbg.Data(64), &errReader{err: errors.New("broken")})
+		_, err := sig.Sign("sig", d, drbg.Data(64), &testdata.ErrReader{Err: errors.New("broken")})
 		if err == nil {
 			t.Error("should have failed")
 		}
@@ -77,7 +77,7 @@ func TestVerify(t *testing.T) {
 	})
 
 	t.Run("reader failure", func(t *testing.T) {
-		_, err := sig.Verify("sig", q, signature, &errReader{err: errors.New("broken")})
+		_, err := sig.Verify("sig", q, signature, &testdata.ErrReader{Err: errors.New("broken")})
 		if err == nil {
 			t.Error("should have failed")
 		}
@@ -156,12 +156,4 @@ func TestVerify(t *testing.T) {
 			t.Errorf("should not have been valid")
 		}
 	})
-}
-
-type errReader struct {
-	err error
-}
-
-func (e *errReader) Read(_ []byte) (n int, err error) {
-	return 0, e.err
 }
