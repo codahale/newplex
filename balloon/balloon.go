@@ -67,8 +67,8 @@ func Hash(domain string, password, salt []byte, spaceCost, timeCost, parallelism
 	wg.Wait()
 
 	// XOR all the final output values together.
-	for i := 1; i < len(res); i++ {
-		subtle.XORBytes(res[0][:], res[0][:], res[i][:])
+	for _, r := range res[1:] {
+		subtle.XORBytes(res[0][:], res[0][:], r[:])
 	}
 	return res[0][:]
 }
