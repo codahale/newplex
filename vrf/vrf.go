@@ -2,6 +2,8 @@
 package vrf
 
 import (
+	"slices"
+
 	"github.com/codahale/newplex"
 	"github.com/gtank/ristretto255"
 )
@@ -42,7 +44,7 @@ func Prove(domain string, d *ristretto255.Scalar, rand, m []byte, n int) (prf, p
 	s = s.Add(s, k)
 
 	// Return the PRF output and the proof.
-	return prf, append(append(gamma.Bytes(), c.Bytes()...), s.Bytes()...)
+	return prf, slices.Concat(gamma.Bytes(), c.Bytes(), s.Bytes())
 }
 
 // Verify checks the given proof against the given message. If the proof is valid, returns true and n bytes of PRF
