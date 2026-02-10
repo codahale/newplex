@@ -44,8 +44,8 @@ func Example_oprf() {
 	fmt.Printf("server PRF = %x\n", serverPRF)
 
 	// Output:
-	// client PRF = ed927cc3f419a3875bb71fcae98d9a30
-	// server PRF = ed927cc3f419a3875bb71fcae98d9a30
+	// client PRF = 50da8b6cc43e62e3ddb6330eeae200c5
+	// server PRF = 50da8b6cc43e62e3ddb6330eeae200c5
 }
 
 func TestBlind(t *testing.T) {

@@ -27,23 +27,24 @@ func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader)
 	}
 	_ = w.Close()
 
-	// Clone the protocol and mix both the signer's private key and the provided random data (if any) into the clone.
-	clone := p.Clone()
-	clone.Mix("signer-private", d.Bytes())
-	clone.Mix("hedged-rand", rand)
+	// Fork the protocol into prover/verifier roles and mix both the signer's private key and the provided random data
+	// (if any) into the prover.
+	prover, verifier := p.Fork("role", "prover", "verifier")
+	prover.Mix("signer-private", d.Bytes())
+	prover.Mix("hedged-rand", rand)
 
-	// Use the clone to derive a commitment scalar and commitment point which is guaranteed to be unique for the
+	// Use the prover to derive a commitment scalar and commitment point which is guaranteed to be unique for the
 	// combination of signer and message. This eliminates the risk of private key recovery via nonce reuse, and the
 	// user-provided random data hedges the deterministic scheme against fault attacks.
-	k, _ := ristretto255.NewScalar().SetUniformBytes(clone.Derive("commitment", nil, 64))
+	k, _ := ristretto255.NewScalar().SetUniformBytes(prover.Derive("commitment", nil, 64))
 	r := ristretto255.NewIdentityElement().ScalarBaseMult(k)
 	rOut := r.Bytes()
 
-	// Mix in the commitment point.
-	p.Mix("commitment", rOut)
+	// Mix the commitment point into the verifier.
+	verifier.Mix("commitment", rOut)
 
-	// Derive a challenge scalar from the signer's public key, the message, and the commitment point.
-	c, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
+	// Derive a challenge scalar from the verifier.
+	c, _ := ristretto255.NewScalar().SetUniformBytes(verifier.Derive("challenge", nil, 64))
 
 	// Calculate the proof scalar s = d * c + k.
 	s := ristretto255.NewScalar().Multiply(d, c)
@@ -71,11 +72,14 @@ func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reade
 	}
 	_ = w.Close()
 
-	// Mix in the received commitment point. As we do not use it for calculations, leave it encoded.
-	p.Mix("commitment", sig[:32])
+	// Fork the protocol, keeping only the verifier.
+	_, verifier := p.Fork("role", "prover", "verifier")
+
+	// Mix the received commitment point into the verifier. As we do not use it for calculations, leave it encoded.
+	verifier.Mix("commitment", sig[:32])
 
 	// Derive an expected challenge scalar from the signer's public key, the message, and the commitment point.
-	c, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
+	c, _ := ristretto255.NewScalar().SetUniformBytes(verifier.Derive("challenge", nil, 64))
 
 	// Decode the proof scalar. If not canonically encoded, the signature is invalid.
 	s, _ := ristretto255.NewScalar().SetCanonicalBytes(sig[32:])

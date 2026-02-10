@@ -42,17 +42,17 @@ func (a *aead) Seal(dst, nonce, plaintext, additionalData []byte) []byte {
 		panic("newplex/siv: invalid nonce size")
 	}
 
-	p := a.p.Clone()
+	p := a.p
 	p.Mix("nonce", nonce)
 	p.Mix("ad", additionalData)
 
-	clone := p.Clone()
-	clone.Mix("message", plaintext)
-	tag := clone.Derive("tag", nil, newplex.TagSize)
+	auth, conf := p.Fork("output", "tag", "ciphertext")
+	auth.Mix("message", plaintext)
+	tag := auth.Derive("tag", nil, newplex.TagSize)
 
-	p.Mix("tag", tag)
+	conf.Mix("tag", tag)
 
-	return append(p.Mask("message", dst, plaintext), tag...)
+	return append(conf.Mask("message", dst, plaintext), tag...)
 }
 
 func (a *aead) Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, error) {
@@ -66,18 +66,19 @@ func (a *aead) Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, erro
 
 	ciphertext, receivedTag := ciphertext[:len(ciphertext)-newplex.TagSize], ciphertext[len(ciphertext)-newplex.TagSize:]
 
-	p := a.p.Clone()
+	p := a.p
 	p.Mix("nonce", nonce)
 	p.Mix("ad", additionalData)
-	clone := p.Clone()
 
-	p.Mix("tag", receivedTag)
+	auth, conf := p.Fork("output", "tag", "ciphertext")
 
-	ret := p.Unmask("message", dst, ciphertext)
+	conf.Mix("tag", receivedTag)
+
+	ret := conf.Unmask("message", dst, ciphertext)
 	plaintext := ret[len(dst):]
 
-	clone.Mix("message", plaintext)
-	expectedTag := clone.Derive("tag", nil, newplex.TagSize)
+	auth.Mix("message", plaintext)
+	expectedTag := auth.Derive("tag", nil, newplex.TagSize)
 	if subtle.ConstantTimeCompare(expectedTag, receivedTag) == 0 {
 		clear(plaintext)
 		return nil, newplex.ErrInvalidCiphertext

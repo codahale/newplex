@@ -27,18 +27,19 @@ func Seal(domain string, qR *ristretto255.Element, dS *ristretto255.Scalar, rand
 	p.Mix("sender", ristretto255.NewIdentityElement().ScalarBaseMult(dS).Bytes())
 	p.Mix("receiver", qR.Bytes())
 
-	clone := p.Clone()
-	clone.Mix("random", rand)
-	clone.Mix("message", plaintext)
-	dE, _ := ristretto255.NewScalar().SetUniformBytes(clone.Derive("ephemeral", nil, 64))
+	hedge, sealer := p.Fork("role", "hedge", "sealer")
+
+	hedge.Mix("random", rand)
+	hedge.Mix("message", plaintext)
+	dE, _ := ristretto255.NewScalar().SetUniformBytes(hedge.Derive("ephemeral", nil, 64))
 	qE := ristretto255.NewIdentityElement().ScalarBaseMult(dE)
 	ssE := ristretto255.NewIdentityElement().ScalarMult(dE, qR)
 	ssS := ristretto255.NewIdentityElement().ScalarMult(dS, qR)
 
-	p.Mix("ephemeral", qE.Bytes())
-	p.Mix("ephemeral ecdh", ssE.Bytes())
-	p.Mix("static ecdh", ssS.Bytes())
-	return p.Seal("message", qE.Bytes(), plaintext)
+	sealer.Mix("ephemeral", qE.Bytes())
+	sealer.Mix("ephemeral ecdh", ssE.Bytes())
+	sealer.Mix("static ecdh", ssS.Bytes())
+	return sealer.Seal("message", qE.Bytes(), plaintext)
 }
 
 // Open decrypts the ciphertext produced by Seal.
@@ -50,6 +51,7 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 	p := newplex.NewProtocol(domain)
 	p.Mix("sender", qS.Bytes())
 	p.Mix("receiver", ristretto255.NewIdentityElement().ScalarBaseMult(dR).Bytes())
+	_, sealer := p.Fork("role", "hedge", "sealer")
 
 	qE, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(ciphertext[:32])
 	if qE == nil {
@@ -58,8 +60,8 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 
 	ssE := ristretto255.NewIdentityElement().ScalarMult(dR, qE)
 	ssS := ristretto255.NewIdentityElement().ScalarMult(dR, qS)
-	p.Mix("ephemeral", qE.Bytes())
-	p.Mix("ephemeral ecdh", ssE.Bytes())
-	p.Mix("static ecdh", ssS.Bytes())
-	return p.Open("message", nil, ciphertext[32:])
+	sealer.Mix("ephemeral", qE.Bytes())
+	sealer.Mix("ephemeral ecdh", ssE.Bytes())
+	sealer.Mix("static ecdh", ssS.Bytes())
+	return sealer.Open("message", nil, ciphertext[32:])
 }

@@ -31,18 +31,18 @@ func Hash(domain string, password, salt []byte, spaceCost, timeCost, parallelism
 			h.Mix("parallelism", binary.LittleEndian.AppendUint32(nil, parallelism))
 			h.Mix("parallelism-index", binary.LittleEndian.AppendUint32(nil, p))
 
-			// Step 1. Expand input into buffer.
-			hash(&h, &cnt, password, salt, buf[0][:])
+			// Step 1. Expand input into the buffer.
+			hash(h, &cnt, password, salt, buf[0][:])
 			for m := range buf[1:] {
 				cnt++
-				hash(&h, &cnt, buf[m][:], nil, buf[m+1][:])
+				hash(h, &cnt, buf[m][:], nil, buf[m+1][:])
 			}
 
 			// Step 2. Mix buffer contents.
 			for t := range timeCost {
 				for m := range spaceCost {
 					// Step 2a. Hash last and current blocks.
-					hash(&h, &cnt, buf[(m-1)%spaceCost][:], buf[m][:], buf[m][:])
+					hash(h, &cnt, buf[(m-1)%spaceCost][:], buf[m][:], buf[m][:])
 
 					// Step 2b. Hash in pseudorandomly chosen blocks.
 					var (
@@ -53,14 +53,14 @@ func Hash(domain string, password, salt []byte, spaceCost, timeCost, parallelism
 						idxBlock = binary.LittleEndian.AppendUint32(idxBlock, t)
 						idxBlock = binary.LittleEndian.AppendUint32(idxBlock, m)
 						idxBlock = binary.LittleEndian.AppendUint32(idxBlock, uint32(i)) //nolint:gosec // i < 3
-						hash(&h, &cnt, salt, idxBlock, idxBlock[:4])
+						hash(h, &cnt, salt, idxBlock, idxBlock[:4])
 						other := binary.LittleEndian.Uint32(idxBlock) % spaceCost
-						hash(&h, &cnt, buf[m][:], buf[other][:], buf[m][:])
+						hash(h, &cnt, buf[m][:], buf[other][:], buf[m][:])
 					}
 				}
 			}
 
-			// Step 3. Extract output from buffer.
+			// Step 3. Extract output from the buffer.
 			res[p] = buf[spaceCost-1]
 		})
 	}
@@ -73,9 +73,8 @@ func Hash(domain string, password, salt []byte, spaceCost, timeCost, parallelism
 	return res[0][:]
 }
 
-func hash(base *newplex.Protocol, cnt *uint32, left, right, out []byte) {
+func hash(p newplex.Protocol, cnt *uint32, left, right, out []byte) {
 	*cnt++
-	p := base.Clone()
 	p.Mix("counter", binary.LittleEndian.AppendUint32(nil, *cnt))
 	if len(left) != 0 {
 		p.Mix("left", left)

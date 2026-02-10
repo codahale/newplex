@@ -15,7 +15,8 @@ func Blind(domain string, input []byte) (blind *ristretto255.Scalar, blindedElem
 	// Derive an element from the input.
 	p := newplex.NewProtocol(domain)
 	p.Mix("input", input)
-	inputElement, _ := ristretto255.NewIdentityElement().SetUniformBytes(p.Derive("element", nil, 64))
+	element, _ := p.Fork("output", "element", "prf")
+	inputElement, _ := ristretto255.NewIdentityElement().SetUniformBytes(element.Derive("element", nil, 64))
 	if inputElement.Equal(ristretto255.NewIdentityElement()) == 1 {
 		return nil, nil, errors.New("oprf: input maps to identity element")
 	}
@@ -66,8 +67,9 @@ func Finalize(domain string, input []byte, blind *ristretto255.Scalar, evaluated
 	// Derive a bytestring from the input and the unblinded element.
 	p := newplex.NewProtocol(domain)
 	p.Mix("input", input)
-	p.Mix("unblinded-element", unblindedElement.Bytes())
-	return p.Derive("output", nil, n), nil
+	_, prf := p.Fork("output", "element", "prf")
+	prf.Mix("unblinded-element", unblindedElement.Bytes())
+	return prf.Derive("prf", nil, n), nil
 }
 
 // Evaluate takes the server's private key, a secret input, and the number of bytes to generate, and returns n bytes of
@@ -78,8 +80,9 @@ func Evaluate(domain string, d *ristretto255.Scalar, input []byte, n int) ([]byt
 	// Derive an element from the input.
 	p := newplex.NewProtocol(domain)
 	p.Mix("input", input)
-	clone := p.Clone()
-	inputElement, _ := ristretto255.NewIdentityElement().SetUniformBytes(clone.Derive("element", nil, 64))
+	element, prf := p.Fork("output", "element", "prf")
+
+	inputElement, _ := ristretto255.NewIdentityElement().SetUniformBytes(element.Derive("element", nil, 64))
 	if inputElement.Equal(ristretto255.NewIdentityElement()) == 1 {
 		return nil, errors.New("oprf: input maps to identity element")
 	}
@@ -91,6 +94,6 @@ func Evaluate(domain string, d *ristretto255.Scalar, input []byte, n int) ([]byt
 	}
 
 	// Derive a bytestring from the input and the unblinded element.
-	p.Mix("unblinded-element", evaluatedElement.Bytes())
-	return p.Derive("output", nil, n), nil
+	prf.Mix("unblinded-element", evaluatedElement.Bytes())
+	return prf.Derive("prf", nil, n), nil
 }

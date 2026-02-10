@@ -407,7 +407,7 @@ func BenchmarkNewReader(b *testing.B) {
 
 			var p3 newplex.Protocol
 			for b.Loop() {
-				p3 = p2.Clone()
+				p3 = p2
 				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
 			}
 		})
@@ -433,7 +433,7 @@ func BenchmarkNewReader_Read(b *testing.B) {
 
 			var p3 newplex.Protocol
 			for b.Loop() {
-				p3 = p2.Clone()
+				p3 = p2
 				r := aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
 				if _, err := io.CopyBuffer(io.Discard, r, buf); err != nil {
 					b.Fatal(err)

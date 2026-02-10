@@ -207,6 +207,21 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	return ret, nil
 }
 
+// Fork returns two copies of the receiver, with the left side having mixed in the left value and the right side having
+// mixed in the right.
+func (p *Protocol) Fork(label, leftValue, rightValue string) (left, right Protocol) {
+	p.checkStreaming()
+
+	// Make two copies.
+	left, right = *p, *p
+
+	// Mix the different values into the branches.
+	left.Mix(label, []byte(leftValue))
+	right.Mix(label, []byte(rightValue))
+
+	return left, right
+}
+
 // Clone returns a full clone of the receiver.
 //
 // Clone panics if a streaming operation is currently active.

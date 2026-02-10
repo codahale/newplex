@@ -26,20 +26,22 @@ func Prove(domain string, d *ristretto255.Scalar, rand, m []byte, n int) (prf, p
 	p.Mix("gamma", gamma.Bytes())
 	prf = p.Derive("prf", nil, n)
 
+	// Fork the protocol into prover and verifier roles.
+	prover, verifier := p.Fork("role", "prover", "verifier")
+
 	// Calculate a hedged nonce k.
-	clone := p.Clone()
-	clone.Mix("prover-private", d.Bytes())
-	clone.Mix("rand", rand)
-	k, _ := ristretto255.NewScalar().SetUniformBytes(clone.Derive("commitment", nil, 64))
+	prover.Mix("prover-private", d.Bytes())
+	prover.Mix("rand", rand)
+	k, _ := ristretto255.NewScalar().SetUniformBytes(prover.Derive("commitment", nil, 64))
 
 	// Calculate the commitment points.
 	u := ristretto255.NewIdentityElement().ScalarBaseMult(k)
 	v := ristretto255.NewIdentityElement().ScalarMult(k, h)
-	p.Mix("commitment-u", u.Bytes())
-	p.Mix("commitment-v", v.Bytes())
+	verifier.Mix("commitment-u", u.Bytes())
+	verifier.Mix("commitment-v", v.Bytes())
 
 	// Calculate a challenge and a response.
-	c, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
+	c, _ := ristretto255.NewScalar().SetUniformBytes(verifier.Derive("challenge", nil, 64))
 	s := ristretto255.NewScalar().Multiply(c, d)
 	s = s.Add(s, k)
 
@@ -78,11 +80,15 @@ func Verify(domain string, q *ristretto255.Element, m, proof []byte, n int) (val
 	negC := ristretto255.NewScalar().Negate(c)
 	u := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(negC, q, s)
 	v := ristretto255.NewIdentityElement().VarTimeMultiScalarMult([]*ristretto255.Scalar{s, negC}, []*ristretto255.Element{h, gamma})
-	p.Mix("commitment-u", u.Bytes())
-	p.Mix("commitment-v", v.Bytes())
+
+	// Fork the protocol into prover and verifier roles.
+	_, verifier := p.Fork("role", "prover", "verifier")
+
+	verifier.Mix("commitment-u", u.Bytes())
+	verifier.Mix("commitment-v", v.Bytes())
 
 	// Calculate a challenge and a response.
-	expectedC, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
+	expectedC, _ := ristretto255.NewScalar().SetUniformBytes(verifier.Derive("challenge", nil, 64))
 	if expectedC.Equal(c) == 0 {
 		return false, nil
 	}

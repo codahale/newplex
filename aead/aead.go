@@ -39,7 +39,7 @@ func (a *aead) Seal(dst, nonce, plaintext, additionalData []byte) []byte {
 		panic("newplex/aead: invalid nonce size")
 	}
 
-	p := a.p.Clone()
+	p := a.p
 	p.Mix("nonce", nonce)
 	p.Mix("ad", additionalData)
 	return p.Seal("message", dst, plaintext)
@@ -50,7 +50,7 @@ func (a *aead) Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, erro
 		panic("newplex/aead: invalid nonce size")
 	}
 
-	p := a.p.Clone()
+	p := a.p
 	p.Mix("nonce", nonce)
 	p.Mix("ad", additionalData)
 	return p.Open("message", dst, ciphertext)

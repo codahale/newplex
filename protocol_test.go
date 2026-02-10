@@ -19,13 +19,16 @@ func TestNewProtocol(t *testing.T) {
 	}
 }
 
-func TestProtocol_Clone(t *testing.T) {
-	p1 := newplex.NewProtocol("example")
-	p1.Mix("a thing", []byte("another thing"))
-	p2 := p1.Clone()
+func TestProtocol_Fork(t *testing.T) {
+	p := newplex.NewProtocol("fork")
+	l, r := p.Fork("side", "l", "r")
 
-	if got, want := p2.Derive("third", nil, 8), p1.Derive("third", nil, 8); !bytes.Equal(got, want) {
-		t.Errorf("Derive('third') = %x, want = %x", got, want)
+	a, b, c := p.Derive("test", nil, 8), l.Derive("test", nil, 8), r.Derive("test", nil, 8)
+	if bytes.Equal(a, b) {
+		t.Errorf("Left side of fork is the same as the parent: %x = %x", a, b)
+	}
+	if bytes.Equal(b, c) {
+		t.Errorf("LEft side of fork is the same as the right: %x = %x", b, c)
 	}
 }
 
@@ -264,10 +267,10 @@ func TestProtocol_Open(t *testing.T) {
 	t.Run("empty ciphertext", func(t *testing.T) {
 		p := newplex.NewProtocol("empty-test")
 
-		pSeal := p.Clone()
+		pSeal := p
 		sealed := pSeal.Seal("seal", nil, nil)
 
-		pOpen := p.Clone()
+		pOpen := p
 		opened, err := pOpen.Open("seal", nil, sealed)
 		if err != nil {
 			t.Errorf("Open(Seal(nil)) failed: %v", err)

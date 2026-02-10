@@ -94,10 +94,8 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 		p.Mix("is-re", iSrE.Bytes())
 
 		// Fork the protocol into recv and send clones.
-		a, b := p.Clone(), p.Clone()
+		a, b := p.Fork("sender", "initiator", "responder")
 		send, recv = &a, &b
-		send.Mix("sender", []byte("initiator"))
-		recv.Mix("sender", []byte("responder"))
 
 		// Return the forked protocols and the confirmation.
 		return send, recv, qRS, confirmation, nil
@@ -171,10 +169,8 @@ func Respond(domain string, rand io.Reader, dRS *ristretto255.Scalar, request []
 		p.Mix("is-re", iSrE.Bytes())
 
 		// Fork the protocol into recv and send clones.
-		a, b := p.Clone(), p.Clone()
+		a, b := p.Fork("sender", "responder", "initiator")
 		send, recv = &a, &b
-		send.Mix("sender", []byte("responder"))
-		recv.Mix("sender", []byte("initiator"))
 
 		// Return the forked protocols and the initiator's public key.
 		return send, recv, qIS, nil

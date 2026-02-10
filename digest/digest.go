@@ -61,7 +61,7 @@ func (d *digest) Sum(b []byte) []byte {
 }
 
 func (d *digest) Reset() {
-	d.p = d.base.Clone()
+	d.p = d.base
 	d.w = d.p.MixWriter("message", io.Discard)
 }
 
