@@ -9,6 +9,7 @@ import (
 
 	"github.com/codahale/newplex"
 	"github.com/codahale/newplex/aestream"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func TestNewWriter(t *testing.T) {
@@ -115,6 +116,19 @@ func TestNewWriter(t *testing.T) {
 	})
 }
 
+func TestWriter_Write(t *testing.T) {
+	t.Run("underlying writer error", func(t *testing.T) {
+		p := newplex.NewProtocol("example")
+		ew := &testdata.ErrWriter{Err: errors.New("write failed")}
+		w := aestream.NewWriter(&p, ew, aestream.MaxBlockSize)
+
+		_, err := w.Write([]byte("hello"))
+		if !errors.Is(err, ew.Err) {
+			t.Errorf("expected %v, got %v", ew.Err, err)
+		}
+	})
+}
+
 func TestNewReader(t *testing.T) {
 	t.Run("truncation", func(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
@@ -182,6 +196,174 @@ func TestNewReader(t *testing.T) {
 		}
 		if !errors.Is(err, aestream.ErrBlockTooLarge) {
 			t.Errorf("expected ErrBlockTooLarge, got %v", err)
+		}
+	})
+}
+
+func TestReader_Read(t *testing.T) {
+	t.Run("empty read", func(t *testing.T) {
+		p := newplex.NewProtocol("example")
+		r := aestream.NewReader(&p, bytes.NewReader(nil), aestream.MaxBlockSize)
+		n, err := r.Read(nil)
+		if n != 0 || err != nil {
+			t.Errorf("expected 0, nil; got %d, %v", n, err)
+		}
+	})
+
+	t.Run("underlying reader error", func(t *testing.T) {
+		p := newplex.NewProtocol("example")
+		er := &testdata.ErrReader{Err: errors.New("read failed")}
+		r := aestream.NewReader(&p, er, aestream.MaxBlockSize)
+
+		_, err := r.Read(make([]byte, 100))
+		if !errors.Is(err, er.Err) {
+			t.Errorf("expected %v, got %v", er.Err, err)
+		}
+	})
+
+	t.Run("empty stream", func(t *testing.T) {
+		p := newplex.NewProtocol("example")
+		r := aestream.NewReader(&p, bytes.NewReader(nil), aestream.MaxBlockSize)
+		_, err := r.Read(make([]byte, 100))
+		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
+			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
+		}
+	})
+
+	t.Run("invalid header tag", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		buf := bytes.NewBuffer(nil)
+		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		_, _ = w.Write([]byte("message"))
+		_ = w.Close()
+
+		data := buf.Bytes()
+		data[5] ^= 1 // tamper with header tag
+
+		p2 := newplex.NewProtocol("example")
+		r := aestream.NewReader(&p2, bytes.NewReader(data), aestream.MaxBlockSize)
+		_, err := io.ReadAll(r)
+		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
+			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
+		}
+	})
+
+	t.Run("invalid block tag", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		buf := bytes.NewBuffer(nil)
+		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		_, _ = w.Write([]byte("message"))
+		_ = w.Close()
+
+		data := buf.Bytes()
+		data[len(data)-1] ^= 1 // tamper with block tag
+
+		p2 := newplex.NewProtocol("example")
+		r := aestream.NewReader(&p2, bytes.NewReader(data), aestream.MaxBlockSize)
+		_, err := io.ReadAll(r)
+		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
+			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
+		}
+	})
+}
+
+func TestRatchet(t *testing.T) {
+	p1 := newplex.NewProtocol("example")
+	ratchet1 := &mockRatchet{
+		blockSize: 32,
+		ct:        bytes.Repeat([]byte{1}, 32),
+		ss:        bytes.Repeat([]byte{2}, 32),
+		err:       nil,
+	}
+	buf := bytes.NewBuffer(nil)
+	w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+	w.Ratchet = ratchet1
+
+	_, err := w.Write([]byte("message"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
+
+	p2 := newplex.NewProtocol("example")
+	ratchet2 := &mockRatchet{
+		blockSize: 32,
+		ct:        bytes.Repeat([]byte{1}, 32),
+		ss:        bytes.Repeat([]byte{2}, 32),
+		err:       nil,
+	}
+	r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+	r.Ratchet = ratchet2
+
+	got, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, []byte("message")) {
+		t.Errorf("expected %q, got %q", "message", got)
+	}
+
+	t.Run("invalid ratchet tag", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		ratchet1 := &mockRatchet{
+			blockSize: 32,
+			ct:        bytes.Repeat([]byte{1}, 32),
+			ss:        bytes.Repeat([]byte{2}, 32),
+			err:       nil,
+		}
+		buf := bytes.NewBuffer(nil)
+		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w.Ratchet = ratchet1
+		_, _ = w.Write([]byte("message"))
+		_ = w.Close()
+
+		data := buf.Bytes()
+		// header is 19 bytes. ratchet block follows.
+		data[25] ^= 1 // tamper with ratchet tag
+
+		p2 := newplex.NewProtocol("example")
+		ratchet2 := &mockRatchet{
+			blockSize: 32,
+			ct:        bytes.Repeat([]byte{1}, 32),
+			ss:        bytes.Repeat([]byte{2}, 32),
+			err:       nil,
+		}
+		r := aestream.NewReader(&p2, bytes.NewReader(data), aestream.MaxBlockSize)
+		r.Ratchet = ratchet2
+
+		_, err := io.ReadAll(r)
+		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
+			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
+		}
+	})
+
+	t.Run("ratchet receive error", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		ratchet1 := &mockRatchet{
+			blockSize: 32,
+			ct:        bytes.Repeat([]byte{1}, 32),
+			ss:        bytes.Repeat([]byte{2}, 32),
+			err:       nil,
+		}
+		buf := bytes.NewBuffer(nil)
+		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w.Ratchet = ratchet1
+		_, _ = w.Write([]byte("message"))
+		_ = w.Close()
+
+		p2 := newplex.NewProtocol("example")
+		ratchet2 := &mockRatchet{
+			blockSize: 32,
+			ct:        bytes.Repeat([]byte{1}, 32),
+			ss:        bytes.Repeat([]byte{2}, 32),
+			err:       errors.New("ratchet failed"),
+		}
+		r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+		r.Ratchet = ratchet2
+
+		_, err := io.ReadAll(r)
+		if !errors.Is(err, ratchet2.err) {
+			t.Errorf("expected %v, got %v", ratchet2.err, err)
 		}
 	})
 }
@@ -338,4 +520,19 @@ var lengths = []struct {
 	{"1KiB", 1024},
 	{"16KiB", 16 * 1024},
 	{"1MiB", 1024 * 1024},
+}
+
+type mockRatchet struct {
+	blockSize int
+	ct, ss    []byte
+	err       error
+}
+
+func (m *mockRatchet) BlockSize() int        { return m.blockSize }
+func (m *mockRatchet) Send() (ct, ss []byte) { return m.ct, m.ss }
+func (m *mockRatchet) Receive(ct []byte) (ss []byte, err error) {
+	if !bytes.Equal(ct, m.ct) {
+		return nil, errors.New("invalid ct")
+	}
+	return m.ss, m.err
 }
