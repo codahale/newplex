@@ -27,10 +27,7 @@ func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand
 	clone.Mix("message", message)
 	dE, _ := ristretto255.NewScalar().SetUniformBytes(clone.Derive("ephemeral-private", nil, 64))
 	qE := ristretto255.NewIdentityElement().ScalarBaseMult(dE)
-	k, err := ristretto255.NewScalar().SetUniformBytes(clone.Derive("commitment", nil, 64))
-	if err != nil {
-		panic(err)
-	}
+	k, _ := ristretto255.NewScalar().SetUniformBytes(clone.Derive("commitment", nil, 64))
 	r := ristretto255.NewIdentityElement().ScalarBaseMult(k)
 
 	// Mix in the ephemeral public key.
@@ -48,10 +45,7 @@ func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand
 	sig := p.Mask("commitment", ciphertext, r.Bytes())
 
 	// Derive a challenge scalar from the signer's public key, the message, and the commitment point.
-	c, err := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
-	if err != nil {
-		panic(err)
-	}
+	c, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
 
 	// Calculate the proof scalar s = d * c + k and mask it.
 	s := ristretto255.NewScalar().Multiply(dS, c)
@@ -89,10 +83,7 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 	receivedR := p.Unmask("commitment", nil, ciphertext[len(ciphertext)-64:len(ciphertext)-32])
 
 	// Derive an expected challenge scalar from the signer's public key, the message, and the commitment point.
-	expectedC, err := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
-	if err != nil {
-		panic(err)
-	}
+	expectedC, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
 
 	// Unmask the proof scalar. If not canonically encoded, the signature is invalid.
 	s, _ := ristretto255.NewScalar().SetCanonicalBytes(p.Unmask("proof", nil, ciphertext[len(ciphertext)-32:]))
