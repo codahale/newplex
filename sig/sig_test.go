@@ -1,6 +1,7 @@
 package sig_test
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +11,29 @@ import (
 )
 
 func TestSign(t *testing.T) {
+	drbg := testdata.New("newplex digital signature")
+	d, _ := drbg.KeyPair()
+
+	t.Run("successful", func(t *testing.T) {
+		signature, err := sig.Sign("sig", d, drbg.Data(64), strings.NewReader("this is a message"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(signature) != sig.Size {
+			t.Errorf("expected signature size %d, got %d", sig.Size, len(signature))
+		}
+	})
+
+	t.Run("reader failure", func(t *testing.T) {
+		_, err := sig.Sign("sig", d, drbg.Data(64), &errReader{err: errors.New("broken")})
+		if err == nil {
+			t.Error("should have failed")
+		}
+	})
+}
+
+func TestVerify(t *testing.T) {
 	drbg := testdata.New("newplex digital signature")
 	d, q := drbg.KeyPair()
 	_, qX := drbg.KeyPair()
@@ -27,6 +51,35 @@ func TestSign(t *testing.T) {
 
 		if !valid {
 			t.Errorf("should have been valid")
+		}
+	})
+
+	t.Run("short signature", func(t *testing.T) {
+		valid, err := sig.Verify("sig", q, signature[:sig.Size-1], strings.NewReader("this is a message"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if valid {
+			t.Error("should not have been valid")
+		}
+	})
+
+	t.Run("long signature", func(t *testing.T) {
+		valid, err := sig.Verify("sig", q, append(signature, 0), strings.NewReader("this is a message"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if valid {
+			t.Error("should not have been valid")
+		}
+	})
+
+	t.Run("reader failure", func(t *testing.T) {
+		_, err := sig.Verify("sig", q, signature, &errReader{err: errors.New("broken")})
+		if err == nil {
+			t.Error("should have failed")
 		}
 	})
 
@@ -52,7 +105,7 @@ func TestSign(t *testing.T) {
 		}
 	})
 
-	t.Run("wrong I", func(t *testing.T) {
+	t.Run("wrong R", func(t *testing.T) {
 		badI := slices.Clone(signature)
 		badI[0] ^= 1
 		valid, err := sig.Verify("sig", q, badI, strings.NewReader("this is a message"))
@@ -77,4 +130,38 @@ func TestSign(t *testing.T) {
 			t.Errorf("should not have been valid")
 		}
 	})
+
+	t.Run("non-canonical s", func(t *testing.T) {
+		badS := slices.Clone(signature)
+		for i := 32; i < 64; i++ {
+			badS[i] = 0xff
+		}
+		valid, err := sig.Verify("sig", q, badS, strings.NewReader("this is a message"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if valid {
+			t.Error("should not have been valid")
+		}
+	})
+
+	t.Run("domain mismatch", func(t *testing.T) {
+		valid, err := sig.Verify("wrong domain", q, signature, strings.NewReader("this is a message"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if valid {
+			t.Errorf("should not have been valid")
+		}
+	})
+}
+
+type errReader struct {
+	err error
+}
+
+func (e *errReader) Read(_ []byte) (n int, err error) {
+	return 0, e.err
 }
