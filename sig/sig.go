@@ -35,10 +35,7 @@ func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader)
 	// Use the clone to derive a commitment scalar and commitment point which is guaranteed to be unique for the
 	// combination of signer and message. This eliminates the risk of private key recovery via nonce reuse, and the
 	// user-provided random data hedges the deterministic scheme against fault attacks.
-	k, err := ristretto255.NewScalar().SetUniformBytes(clone.Derive("commitment", nil, 64))
-	if err != nil {
-		panic(err)
-	}
+	k, _ := ristretto255.NewScalar().SetUniformBytes(clone.Derive("commitment", nil, 64))
 	r := ristretto255.NewIdentityElement().ScalarBaseMult(k)
 	rOut := r.Bytes()
 
@@ -46,10 +43,7 @@ func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader)
 	p.Mix("commitment", rOut)
 
 	// Derive a challenge scalar from the signer's public key, the message, and the commitment point.
-	c, err := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
-	if err != nil {
-		panic(err)
-	}
+	c, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
 
 	// Calculate the proof scalar s = d * c + k.
 	s := ristretto255.NewScalar().Multiply(d, c)
@@ -81,10 +75,7 @@ func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reade
 	p.Mix("commitment", sig[:32])
 
 	// Derive an expected challenge scalar from the signer's public key, the message, and the commitment point.
-	c, err := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
-	if err != nil {
-		panic(err)
-	}
+	c, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("challenge", nil, 64))
 
 	// Decode the proof scalar. If not canonically encoded, the signature is invalid.
 	s, _ := ristretto255.NewScalar().SetCanonicalBytes(sig[32:])
@@ -96,6 +87,7 @@ func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reade
 	negC := ristretto255.NewScalar().Negate(c)
 	expectedR := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(negC, q, s)
 
-	// If the received and expected commitment points are equal (as compared in encoded form), the signature is valid.
+	// If the received and expected commitment points are equal (as compared in their encoded forms), the signature is
+	// valid.
 	return bytes.Equal(sig[:32], expectedR.Bytes()), nil
 }
