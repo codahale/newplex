@@ -2,24 +2,20 @@ package newplex_test
 
 import (
 	"bytes"
-	"crypto/sha3"
 	"fmt"
 	"testing"
 
 	"github.com/codahale/newplex"
+	"github.com/codahale/newplex/internal/testdata"
 	fuzz "github.com/trailofbits/go-fuzz-utils"
 )
 
 // FuzzProtocolDivergence generates a random transcript of operations and performs them in on two separate protocol
 // objects in parallel, checking to see that all outputs are the same.
 func FuzzProtocolDivergence(f *testing.F) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex divergence"))
-
+	drbg := testdata.New("newplex divergence")
 	for range 10 {
-		seed := make([]byte, 1024)
-		_, _ = drbg.Read(seed)
-		f.Add(seed)
+		f.Add(drbg.Data(1024))
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -103,13 +99,9 @@ func FuzzProtocolDivergence(f *testing.F) {
 // performs them on a protocol, recording the outputs. It then runs the transcript's duals (Mix, Derive, Unmask, and
 // Open) on another protocol object, ensuring the outputs are the same as the inputs.
 func FuzzProtocolReversibility(f *testing.F) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex reversibility"))
-
+	drbg := testdata.New("newplex reversibility")
 	for range 10 {
-		seed := make([]byte, 1024)
-		_, _ = drbg.Read(seed)
-		f.Add(seed)
+		f.Add(drbg.Data(1024))
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {

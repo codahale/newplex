@@ -2,28 +2,19 @@ package ecdhratchet_test
 
 import (
 	"bytes"
-	"crypto/sha3"
 	"io"
 	"testing"
 
 	"github.com/codahale/newplex"
 	"github.com/codahale/newplex/aestream"
 	"github.com/codahale/newplex/aestream/ecdhratchet"
-	"github.com/gtank/ristretto255"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func TestRoundTrip(t *testing.T) {
-	var z [64]byte
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex ec Ratchet"))
-
-	_, _ = drbg.Read(z[:])
-	dA, _ := ristretto255.NewScalar().SetUniformBytes(z[:])
-	qA := ristretto255.NewIdentityElement().ScalarBaseMult(dA)
-
-	_, _ = drbg.Read(z[:])
-	dB, _ := ristretto255.NewScalar().SetUniformBytes(z[:])
-	qB := ristretto255.NewIdentityElement().ScalarBaseMult(dB)
+	drbg := testdata.New("newplex ec ratchet")
+	dA, qA := drbg.KeyPair()
+	dB, qB := drbg.KeyPair()
 
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("key", []byte("it's a key"))

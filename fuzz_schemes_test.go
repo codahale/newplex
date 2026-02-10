@@ -2,11 +2,11 @@ package newplex_test
 
 import (
 	"bytes"
-	"crypto/sha3"
 	"encoding/binary"
 	"testing"
 
 	"github.com/codahale/newplex"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func FuzzStream(f *testing.F) {
@@ -24,15 +24,11 @@ func FuzzStream(f *testing.F) {
 		return protocol.Unmask("message", nil, message), protocol.Derive("state", nil, 8)
 	}
 
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex stream"))
+	drbg := testdata.New("newplex stream")
 	for range 10 {
-		key := make([]byte, 16)
-		nonce := make([]byte, 16)
-		message := make([]byte, 32)
-		_, _ = drbg.Read(key)
-		_, _ = drbg.Read(nonce)
-		_, _ = drbg.Read(message)
+		key := drbg.Data(16)
+		nonce := drbg.Data(16)
+		message := drbg.Data(32)
 		f.Add(key, nonce, message)
 	}
 
@@ -67,19 +63,13 @@ func FuzzAEAD(f *testing.F) {
 		return plaintext, protocol.Derive("state", nil, 8), nil
 	}
 
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex stream"))
+	drbg := testdata.New("newplex aead")
 	for range 10 {
-		key := make([]byte, 16)
-		nonce := make([]byte, 16)
-		message := make([]byte, 32)
-		idx := make([]byte, 4)
-		mask := make([]byte, 1)
-		_, _ = drbg.Read(key)
-		_, _ = drbg.Read(nonce)
-		_, _ = drbg.Read(message)
-		_, _ = drbg.Read(idx)
-		_, _ = drbg.Read(mask)
+		key := drbg.Data(16)
+		nonce := drbg.Data(16)
+		message := drbg.Data(32)
+		idx := drbg.Data(4)
+		mask := drbg.Data(1)
 		f.Add(key, nonce, message, uint(binary.LittleEndian.Uint32(idx))%uint(len(message)), mask[0])
 	}
 

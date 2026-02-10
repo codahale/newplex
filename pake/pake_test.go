@@ -1,18 +1,16 @@
 package pake_test
 
 import (
-	"crypto/sha3"
 	"fmt"
 
+	"github.com/codahale/newplex/internal/testdata"
 	"github.com/codahale/newplex/pake"
 )
 
 func Example() {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex pake"))
-	var r1, r2 [64]byte
-	_, _ = drbg.Read(r1[:])
-	_, _ = drbg.Read(r2[:])
+	drbg := testdata.New("newplex pake")
+	r1 := drbg.Data(64)
+	r2 := drbg.Data(64)
 
 	// The initiator begins the exchange, generating a callback function and a message to send.
 	finish, initiate := pake.Initiate(
@@ -21,7 +19,7 @@ func Example() {
 		[]byte("server"),
 		[]byte("session"),
 		[]byte("the bravest toaster"),
-		r1[:],
+		r1,
 	)
 
 	// The initiator sends `initiate` to the responder.
@@ -34,7 +32,7 @@ func Example() {
 		[]byte("server"),
 		[]byte("session"),
 		[]byte("the bravest toaster"),
-		r2[:],
+		r2,
 		initiate,
 	)
 	if err != nil {

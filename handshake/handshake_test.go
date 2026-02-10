@@ -1,25 +1,16 @@
 package handshake_test
 
 import (
-	"crypto/sha3"
 	"fmt"
 
 	"github.com/codahale/newplex/handshake"
-	"github.com/gtank/ristretto255"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func Example() {
-	var r [64]byte
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex handshake"))
-
-	// Responder has a key pair.
-	_, _ = drbg.Read(r[:])
-	dRS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-
-	// Initiator has a key pair.
-	_, _ = drbg.Read(r[:])
-	dIS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
+	drbg := testdata.New("newplex handshake")
+	dRS, _ := drbg.KeyPair()
+	dIS, _ := drbg.KeyPair()
 
 	// Initiator starts a handshake.
 	initiatorFinish, out, err := handshake.Initiate("example", dIS, drbg)

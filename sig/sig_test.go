@@ -1,26 +1,20 @@
 package sig_test
 
 import (
-	"crypto/sha3"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/codahale/newplex/internal/testdata"
 	"github.com/codahale/newplex/sig"
-	"github.com/gtank/ristretto255"
 )
 
 func TestSign(t *testing.T) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex digital signature"))
+	drbg := testdata.New("newplex digital signature")
+	d, q := drbg.KeyPair()
+	_, qX := drbg.KeyPair()
 
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	d, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	q := ristretto255.NewIdentityElement().ScalarBaseMult(d)
-
-	_, _ = drbg.Read(r[:])
-	signature, err := sig.Sign("sig", d, r[:], strings.NewReader("this is a message"))
+	signature, err := sig.Sign("sig", d, drbg.Data(64), strings.NewReader("this is a message"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +31,7 @@ func TestSign(t *testing.T) {
 	})
 
 	t.Run("wrong signer", func(t *testing.T) {
-		q2, _ := ristretto255.NewIdentityElement().SetUniformBytes(r[:])
-		valid, err := sig.Verify("sig", q2, signature, strings.NewReader("this is a message"))
+		valid, err := sig.Verify("sig", qX, signature, strings.NewReader("this is a message"))
 		if err != nil {
 			t.Fatal(err)
 		}

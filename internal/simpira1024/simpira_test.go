@@ -2,9 +2,10 @@ package simpira1024 //nolint:testpackage // need access to generic impl
 
 import (
 	"bytes"
-	"crypto/sha3"
 	"encoding/hex"
 	"testing"
+
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func TestPermute(t *testing.T) {
@@ -18,22 +19,17 @@ func TestPermute(t *testing.T) {
 }
 
 func FuzzPermute(f *testing.F) {
-	const width = 128
-
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("simpira-1024-v2"))
+	drbg := testdata.New("simpira-1024-v2")
 	for range 10 {
-		state := make([]byte, width)
-		_, _ = drbg.Read(state)
-		f.Add(state)
+		f.Add(drbg.Data(Width))
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		if len(data) != width {
+		if len(data) != Width {
 			t.Skip()
 		}
 
-		var state1, state2 [width]byte
+		var state1, state2 [Width]byte
 		copy(state1[:], data)
 		copy(state2[:], data)
 		Permute(&state1)

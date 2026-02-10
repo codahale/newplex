@@ -2,35 +2,22 @@ package hpke_test
 
 import (
 	"bytes"
-	"crypto/sha3"
 	"slices"
 	"testing"
 
 	"github.com/codahale/newplex/hpke"
-	"github.com/gtank/ristretto255"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func TestOpen(t *testing.T) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex hpke"))
-
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
-
-	_, _ = drbg.Read(r[:])
-	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qS := ristretto255.NewIdentityElement().ScalarBaseMult(dS)
-
-	_, _ = drbg.Read(r[:])
-	dX, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qX := ristretto255.NewIdentityElement().ScalarBaseMult(dX)
-
-	_, _ = drbg.Read(r[:])
+	drbg := testdata.New("newplex hpke")
+	dR, qR := drbg.KeyPair()
+	dS, qS := drbg.KeyPair()
+	dX, qX := drbg.KeyPair()
+	r := drbg.Data(64)
 
 	message := []byte("this is a message")
-	ciphertext := hpke.Seal("hpke", qR, dS, r[:], message)
+	ciphertext := hpke.Seal("hpke", qR, dS, r, message)
 
 	t.Run("round trip", func(t *testing.T) {
 		plaintext, err := hpke.Open("hpke", dR, qS, ciphertext)
@@ -89,21 +76,12 @@ func TestOpen(t *testing.T) {
 }
 
 func FuzzOpen(f *testing.F) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex hpke"))
+	drbg := testdata.New("newplex hpke")
+	dR, qR := drbg.KeyPair()
+	dS, qS := drbg.KeyPair()
+	r := drbg.Data(64)
 
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
-
-	_, _ = drbg.Read(r[:])
-	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qS := ristretto255.NewIdentityElement().ScalarBaseMult(dS)
-
-	_, _ = drbg.Read(r[:])
-
-	ciphertext := hpke.Seal("hpke", qR, dS, r[:], []byte("this is a message"))
+	ciphertext := hpke.Seal("hpke", qR, dS, r, []byte("this is a message"))
 
 	badQE := slices.Clone(ciphertext)
 	badQE[2] ^= 1

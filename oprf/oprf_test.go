@@ -2,22 +2,19 @@ package oprf_test
 
 import (
 	"bytes"
-	"crypto/sha3"
 	"fmt"
 	"testing"
 
+	"github.com/codahale/newplex/internal/testdata"
 	"github.com/codahale/newplex/oprf"
 	"github.com/gtank/ristretto255"
 )
 
 func Example_oprf() {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex oprf"))
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
+	drbg := testdata.New("newplex oprf")
 
 	// The server has a private key.
-	d, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
+	d, _ := drbg.KeyPair()
 
 	// The client has a secret input and blinds it.
 	input := []byte("this is a sensitive input")

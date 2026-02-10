@@ -2,12 +2,12 @@ package signcrypt_test
 
 import (
 	"bytes"
-	"crypto/sha3"
 	"errors"
 	"slices"
 	"testing"
 
 	"github.com/codahale/newplex"
+	"github.com/codahale/newplex/internal/testdata"
 	"github.com/codahale/newplex/signcrypt"
 	"github.com/gtank/ristretto255"
 )
@@ -130,22 +130,9 @@ func FuzzOpen(f *testing.F) {
 }
 
 func setup() ([]byte, *ristretto255.Scalar, *ristretto255.Element, *ristretto255.Scalar, *ristretto255.Element, *ristretto255.Scalar, *ristretto255.Element) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex signcryption"))
-
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	dS, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qS := ristretto255.NewIdentityElement().ScalarBaseMult(dS)
-
-	_, _ = drbg.Read(r[:])
-	dR, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qR := ristretto255.NewIdentityElement().ScalarBaseMult(dR)
-
-	_, _ = drbg.Read(r[:])
-	dX, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qX := ristretto255.NewIdentityElement().ScalarBaseMult(dX)
-
-	_, _ = drbg.Read(r[:])
-	return r[:], dS, qS, dR, qR, dX, qX
+	drbg := testdata.New("newplex hpke")
+	dR, qR := drbg.KeyPair()
+	dS, qS := drbg.KeyPair()
+	dX, qX := drbg.KeyPair()
+	return drbg.Data(64), dS, qS, dR, qR, dX, qX
 }

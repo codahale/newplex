@@ -2,24 +2,20 @@ package vrf_test
 
 import (
 	"bytes"
-	"crypto/sha3"
 	"slices"
 	"testing"
 
+	"github.com/codahale/newplex/internal/testdata"
 	"github.com/codahale/newplex/vrf"
-	"github.com/gtank/ristretto255"
 )
 
 func TestVerify(t *testing.T) {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex vrf"))
+	drbg := testdata.New("newplex vrf")
+	d, q := drbg.KeyPair()
+	_, qX := drbg.KeyPair()
+	r := drbg.Data(64)
 
-	var r [64]byte
-	_, _ = drbg.Read(r[:])
-	d, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	q := ristretto255.NewIdentityElement().ScalarBaseMult(d)
-	_, _ = drbg.Read(r[:])
-	prf, proof := vrf.Prove("domain", d, r[:], []byte("message"), 32)
+	prf, proof := vrf.Prove("domain", d, r, []byte("message"), 32)
 
 	t.Run("valid", func(t *testing.T) {
 		valid, got := vrf.Verify("domain", q, []byte("message"), proof, 32)
@@ -33,10 +29,7 @@ func TestVerify(t *testing.T) {
 	})
 
 	t.Run("wrong prover", func(t *testing.T) {
-		_, _ = drbg.Read(r[:])
-		q2, _ := ristretto255.NewIdentityElement().SetUniformBytes(r[:])
-
-		valid, got := vrf.Verify("domain", q2, []byte("message"), proof, 32)
+		valid, got := vrf.Verify("domain", qX, []byte("message"), proof, 32)
 		if valid {
 			t.Errorf("should not have been valid")
 		}

@@ -3,19 +3,17 @@
 package balloon_test
 
 import (
-	"crypto/sha3"
 	"fmt"
 
 	"github.com/codahale/newplex/balloon"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func ExampleHash() {
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex balloon"))
+	drbg := testdata.New("newplex balloon")
 
 	password := []byte("secret stuff")
-	salt := make([]byte, 16)
-	_, _ = drbg.Read(salt)
+	salt := drbg.Data(16)
 
 	hash := balloon.Hash("example", password, salt, 10*1024, 50, 4)
 	fmt.Printf("%x\n", hash)

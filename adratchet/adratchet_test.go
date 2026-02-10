@@ -1,28 +1,21 @@
 package adratchet_test
 
 import (
-	"crypto/sha3"
 	"fmt"
 
 	"github.com/codahale/newplex"
 	"github.com/codahale/newplex/adratchet"
-	"github.com/gtank/ristretto255"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func Example() {
-	var r [64]byte
-	drbg := sha3.NewSHAKE128()
-	_, _ = drbg.Write([]byte("newplex async double ratchet"))
+	drbg := testdata.New("newplex async double ratchet")
 
 	// Alice has a private and public key.
-	_, _ = drbg.Read(r[:])
-	dA, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qA := ristretto255.NewIdentityElement().ScalarBaseMult(dA)
+	dA, qA := drbg.KeyPair()
 
 	// Bea has a private and public key.
-	_, _ = drbg.Read(r[:])
-	dB, _ := ristretto255.NewScalar().SetUniformBytes(r[:])
-	qB := ristretto255.NewIdentityElement().ScalarBaseMult(dB)
+	dB, qB := drbg.KeyPair()
 
 	// Alice and Bea have a shared protocol state, probably thanks to an ECDH handshake.
 	p := newplex.NewProtocol("example")
