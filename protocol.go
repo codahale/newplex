@@ -45,7 +45,8 @@ type Protocol struct {
 // data like timestamps or user IDs. A good format is "application-name.protocol-name".
 func NewProtocol(domain string) Protocol {
 	var p Protocol
-	p.duplex.beginOp(opInit)
+	p.duplex.frame()
+	p.duplex.absorbByte(opInit)
 	p.duplex.absorb([]byte(domain))
 	return p
 }
@@ -55,9 +56,11 @@ func NewProtocol(domain string) Protocol {
 // Mix panics if a streaming operation is currently active.
 func (p *Protocol) Mix(label string, input []byte) {
 	p.checkStreaming()
-	p.duplex.beginOp(opMix)
+	p.duplex.frame()
+	p.duplex.absorbByte(opMix)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opMix | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opMix | 0x80)
 	p.duplex.absorb(input)
 }
 
@@ -71,9 +74,11 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 		panic("invalid argument to Derive: n cannot be negative")
 	}
 
-	p.duplex.beginOp(opDerive)
+	p.duplex.frame()
+	p.duplex.absorbByte(opDerive)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opDerive | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opDerive | 0x80)
 	p.duplex.absorbLEB128(uint64(n))
 
 	ret, prf := sliceForAppend(dst, n)
@@ -98,9 +103,11 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 	p.checkStreaming()
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
-	p.duplex.beginOp(opCrypt)
+	p.duplex.frame()
+	p.duplex.absorbByte(opCrypt)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opCrypt | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opCrypt | 0x80)
 	p.duplex.permute()
 	p.duplex.encrypt(ciphertext, plaintext)
 	p.duplex.ratchet()
@@ -119,9 +126,11 @@ func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 func (p *Protocol) Unmask(label string, dst, ciphertext []byte) []byte {
 	p.checkStreaming()
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
-	p.duplex.beginOp(opCrypt)
+	p.duplex.frame()
+	p.duplex.absorbByte(opCrypt)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opCrypt | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opCrypt | 0x80)
 	p.duplex.permute()
 	p.duplex.decrypt(plaintext, ciphertext)
 	p.duplex.ratchet()
@@ -142,9 +151,11 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
 
-	p.duplex.beginOp(opAuthCrypt)
+	p.duplex.frame()
+	p.duplex.absorbByte(opAuthCrypt)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opAuthCrypt | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opAuthCrypt | 0x80)
 	p.duplex.absorbLEB128(uint64(len(plaintext)))
 	p.duplex.permute()
 	p.duplex.encrypt(ciphertext, plaintext)
@@ -177,9 +188,11 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	ciphertext, receivedTag := ciphertextAndTag[:len(plaintext)], ciphertextAndTag[len(plaintext):]
 	var expectedTag [TagSize]byte
 
-	p.duplex.beginOp(opAuthCrypt)
+	p.duplex.frame()
+	p.duplex.absorbByte(opAuthCrypt)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opAuthCrypt | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opAuthCrypt | 0x80)
 	p.duplex.absorbLEB128(uint64(len(plaintext)))
 	p.duplex.permute()
 	p.duplex.decrypt(plaintext, ciphertext)

@@ -14,9 +14,11 @@ import (
 func (p *Protocol) MixWriter(label string, w io.Writer) *MixWriter {
 	p.checkStreaming()
 	p.streaming = true
-	p.duplex.beginOp(opMix)
+	p.duplex.frame()
+	p.duplex.absorbByte(opMix)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opMix | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opMix | 0x80)
 	return &MixWriter{p: p, w: w, closed: false}
 }
 
@@ -29,9 +31,11 @@ func (p *Protocol) MixWriter(label string, w io.Writer) *MixWriter {
 func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 	p.checkStreaming()
 	p.streaming = true
-	p.duplex.beginOp(opMix)
+	p.duplex.frame()
+	p.duplex.absorbByte(opMix)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opMix | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opMix | 0x80)
 	return &mixReader{p: p, r: r, closed: false}
 }
 
@@ -45,9 +49,11 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 func (p *Protocol) MaskStream(label string) *CryptStream {
 	p.checkStreaming()
 	p.streaming = true
-	p.duplex.beginOp(opCrypt)
+	p.duplex.frame()
+	p.duplex.absorbByte(opCrypt)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opCrypt | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opCrypt | 0x80)
 	p.duplex.permute()
 	return &CryptStream{p: p, f: p.duplex.encrypt, closed: false}
 }
@@ -63,9 +69,11 @@ func (p *Protocol) MaskStream(label string) *CryptStream {
 func (p *Protocol) UnmaskStream(label string) *CryptStream {
 	p.checkStreaming()
 	p.streaming = true
-	p.duplex.beginOp(opCrypt)
+	p.duplex.frame()
+	p.duplex.absorbByte(opCrypt)
 	p.duplex.absorb([]byte(label))
-	p.duplex.beginOp(opCrypt | 0x80)
+	p.duplex.frame()
+	p.duplex.absorbByte(opCrypt | 0x80)
 	p.duplex.permute()
 	return &CryptStream{p: p, f: p.duplex.decrypt, closed: false}
 }

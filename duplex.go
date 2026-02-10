@@ -8,46 +8,44 @@ import (
 	"github.com/codahale/newplex/internal/simpira1024"
 )
 
-// duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-1024 permutation, has a width
-// of 1024 bits, a capacity of 256 bits, and a rate of 768 bits. This offers 128 bits of security for collision
-// resistance, 256 bits of security for state recovery, and 128 bits of security for birthday-bound
-// indistinguishability.
+// A duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-1024 permutation, has a
+// width of 1024 bits, a capacity of 256 bits, 16 bits of padding, and a rate of 752 bits. This offers 128 bits of
+// security for collision resistance, 256 bits of security for state recovery, and 128 bits of security for
+// birthday-bound indistinguishability.
+//
+// In addition to using SHA-3's pad10*1 scheme for each block of permutation input, it also uses a STROBE-like framing
+// mechanism for domain separation of sets of operations.
 type duplex struct {
-	state         [width]byte
-	pos, posBegin int
+	state             [width]byte
+	rateIdx, frameIdx int
 }
 
-// permute pads the block with the operation beginning and SHA-3's pad10*1 scheme, then runs the Simpira-1024
-// permutation.
-func (d *duplex) permute() {
-	d.state[d.pos] ^= byte(d.posBegin)
-	d.state[d.pos+1] ^= 0x01
+// pad applies a frame-oriented padding scheme to the state by absorbing the frame index into the rate or potentially
+// overflowing into the first of two padding bytes, then applies SHA-3's pad10*1 padding scheme to the entire, unpadded
+// rate.
+func (d *duplex) pad() {
+	d.state[d.rateIdx] ^= byte(d.frameIdx)
+	d.state[d.rateIdx+1] ^= 0x01
 	d.state[unpaddedRate-1] ^= 0x80
+}
+
+// permute pads the state, permutes it, and resets the rate and frame indexes.
+func (d *duplex) permute() {
+	d.pad()
 	simpira1024.Permute(&d.state)
-	d.pos = 0
-	d.posBegin = 0
+	d.rateIdx = 0
+	d.frameIdx = 0
 }
 
-// beginOp updates the duplex's operation pointer and absorbs the old operation pointer and an operation code.
-func (d *duplex) beginOp(op byte) {
-	// Update the operation pointer.
-	oldBegin := d.posBegin
-	d.posBegin = d.pos + 1
-
-	// Absorb the old operation pointer and the operation code.
-	d.absorbByte(byte(oldBegin))
-	d.absorbByte(op)
-}
-
-// absorb updates the duplex's state with the given data, running the permutation as the state becomes fully updated.
+// absorb updates the duplex's state with the given data, running the permutation as the rate is exhausted.
 //
 // Multiple absorb calls are effectively the same thing as a single absorb call with concatenated inputs.
 func (d *duplex) absorb(b []byte) {
 	for len(b) > 0 {
-		remain := min(len(b), rate-d.pos)
-		subtle.XORBytes(d.state[d.pos:], d.state[d.pos:], b[:remain])
-		d.pos += remain
-		if d.pos == rate {
+		remain := min(len(b), rate-d.rateIdx)
+		subtle.XORBytes(d.state[d.rateIdx:], d.state[d.rateIdx:], b[:remain])
+		d.rateIdx += remain
+		if d.rateIdx == rate {
 			d.permute()
 		}
 		b = b[remain:]
@@ -56,9 +54,9 @@ func (d *duplex) absorb(b []byte) {
 
 // absorbByte absorbs a single byte.
 func (d *duplex) absorbByte(b byte) {
-	d.state[d.pos] ^= b
-	d.pos++
-	if d.pos == rate {
+	d.state[d.rateIdx] ^= b
+	d.rateIdx++
+	if d.rateIdx == rate {
 		d.permute()
 	}
 }
@@ -72,16 +70,24 @@ func (d *duplex) absorbLEB128(x uint64) {
 	d.absorbByte(byte(x))
 }
 
+// frame absorbs the current frame index and updates the frame index to be the current rate index.
+func (d *duplex) frame() {
+	// Absorb the previous frame index.
+	d.absorbByte(byte(d.frameIdx))
+	// Record the current frame index.
+	d.frameIdx = d.rateIdx
+}
+
 // squeeze fills the given slice with data from the duplex's state, running the permutation as the state becomes
 // exhausted.
 //
 // Multiple squeeze calls are effectively the same thing as a single squeeze call with concatenated outputs.
 func (d *duplex) squeeze(out []byte) {
 	for len(out) > 0 {
-		remain := min(len(out), rate-d.pos)
-		copy(out[:remain], d.state[d.pos:d.pos+remain])
-		d.pos += remain
-		if d.pos == rate {
+		remain := min(len(out), rate-d.rateIdx)
+		copy(out[:remain], d.state[d.rateIdx:d.rateIdx+remain])
+		d.rateIdx += remain
+		if d.rateIdx == rate {
 			d.permute()
 		}
 		out = out[remain:]
@@ -94,15 +100,15 @@ func (d *duplex) squeeze(out []byte) {
 // Multiple encrypt calls are effectively the same thing as a single encrypt call with concatenated inputs.
 func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 	for len(plaintext) > 0 {
-		remain := min(len(plaintext), rate-d.pos)
-		k := d.state[d.pos : d.pos+remain]
+		remain := min(len(plaintext), rate-d.rateIdx)
+		k := d.state[d.rateIdx : d.rateIdx+remain]
 
 		// C = K = K ^ P
 		subtle.XORBytes(k, k, plaintext[:remain])
 		copy(ciphertext[:remain], k)
 
-		d.pos += remain
-		if d.pos == rate {
+		d.rateIdx += remain
+		if d.rateIdx == rate {
 			d.permute()
 		}
 		plaintext = plaintext[remain:]
@@ -117,8 +123,8 @@ func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 	var tmp [rate]byte
 	for len(ciphertext) > 0 {
-		remain := min(len(ciphertext), rate-d.pos)
-		k := d.state[d.pos : d.pos+remain]
+		remain := min(len(ciphertext), rate-d.rateIdx)
+		k := d.state[d.rateIdx : d.rateIdx+remain]
 		// Make a copy of this block of ciphertext. If plaintext is the same slice as ciphertext, the decryption will
 		// overwrite the ciphertext, making it impossible to copy it to the state afterward.
 		copy(tmp[:remain], ciphertext[:remain])
@@ -127,8 +133,8 @@ func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 		subtle.XORBytes(plaintext[:remain], k, ciphertext[:remain])
 		copy(k, tmp[:remain])
 
-		d.pos += remain
-		if d.pos == rate {
+		d.rateIdx += remain
+		if d.rateIdx == rate {
 			d.permute()
 		}
 		ciphertext = ciphertext[remain:]
@@ -138,14 +144,14 @@ func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 
 // ratchet applies the Simpira-1024 permutation if needed, then zeros out 256 bits of the rate, preventing rollback.
 func (d *duplex) ratchet() {
-	if d.pos > 0 {
+	if d.rateIdx > 0 {
 		d.permute()
 	}
 	// Zero out a portion of the rate equal to the size of the capacity and advance past it. This ensures the security
 	// margin for state recovery (i.e., the size of the capacity) applies to rollback attacks as well.
 	const ratchetSize = capacity
 	clear(d.state[:ratchetSize])
-	d.pos = ratchetSize
+	d.rateIdx = ratchetSize
 }
 
 // UnmarshalBinary restores the duplex's state from the given binary representation. It implements
@@ -157,8 +163,8 @@ func (d *duplex) UnmarshalBinary(data []byte) error {
 	if data[0] >= rate || data[1] >= rate {
 		return errors.New("newplex: invalid duplex state")
 	}
-	d.pos = int(data[0])
-	d.posBegin = int(data[1])
+	d.rateIdx = int(data[0])
+	d.frameIdx = int(data[1])
 	copy(d.state[:], data[2:])
 	return nil
 }
@@ -166,7 +172,7 @@ func (d *duplex) UnmarshalBinary(data []byte) error {
 // AppendBinary appends the binary representation of the duplex's state to the given slice. It implements
 // encoding.BinaryAppender.
 func (d *duplex) AppendBinary(b []byte) ([]byte, error) {
-	return append(append(b, byte(d.pos), byte(d.posBegin)), d.state[:]...), nil
+	return append(append(b, byte(d.rateIdx), byte(d.frameIdx)), d.state[:]...), nil
 }
 
 // MarshalBinary returns the binary representation of the duplex's state. It implements encoding.BinaryMarshaler.
