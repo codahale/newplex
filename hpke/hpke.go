@@ -22,24 +22,27 @@ const Overhead = 32 + newplex.TagSize
 
 // Seal encrypts the given plaintext for the owner of the given public key, using the given sender's private key and
 // user-provided random data.
+//
+// Panics if rand is not exactly 64 bytes.
 func Seal(domain string, qR *ristretto255.Element, dS *ristretto255.Scalar, rand, plaintext []byte) []byte {
-	p := newplex.NewProtocol(domain)
-	p.Mix("sender", ristretto255.NewIdentityElement().ScalarBaseMult(dS).Bytes())
-	p.Mix("receiver", qR.Bytes())
-
-	hedge, sealer := p.Fork("role", "hedge", "sealer")
-
-	hedge.Mix("random", rand)
-	hedge.Mix("message", plaintext)
-	dE, _ := ristretto255.NewScalar().SetUniformBytes(hedge.Derive("ephemeral", nil, 64))
+	// Generate an ephemeral key.
+	dE, err := ristretto255.NewScalar().SetUniformBytes(rand)
+	if err != nil {
+		panic(err)
+	}
 	qE := ristretto255.NewIdentityElement().ScalarBaseMult(dE)
+
+	// Calculate the ephemeral and static shared secrets.
 	ssE := ristretto255.NewIdentityElement().ScalarMult(dE, qR)
 	ssS := ristretto255.NewIdentityElement().ScalarMult(dS, qR)
 
-	sealer.Mix("ephemeral", qE.Bytes())
-	sealer.Mix("ephemeral ecdh", ssE.Bytes())
-	sealer.Mix("static ecdh", ssS.Bytes())
-	return sealer.Seal("message", qE.Bytes(), plaintext)
+	p := newplex.NewProtocol(domain)
+	p.Mix("sender", ristretto255.NewIdentityElement().ScalarBaseMult(dS).Bytes())
+	p.Mix("receiver", qR.Bytes())
+	p.Mix("ephemeral", qE.Bytes())
+	p.Mix("ephemeral ecdh", ssE.Bytes())
+	p.Mix("static ecdh", ssS.Bytes())
+	return p.Seal("message", qE.Bytes(), plaintext)
 }
 
 // Open decrypts the ciphertext produced by Seal.
@@ -48,20 +51,18 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 		return nil, newplex.ErrInvalidCiphertext
 	}
 
-	p := newplex.NewProtocol(domain)
-	p.Mix("sender", qS.Bytes())
-	p.Mix("receiver", ristretto255.NewIdentityElement().ScalarBaseMult(dR).Bytes())
-	_, sealer := p.Fork("role", "hedge", "sealer")
-
 	qE, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(ciphertext[:32])
 	if qE == nil {
 		return nil, newplex.ErrInvalidCiphertext
 	}
-
 	ssE := ristretto255.NewIdentityElement().ScalarMult(dR, qE)
 	ssS := ristretto255.NewIdentityElement().ScalarMult(dR, qS)
-	sealer.Mix("ephemeral", qE.Bytes())
-	sealer.Mix("ephemeral ecdh", ssE.Bytes())
-	sealer.Mix("static ecdh", ssS.Bytes())
-	return sealer.Open("message", nil, ciphertext[32:])
+
+	p := newplex.NewProtocol(domain)
+	p.Mix("sender", qS.Bytes())
+	p.Mix("receiver", ristretto255.NewIdentityElement().ScalarBaseMult(dR).Bytes())
+	p.Mix("ephemeral", qE.Bytes())
+	p.Mix("ephemeral ecdh", ssE.Bytes())
+	p.Mix("static ecdh", ssS.Bytes())
+	return p.Open("message", nil, ciphertext[32:])
 }
