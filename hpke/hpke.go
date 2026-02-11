@@ -10,7 +10,7 @@
 // the sender's private key but not the receiver's private key cannot read plaintexts. It is not, however,
 // insider-secure for authenticity. An attacker in possession of the receiver's private key can forge messages from any
 // sender whose public key they possess (aka Key Compromise Impersonation).
-package hpke
+package hpke //nolint:revive // hpke is a stdlib package but I don't care
 
 import (
 	"github.com/codahale/newplex"
