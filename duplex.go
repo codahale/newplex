@@ -20,18 +20,13 @@ type duplex struct {
 	rateIdx, frameIdx int
 }
 
-// pad applies a frame-oriented padding scheme to the state by absorbing the frame index into the rate or potentially
-// overflowing into the first of two padding bytes, then applies SHA-3's pad10*1 padding scheme to the entire, unpadded
-// rate.
-func (d *duplex) pad() {
+// permute applies a frame-oriented padding scheme to the state by absorbing the frame index into the rate or
+// potentially overflowing into the first of two padding bytes, then applies SHA-3's pad10*1 padding scheme to the
+// entire, unpadded rate. Finally, it permutes the entire state with Simpira-1024 and resets rateIdx and frameIdx.
+func (d *duplex) permute() {
 	d.state[d.rateIdx] ^= byte(d.frameIdx)
 	d.state[d.rateIdx+1] ^= 0x01
 	d.state[unpaddedRate-1] ^= 0x80
-}
-
-// permute pads the state, permutes it, and resets the rate and frame indexes.
-func (d *duplex) permute() {
-	d.pad()
 	simpira1024.Permute(&d.state)
 	d.rateIdx = 0
 	d.frameIdx = 0
