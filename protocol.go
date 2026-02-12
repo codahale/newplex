@@ -214,17 +214,29 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	return ret, nil
 }
 
-// Fork returns two copies of the receiver, with the left side having mixed in the left value and the right side having
-// mixed in the right.
+// Fork returns two copies of the receiver, with the left side having absorbed the left value and the right side having
+// absorbed the right.
 func (p *Protocol) Fork(label, leftValue, rightValue string) (left, right Protocol) {
 	p.checkStreaming()
 
 	// Make two copies.
 	left, right = *p, *p
 
-	// Mix the different values into the branches.
-	left.Mix(label, []byte(leftValue))
-	right.Mix(label, []byte(rightValue))
+	// Perform the fork operation on the left branch with the left value.
+	left.duplex.frame()
+	left.duplex.absorbByte(opFork)
+	left.duplex.absorb([]byte(label))
+	left.duplex.frame()
+	left.duplex.absorbByte(opFork | 0x80)
+	left.duplex.absorb([]byte(leftValue))
+
+	// Perform the fork operation on the right branch with the right value.
+	right.duplex.frame()
+	right.duplex.absorbByte(opFork)
+	right.duplex.absorb([]byte(label))
+	right.duplex.frame()
+	right.duplex.absorbByte(opFork | 0x80)
+	right.duplex.absorb([]byte(rightValue))
 
 	return left, right
 }
@@ -281,6 +293,7 @@ const (
 	opDerive    = 0x03 // Derive pseudorandom data from the protocol's state.
 	opCrypt     = 0x04 // Mask or decrypt an input value.
 	opAuthCrypt = 0x05 // Seal or open an input value.
+	opFork      = 0x06 // Fork a protocol into left and right branches.
 )
 
 // sliceForAppend takes a slice and a requested number of bytes. It returns a slice with the contents of the given slice

@@ -43,8 +43,8 @@ func Example_voprf() {
 	fmt.Printf("server PRF = %x\n", serverPRF)
 
 	// Output:
-	// client PRF = 6abebbd740bea2a56e52bb72ccf3c012
-	// server PRF = 6abebbd740bea2a56e52bb72ccf3c012
+	// client PRF = ba445c9f040d611bfcd54fa0ae0ec946
+	// server PRF = ba445c9f040d611bfcd54fa0ae0ec946
 }
 
 func TestVerifiableFinalize(t *testing.T) {

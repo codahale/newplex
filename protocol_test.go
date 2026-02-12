@@ -40,6 +40,17 @@ func TestProtocol_Fork(t *testing.T) {
 	if bytes.Equal(b, c) {
 		t.Errorf("LEft side of fork is the same as the right: %x = %x", b, c)
 	}
+
+	leftA, rightA := p.Fork("example", "A", "B")
+	leftB, rightB := p.Fork("example", "B", "A")
+
+	if got, want := leftA.String(), rightB.String(); got != want {
+		t.Errorf("%x != %x", got, want)
+	}
+
+	if got, want := rightA.String(), leftB.String(); got != want {
+		t.Errorf("%x != %x", got, want)
+	}
 }
 
 func TestProtocol_MarshalBinary(t *testing.T) {
