@@ -91,7 +91,6 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 	ret, prf := sliceForAppend(dst, n)
 	p.duplex.permute()
 	p.duplex.squeeze(prf)
-	p.duplex.ratchet()
 	return ret
 }
 
@@ -117,7 +116,6 @@ func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 	p.duplex.absorbByte(opCrypt | 0x80)
 	p.duplex.permute()
 	p.duplex.encrypt(ciphertext, plaintext)
-	p.duplex.ratchet()
 	return ret
 }
 
@@ -140,7 +138,6 @@ func (p *Protocol) Unmask(label string, dst, ciphertext []byte) []byte {
 	p.duplex.absorbByte(opCrypt | 0x80)
 	p.duplex.permute()
 	p.duplex.decrypt(plaintext, ciphertext)
-	p.duplex.ratchet()
 	return ret
 }
 
@@ -168,7 +165,6 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	p.duplex.encrypt(ciphertext, plaintext)
 	p.duplex.permute()
 	p.duplex.squeeze(tag)
-	p.duplex.ratchet()
 	return ret
 }
 
@@ -205,7 +201,6 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	p.duplex.decrypt(plaintext, ciphertext)
 	p.duplex.permute()
 	p.duplex.squeeze(expectedTag[:])
-	p.duplex.ratchet()
 
 	if subtle.ConstantTimeCompare(receivedTag, expectedTag[:]) == 0 {
 		clear(plaintext)

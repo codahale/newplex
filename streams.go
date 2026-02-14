@@ -157,7 +157,6 @@ func (c *CryptStream) Close() error {
 		return nil
 	}
 	c.closed = true
-	c.p.duplex.ratchet()
 	c.p.streaming = false
 	return nil
 }
