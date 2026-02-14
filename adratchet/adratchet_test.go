@@ -25,10 +25,10 @@ func Example() {
 	p.Mix("shared key", []byte("ok then"))
 
 	// Alice forks the shared state into send/recv pairs.
-	sendA, recvA := p.Fork("sender", "A", "B")
+	sendA, recvA := p.Fork("sender", []byte("A"), []byte("B"))
 
 	// Bea forks the shared state into send/recv pairs, matching the inverse of Alice's.
-	sendB, recvB := p.Fork("sender", "B", "A")
+	sendB, recvB := p.Fork("sender", []byte("B"), []byte("A"))
 
 	// Alice sets up an asynchronous double ratchet with the send/recv protocols, her private key, and Bea's public key.
 	a := &adratchet.Ratchet{
@@ -80,7 +80,7 @@ func TestSendMessage(t *testing.T) {
 		p := newplex.NewProtocol("example")
 		p.Mix("shared key", []byte("ok then"))
 
-		sendA, recvA := p.Fork("sender", "A", "B")
+		sendA, recvA := p.Fork("sender", []byte("A"), []byte("B"))
 		a := &adratchet.Ratchet{
 			Send:   &sendA,
 			Recv:   &recvA,
@@ -109,10 +109,10 @@ func TestReceiveMessage(t *testing.T) {
 		p := newplex.NewProtocol("example")
 		p.Mix("shared key", []byte("ok then"))
 
-		sendA, recvA := p.Fork("sender", "A", "B")
+		sendA, recvA := p.Fork("sender", []byte("A"), []byte("B"))
 		a := &adratchet.Ratchet{Send: &sendA, Recv: &recvA, Local: dA, Remote: qB}
 
-		sendB, recvB := p.Fork("sender", "B", "A")
+		sendB, recvB := p.Fork("sender", []byte("B"), []byte("A"))
 		b := &adratchet.Ratchet{Send: &sendB, Recv: &recvB, Local: dB, Remote: qA}
 		return a, b
 	}

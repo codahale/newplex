@@ -27,7 +27,7 @@ func Prove(domain string, d *ristretto255.Scalar, rand, m []byte, n int) (prf, p
 	prf = p.Derive("prf", nil, n)
 
 	// Fork the protocol into prover and verifier roles.
-	prover, verifier := p.Fork("role", "prover", "verifier")
+	prover, verifier := p.Fork("role", []byte("prover"), []byte("verifier"))
 
 	// Calculate a hedged nonce k.
 	prover.Mix("prover-private", d.Bytes())
@@ -82,7 +82,7 @@ func Verify(domain string, q *ristretto255.Element, m, proof []byte, n int) (val
 	v := ristretto255.NewIdentityElement().VarTimeMultiScalarMult([]*ristretto255.Scalar{s, negC}, []*ristretto255.Element{h, gamma})
 
 	// Fork the protocol into prover and verifier roles.
-	_, verifier := p.Fork("role", "prover", "verifier")
+	_, verifier := p.Fork("role", []byte("prover"), []byte("verifier"))
 
 	verifier.Mix("commitment-u", u.Bytes())
 	verifier.Mix("commitment-v", v.Bytes())

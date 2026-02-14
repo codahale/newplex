@@ -216,7 +216,7 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 
 // Fork returns two copies of the receiver, with the left side having absorbed the left value and the right side having
 // absorbed the right.
-func (p *Protocol) Fork(label, leftValue, rightValue string) (left, right Protocol) {
+func (p *Protocol) Fork(label string, leftValue, rightValue []byte) (left, right Protocol) {
 	p.checkStreaming()
 
 	// Make two copies.
@@ -228,7 +228,7 @@ func (p *Protocol) Fork(label, leftValue, rightValue string) (left, right Protoc
 	left.duplex.absorb([]byte(label))
 	left.duplex.frame()
 	left.duplex.absorbByte(opFork | 0x80)
-	left.duplex.absorb([]byte(leftValue))
+	left.duplex.absorb(leftValue)
 
 	// Perform the fork operation on the right branch with the right value.
 	right.duplex.frame()
@@ -236,7 +236,7 @@ func (p *Protocol) Fork(label, leftValue, rightValue string) (left, right Protoc
 	right.duplex.absorb([]byte(label))
 	right.duplex.frame()
 	right.duplex.absorbByte(opFork | 0x80)
-	right.duplex.absorb([]byte(rightValue))
+	right.duplex.absorb(rightValue)
 
 	return left, right
 }

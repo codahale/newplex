@@ -29,7 +29,7 @@ func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader)
 
 	// Fork the protocol into prover/verifier roles and mix both the signer's private key and the provided random data
 	// (if any) into the prover.
-	prover, verifier := p.Fork("role", "prover", "verifier")
+	prover, verifier := p.Fork("role", []byte("prover"), []byte("verifier"))
 	prover.Mix("signer-private", d.Bytes())
 	prover.Mix("hedged-rand", rand)
 
@@ -73,7 +73,7 @@ func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reade
 	_ = w.Close()
 
 	// Fork the protocol, keeping only the verifier.
-	_, verifier := p.Fork("role", "prover", "verifier")
+	_, verifier := p.Fork("role", []byte("prover"), []byte("verifier"))
 
 	// Mix the received commitment point into the verifier. As we do not use it for calculations, leave it encoded.
 	verifier.Mix("commitment", sig[:32])

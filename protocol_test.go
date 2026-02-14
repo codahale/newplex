@@ -31,7 +31,7 @@ func TestProtocol_String(t *testing.T) {
 
 func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
-	l, r := p.Fork("side", "l", "r")
+	l, r := p.Fork("side", []byte("l"), []byte("r"))
 
 	a, b, c := p.Derive("test", nil, 8), l.Derive("test", nil, 8), r.Derive("test", nil, 8)
 	if bytes.Equal(a, b) {
@@ -41,8 +41,8 @@ func TestProtocol_Fork(t *testing.T) {
 		t.Errorf("LEft side of fork is the same as the right: %x = %x", b, c)
 	}
 
-	leftA, rightA := p.Fork("example", "A", "B")
-	leftB, rightB := p.Fork("example", "B", "A")
+	leftA, rightA := p.Fork("example", []byte("A"), []byte("B"))
+	leftB, rightB := p.Fork("example", []byte("B"), []byte("A"))
 
 	if got, want := leftA.String(), rightB.String(); got != want {
 		t.Errorf("%x != %x", got, want)
