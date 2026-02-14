@@ -10,18 +10,18 @@ import (
 )
 
 func FuzzStream(f *testing.F) {
-	encrypt := func(key []byte, nonce []byte, message []byte) (ciphertext, state []byte) {
+	encrypt := func(key []byte, nonce []byte, message []byte) (ciphertext []byte, p *newplex.Protocol) {
 		protocol := newplex.NewProtocol("stream")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.Mask("message", nil, message), protocol.Derive("state", nil, 8)
+		return protocol.Mask("message", nil, message), &protocol
 	}
 
-	decrypt := func(key []byte, nonce []byte, message []byte) (plaintext, state []byte) {
+	decrypt := func(key []byte, nonce []byte, message []byte) (plaintext []byte, p *newplex.Protocol) {
 		protocol := newplex.NewProtocol("stream")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.Unmask("message", nil, message), protocol.Derive("state", nil, 8)
+		return protocol.Unmask("message", nil, message), &protocol
 	}
 
 	drbg := testdata.New("newplex stream")
@@ -33,26 +33,26 @@ func FuzzStream(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, key []byte, nonce []byte, message []byte) {
-		ciphertext, stateA := encrypt(key, nonce, message)
-		plaintext, stateB := decrypt(key, nonce, ciphertext)
+		ciphertext, pA := encrypt(key, nonce, message)
+		plaintext, pB := decrypt(key, nonce, ciphertext)
 		if got, want := plaintext, message; !bytes.Equal(got, want) {
 			t.Errorf("decrypt(key, nonce, ciphertext) = %v, want = %v", got, want)
 		}
-		if !bytes.Equal(stateA, stateB) {
-			t.Errorf("divergent posterior protocol states: %v != %v", stateA, stateB)
+		if pA.Equal(pB) == 0 {
+			t.Error("divergent posterior protocol states")
 		}
 	})
 }
 
 func FuzzAEAD(f *testing.F) {
-	encrypt := func(key []byte, nonce []byte, message []byte) (ciphertext, state []byte) {
+	encrypt := func(key []byte, nonce []byte, message []byte) (ciphertext []byte, p *newplex.Protocol) {
 		protocol := newplex.NewProtocol("aead")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.Seal("message", nil, message), protocol.Derive("state", nil, 8)
+		return protocol.Seal("message", nil, message), &protocol
 	}
 
-	decrypt := func(key []byte, nonce []byte, message []byte) (plaintext, state []byte, err error) {
+	decrypt := func(key []byte, nonce []byte, message []byte) (plaintext []byte, p *newplex.Protocol, err error) {
 		protocol := newplex.NewProtocol("aead")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
@@ -60,7 +60,7 @@ func FuzzAEAD(f *testing.F) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return plaintext, protocol.Derive("state", nil, 8), nil
+		return plaintext, &protocol, nil
 	}
 
 	drbg := testdata.New("newplex aead")
@@ -78,10 +78,10 @@ func FuzzAEAD(f *testing.F) {
 			t.Skip()
 		}
 
-		c, stateA := encrypt(key, nonce, plaintext)
+		c, pA := encrypt(key, nonce, plaintext)
 
 		// check for decryption of authentic ciphertext
-		p2, stateB, err := decrypt(key, nonce, c)
+		p2, pB, err := decrypt(key, nonce, c)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -89,8 +89,8 @@ func FuzzAEAD(f *testing.F) {
 			t.Errorf("decrypt(key, nonce, c) = %v, want = %v", got, want)
 		}
 
-		if !bytes.Equal(stateA, stateB) {
-			t.Errorf("divergent posterior protocol states: %v != %v", stateA, stateB)
+		if pA.Equal(pB) == 0 {
+			t.Error("divergent posterior protocol states")
 		}
 
 		// check for non-decryption of inauthentic ciphertext

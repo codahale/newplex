@@ -9,12 +9,9 @@ import (
 
 func TestNewProtocol(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
-	out1 := p1.Derive("out", nil, 8)
-
 	p2 := newplex.NewProtocol("other")
-	out2 := p2.Derive("out", nil, 8)
 
-	if bytes.Equal(out1, out2) {
+	if p1.Equal(&p2) == 1 {
 		t.Errorf("Domain separation failure")
 	}
 }
@@ -57,21 +54,24 @@ func TestProtocol_Clone(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("one", []byte{1})
 
-	if p1.Equal(new(p1.Clone())) == 0 {
+	p2 := p1.Clone()
+	if p1.Equal(&p2) == 0 {
 		t.Errorf("post-clone states should be equal")
 	}
 }
 
 func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
-	l, r := p.Fork("side", []byte("l"), []byte("r"))
+	l, r := p.Fork("side", []byte("l"), []byte("r")) //nolint:staticcheck // false positive
 
-	a, b, c := p.Derive("test", nil, 8), l.Derive("test", nil, 8), r.Derive("test", nil, 8)
-	if bytes.Equal(a, b) {
-		t.Errorf("Left side of fork is the same as the parent: %x = %x", a, b)
+	if p.Equal(&l) == 1 {
+		t.Error("Left side of fork is the same as the parent")
 	}
-	if bytes.Equal(b, c) {
-		t.Errorf("LEft side of fork is the same as the right: %x = %x", b, c)
+	if p.Equal(&r) == 1 {
+		t.Error("Right side of fork is the same as the parent")
+	}
+	if l.Equal(&r) == 1 {
+		t.Error("Left side of fork is the same as the right")
 	}
 
 	leftA, rightA := p.Fork("example", []byte("A"), []byte("B"))
@@ -113,8 +113,8 @@ func TestProtocol_MarshalBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := p2.Derive("third", nil, 8), p1.Derive("third", nil, 8); !bytes.Equal(got, want) {
-		t.Errorf("Derive('third') = %x, want = %x", got, want)
+	if p2.Equal(&p1) == 0 {
+		t.Errorf("unmarshaled state should be equal")
 	}
 }
 
@@ -148,14 +148,12 @@ func TestProtocol_Mix(t *testing.T) {
 	t.Run("empty input", func(t *testing.T) {
 		p1 := newplex.NewProtocol("empty-test")
 		p1.Mix("", nil)
-		out1 := p1.Derive("", nil, 0)
 
 		p2 := newplex.NewProtocol("empty-test")
 		p2.Mix("label", nil)
-		out2 := p2.Derive("", nil, 0)
 
-		if !bytes.Equal(out1, out2) {
-			t.Errorf("Mix(''); Mix('label') == Mix('label'")
+		if p1.Equal(&p2) == 1 {
+			t.Errorf("Mix(''); Mix('label') should not be equal")
 		}
 	})
 }
@@ -208,8 +206,8 @@ func TestProtocol_Mask(t *testing.T) {
 			t.Errorf("Mask(16)[:10] = %x, want = %x", got, want)
 		}
 
-		if got, want := p1.Derive("test", nil, 8), p2.Derive("test", nil, 8); bytes.Equal(got, want) {
-			t.Errorf("Mask(10) state = Mask(16) state = %x", got)
+		if p1.Equal(&p2) == 1 {
+			t.Errorf("Mask(10) state and Mask(16) state should not be equal")
 		}
 	})
 

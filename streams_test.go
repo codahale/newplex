@@ -29,8 +29,8 @@ func TestProtocol_MixReader(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := p2.Derive("final", nil, 8), p1.Derive("final", nil, 8); !bytes.Equal(got, want) {
-		t.Errorf("Derive('final', 8) = %x, want = %x", got, want)
+	if p1.Equal(&p2) != 1 {
+		t.Error("divergent protocol states")
 	}
 }
 
@@ -59,8 +59,8 @@ func TestProtocol_MixWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := p2.Derive("final", nil, 8), p1.Derive("final", nil, 8); !bytes.Equal(got, want) {
-		t.Errorf("Derive('final', 8) = %x, want = %x", got, want)
+	if p1.Equal(&p2) != 1 {
+		t.Error("divergent protocol states")
 	}
 }
 
@@ -86,8 +86,8 @@ func TestProtocol_MaskStream(t *testing.T) {
 		t.Errorf("MaskReader(msg) = %x, want = %x", got, want)
 	}
 
-	if got, want := p2.Derive("final", nil, 8), p1.Derive("final", nil, 8); !bytes.Equal(got, want) {
-		t.Errorf("Derive('final', 8) = %x, want = %x", got, want)
+	if p1.Equal(&p2) != 1 {
+		t.Error("divergent protocol states")
 	}
 }
 
@@ -113,7 +113,7 @@ func TestProtocol_UnmaskStream(t *testing.T) {
 		t.Errorf("UnmaskReader(Mask(msg)) = %x, want = %x", got, want)
 	}
 
-	if got, want := p2.Derive("final", nil, 8), p1.Derive("final", nil, 8); !bytes.Equal(got, want) {
-		t.Errorf("Derive('final', 8) = %x, want = %x", got, want)
+	if p1.Equal(&p2) != 1 {
+		t.Error("divergent protocol states")
 	}
 }

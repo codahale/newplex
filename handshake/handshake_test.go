@@ -1,7 +1,6 @@
 package handshake_test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -123,10 +122,10 @@ func TestHandshake(t *testing.T) {
 		}
 
 		// Verify keys derived from both ends match
-		if !bytes.Equal(iSend.Derive("test", nil, 32), rRecv.Derive("test", nil, 32)) {
+		if iSend.Equal(rRecv) != 1 {
 			t.Error("mismatched iSend/rRecv")
 		}
-		if !bytes.Equal(rSend.Derive("test", nil, 32), iRecv.Derive("test", nil, 32)) {
+		if rSend.Equal(iRecv) != 1 {
 			t.Error("mismatched rSend/iRecv")
 		}
 	})

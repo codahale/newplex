@@ -88,9 +88,8 @@ func FuzzProtocolDivergence(f *testing.F) {
 			}
 		}
 
-		final1, final2 := p1.Derive("final", nil, 8), p2.Derive("final", nil, 8)
-		if !bytes.Equal(final1, final2) {
-			t.Fatalf("Divergent final states: %x != %x", final1, final2)
+		if p1.Equal(&p2) != 1 {
+			t.Fatal("divergent final states")
 		}
 	})
 }
@@ -219,9 +218,8 @@ func FuzzProtocolReversibility(f *testing.F) {
 			}
 		}
 
-		final1, final2 := p1.Derive("final", nil, 8), p2.Derive("final", nil, 8)
-		if !bytes.Equal(final1, final2) {
-			t.Fatalf("Divergent final states: %x != %x", final1, final2)
+		if p1.Equal(&p2) != 1 {
+			t.Fatal("divergent final states")
 		}
 	})
 }
