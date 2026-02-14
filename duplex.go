@@ -149,6 +149,13 @@ func (d *duplex) ratchet() {
 	d.rateIdx = ratchetSize
 }
 
+// equal returns 1 if d and d2 are equal, and 0 otherwise.
+func (d *duplex) equal(d2 *duplex) int {
+	return subtle.ConstantTimeCompare(d.state[:], d2.state[:]) &
+		subtle.ConstantTimeEq(int32(d.rateIdx), int32(d2.rateIdx)) & //nolint:gosec // rateIdx <= 94
+		subtle.ConstantTimeEq(int32(d.frameIdx), int32(d2.frameIdx)) //nolint:gosec // frameIdx <= 94
+}
+
 // UnmarshalBinary restores the duplex's state from the given binary representation. It implements
 // encoding.BinaryUnmarshaler.
 func (d *duplex) UnmarshalBinary(data []byte) error {

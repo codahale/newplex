@@ -256,6 +256,42 @@ func TestDuplex_Decrypt(t *testing.T) {
 	})
 }
 
+func TestDuplex_Equal(t *testing.T) {
+	t.Run("equal", func(t *testing.T) {
+		var d1, d2 duplex
+		if got, want := d1.equal(&d2), 1; got != want {
+			t.Errorf("should be equal")
+		}
+	})
+
+	t.Run("different states", func(t *testing.T) {
+		var d1, d2 duplex
+		d1.state[0] = 200
+
+		if got, want := d1.equal(&d2), 0; got != want {
+			t.Errorf("should not be equal")
+		}
+	})
+
+	t.Run("different rate indexes", func(t *testing.T) {
+		var d1, d2 duplex
+		d1.rateIdx = 23
+
+		if got, want := d1.equal(&d2), 0; got != want {
+			t.Errorf("should not be equal")
+		}
+	})
+
+	t.Run("different frame indexes", func(t *testing.T) {
+		var d1, d2 duplex
+		d1.frameIdx = 23
+
+		if got, want := d1.equal(&d2), 0; got != want {
+			t.Errorf("should not be equal")
+		}
+	})
+}
+
 func TestDuplex_AppendBinary(t *testing.T) {
 	d := exampleDuplex()
 
