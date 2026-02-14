@@ -1,67 +1,198 @@
 // Package adratchet implements an asynchronous double ratchet mechanism with Newplex and Ristretto255.
 //
-// This package provides a Ratchet type that maintains send and receive states, allowing for encrypted communication
-// with forward secrecy and break-in recovery. It uses ephemeral Ristretto255 keys for the ratchet steps and Newplex for
-// the underlying symmetric encryption and state management.
+// This package provides a State type that maintains send and receive states, allowing for encrypted communication with
+// forward secrecy and break-in recovery. It uses ephemeral Ristretto255 keys for the asymmetric ratchet Newplex for the
+// symmetric.
 package adratchet
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 
 	"github.com/codahale/newplex"
 	"github.com/gtank/ristretto255"
 )
 
-// Overhead is the number of bytes added to the plaintext by SendMessage. It consists of the 32-byte ephemeral public
-// key and the Newplex tag size.
-const Overhead = 32 + newplex.TagSize
-
-// Ratchet tracks the state of an asynchronous double ratchet conversation. It maintains separate Newplex protocols for
-// sending and receiving, along with the local private key and the remote public key for ECDH operations.
-type Ratchet struct {
-	// Send is the Newplex protocol instance used for encrypting outgoing messages.
-	Send *newplex.Protocol
-	// Recv is the Newplex protocol instance used for decrypting incoming messages.
-	Recv *newplex.Protocol
-	// Local is the local private key (scalar) used for ECDH.
-	Local *ristretto255.Scalar
-	// Remote is the remote party's public key (element) used for ECDH.
-	Remote *ristretto255.Element
+// State maintains the state of an asynchronous double ratchet.
+type State struct {
+	localPriv               *ristretto255.Scalar
+	localPub                *ristretto255.Element
+	remotePub               *ristretto255.Element
+	send, recv              *newplex.Protocol
+	sendN, recvN, prevSendN uint32
+	skipped                 map[skippedKey]newplex.Protocol
 }
 
-// SendMessage encrypts the plaintext and appends it to dst. It generates a new ephemeral key pair, performs an ECDH
-// exchange with the remote static key, mixes the shared secret into the Send protocol, and then seals the message. The
-// output format is masked_ephemeral_pk || ciphertext || tag.
-func (r *Ratchet) SendMessage(dst, plaintext []byte) []byte {
+const (
+	// MaxSkip is the maximum number of messages that can be skipped in a single chain.
+	MaxSkip = 1000
+	// Overhead is the number of bytes added to a message by State.SendMessage.
+	Overhead = headerSize + newplex.TagSize
+)
+
+// NewInitiator creates a new double ratchet state for the initiating party with the given base protocol, local private
+// key, and peer public key. It automatically performs an initial DH ratchet step.
+func NewInitiator(p *newplex.Protocol, local *ristretto255.Scalar, remote *ristretto255.Element) *State {
+	send, recv := p.Fork("role", []byte("initiator"), []byte("responder"))
+	s := &State{
+		localPriv: local,
+		localPub:  ristretto255.NewIdentityElement().ScalarBaseMult(local),
+		remotePub: remote,
+		send:      &send,
+		recv:      &recv,
+		sendN:     0,
+		recvN:     0,
+		prevSendN: 0,
+		skipped:   make(map[skippedKey]newplex.Protocol),
+	}
+	s.Ratchet()
+	return s
+}
+
+// NewResponder creates a new double ratchet state for the responding party with the given base protocol, local private
+// key, and peer public key.
+func NewResponder(p *newplex.Protocol, local *ristretto255.Scalar, remote *ristretto255.Element) *State {
+	send, recv := p.Fork("role", []byte("responder"), []byte("initiator"))
+	s := &State{
+		localPriv: local,
+		localPub:  ristretto255.NewIdentityElement().ScalarBaseMult(local),
+		remotePub: remote,
+		send:      &send,
+		recv:      &recv,
+		sendN:     0,
+		recvN:     0,
+		prevSendN: 0,
+		skipped:   make(map[skippedKey]newplex.Protocol),
+	}
+	return s
+}
+
+// SendMessage encrypts the given plaintext and returns the ciphertext, which includes a header with the current ratchet
+// state.
+func (s *State) SendMessage(plaintext []byte) []byte {
+	// Encode the header.
+	header := make([]byte, headerSize)
+	copy(header[:32], s.localPub.Bytes())
+	binary.LittleEndian.PutUint32(header[32:36], s.sendN)
+	binary.LittleEndian.PutUint32(header[36:40], s.prevSendN)
+
+	// Step the sending chain and clone it for this message.
+	s.send.Mix("n", binary.LittleEndian.AppendUint32(nil, s.sendN))
+	p := s.send.Clone()
+
+	// Perform a symmetric ratchet and increment the sent messages counter.
+	s.send.Ratchet("step")
+	s.sendN++
+
+	// Mix in the header and seal the message.
+	p.Mix("header", header)
+	return p.Seal("message", header, plaintext)
+}
+
+// Ratchet performs a voluntary DH ratchet step, generating a new local key and mixing it with the
+// remote public key into the sending protocol.
+func (s *State) Ratchet() {
 	var b [64]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		panic(err)
 	}
-	dE, _ := ristretto255.NewScalar().SetUniformBytes(b[:])
-	qE := ristretto255.NewIdentityElement().ScalarBaseMult(dE)
-	ciphertext := r.Send.Mask("ratchet-pk", dst, qE.Bytes())
+	s.localPriv, _ = ristretto255.NewScalar().SetUniformBytes(b[:])
+	s.localPub = ristretto255.NewIdentityElement().ScalarBaseMult(s.localPriv)
 
-	ss := ristretto255.NewIdentityElement().ScalarMult(dE, r.Remote)
-	r.Send.Mix("ratchet-ss", ss.Bytes())
-
-	return r.Send.Seal("message", ciphertext, plaintext)
+	dh := ristretto255.NewIdentityElement().ScalarMult(s.localPriv, s.remotePub)
+	s.send.Mix("dh", dh.Bytes())
+	s.prevSendN = s.sendN
+	s.sendN = 0
 }
 
-// ReceiveMessage decrypts the ciphertext and appends the plaintext to dst. It extracts the ephemeral public key,
-// performs an ECDH exchange with the local static key, mixes the shared secret into the Recv protocol, and then opens
-// the message. It returns an error if the ciphertext is too short or invalid.
-func (r *Ratchet) ReceiveMessage(dst, ciphertext []byte) ([]byte, error) {
+// ReceiveMessage decrypts the given ciphertext and returns the plaintext. It handles out-of-order messages and performs
+// ratchet steps as needed.
+func (s *State) ReceiveMessage(ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < Overhead {
 		return nil, newplex.ErrInvalidCiphertext
 	}
+	header := ciphertext[:headerSize]
+	msg := ciphertext[headerSize:]
 
-	qE, _ := ristretto255.NewIdentityElement().SetCanonicalBytes(r.Recv.Unmask("ratchet-pk", nil, ciphertext[:32]))
-	if qE == nil {
+	pub, err := ristretto255.NewIdentityElement().SetCanonicalBytes(header[:32])
+	if err != nil {
 		return nil, newplex.ErrInvalidCiphertext
 	}
+	n := binary.LittleEndian.Uint32(header[32:36])
+	pn := binary.LittleEndian.Uint32(header[36:40])
 
-	ss := ristretto255.NewIdentityElement().ScalarMult(r.Local, qE)
-	r.Recv.Mix("ratchet-ss", ss.Bytes())
+	// Check for a skipped message key.
+	sk := newSK(pub, n)
+	if p, ok := s.skipped[sk]; ok {
+		delete(s.skipped, sk)
+		p.Mix("header", header)
+		return p.Open("message", nil, msg)
+	}
 
-	return r.Recv.Open("message", dst, ciphertext[32:])
+	// Check for a new DH key.
+	if pub.Equal(s.remotePub) == 0 {
+		// Catch up on the previous receiving chain.
+		if err := s.advanceRecvChain(pn); err != nil {
+			return nil, err
+		}
+
+		// Perform a DH step with the old local key and the new remote key.
+		dh := ristretto255.NewIdentityElement().ScalarMult(s.localPriv, pub)
+		s.recv.Mix("dh", dh.Bytes())
+
+		// Update the remote public key and reset the receiving counter.
+		s.remotePub = pub
+		s.recvN = 0
+
+		// Perform a voluntary DH ratchet step.
+		s.Ratchet()
+	}
+
+	// Catch up on the current receiving chain.
+	if err := s.advanceRecvChain(n); err != nil {
+		return nil, err
+	}
+
+	// Step the receiving chain and clone it for this message.
+	s.recv.Mix("n", binary.LittleEndian.AppendUint32(nil, s.recvN))
+	p := s.recv.Clone()
+
+	// Perform a symmetric ratchet and increment the received messages counter.
+	s.recv.Ratchet("step")
+	s.recvN++
+
+	// Mix in the header and open the message.
+	p.Mix("header", header)
+	return p.Open("message", nil, msg)
 }
+
+func (s *State) advanceRecvChain(targetN uint32) error {
+	if targetN < s.recvN {
+		return nil
+	}
+	if targetN-s.recvN > MaxSkip {
+		return newplex.ErrInvalidCiphertext
+	}
+	for s.recvN < targetN {
+		s.recv.Mix("n", binary.LittleEndian.AppendUint32(nil, s.recvN))
+		p := s.recv.Clone()
+		s.skipped[newSK(s.remotePub, s.recvN)] = p
+		s.recv.Ratchet("step")
+		s.recvN++
+	}
+	return nil
+}
+
+type skippedKey struct {
+	pub [32]byte
+	n   uint32
+}
+
+func newSK(q *ristretto255.Element, n uint32) skippedKey {
+	var sk skippedKey
+	copy(sk.pub[:], q.Bytes())
+	sk.n = n
+	return sk
+}
+
+const headerSize = 32 + 4 + 4

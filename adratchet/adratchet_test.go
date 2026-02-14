@@ -2,7 +2,6 @@ package adratchet_test
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -24,43 +23,27 @@ func Example() {
 	p := newplex.NewProtocol("example")
 	p.Mix("shared key", []byte("ok then"))
 
-	// Alice forks the shared state into send/recv pairs.
-	sendA, recvA := p.Fork("sender", []byte("A"), []byte("B"))
+	// Alice sets up an asynchronous double ratchet for the initiator role.
+	a := adratchet.NewInitiator(&p, dA, qB)
 
-	// Bea forks the shared state into send/recv pairs, matching the inverse of Alice's.
-	sendB, recvB := p.Fork("sender", []byte("B"), []byte("A"))
-
-	// Alice sets up an asynchronous double ratchet with the send/recv protocols, her private key, and Bea's public key.
-	a := &adratchet.Ratchet{
-		Send:   &sendA,
-		Recv:   &recvA,
-		Local:  dA,
-		Remote: qB,
-	}
-
-	// Bea sets up an asynchronous double ratchet with the send/recv protocols, her private key, and Alice's public key.
-	b := &adratchet.Ratchet{
-		Send:   &sendB,
-		Recv:   &recvB,
-		Local:  dB,
-		Remote: qA,
-	}
+	// Bea sets up an asynchronous double ratchet for the responder role.
+	b := adratchet.NewResponder(&p, dB, qA)
 
 	// Alice sends Bea a message.
-	msgA := a.SendMessage(nil, []byte("this is my first message"))
+	msgA := a.SendMessage([]byte("this is my first message"))
 
 	// Bea sends Alice a message.
-	msgB := b.SendMessage(nil, []byte("no, this is _my_ first message"))
+	msgB := b.SendMessage([]byte("no, this is _my_ first message"))
 
 	// Alice reads Bea's message.
-	v, err := a.ReceiveMessage(nil, msgB)
+	v, err := a.ReceiveMessage(msgB)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("message from B: %q\n", v)
 
 	// Bea reads Alice's message.
-	v, err = b.ReceiveMessage(nil, msgA)
+	v, err = b.ReceiveMessage(msgA)
 	if err != nil {
 		panic(err)
 	}
@@ -71,103 +54,158 @@ func Example() {
 	// message from A: "this is my first message"
 }
 
-func TestSendMessage(t *testing.T) {
-	t.Run("appends to dst", func(t *testing.T) {
-		drbg := testdata.New("newplex async double ratchet")
-		dA, _ := drbg.KeyPair()
-		_, qB := drbg.KeyPair()
+func TestState_ReceiveMessage(t *testing.T) {
+	drbg := testdata.New("newplex async double ratchet receive test")
+	dA, qA := drbg.KeyPair()
+	dB, qB := drbg.KeyPair()
 
-		p := newplex.NewProtocol("example")
-		p.Mix("shared key", []byte("ok then"))
-
-		sendA, recvA := p.Fork("sender", []byte("A"), []byte("B"))
-		a := &adratchet.Ratchet{
-			Send:   &sendA,
-			Recv:   &recvA,
-			Local:  dA,
-			Remote: qB,
-		}
-
-		dst := []byte("existing")
-		msg := a.SendMessage(dst, []byte("hello"))
-		if !bytes.HasPrefix(msg, dst) {
-			t.Errorf("expected prefix %x, got %x", dst, msg)
-		}
-		expectedLen := len(dst) + len("hello") + adratchet.Overhead
-		if len(msg) != expectedLen {
-			t.Errorf("expected length %d, got %d", expectedLen, len(msg))
-		}
-	})
-}
-
-func TestReceiveMessage(t *testing.T) {
-	setup := func() (*adratchet.Ratchet, *adratchet.Ratchet) {
-		drbg := testdata.New("newplex async double ratchet")
-		dA, qA := drbg.KeyPair()
-		dB, qB := drbg.KeyPair()
-
-		p := newplex.NewProtocol("example")
-		p.Mix("shared key", []byte("ok then"))
-
-		sendA, recvA := p.Fork("sender", []byte("A"), []byte("B"))
-		a := &adratchet.Ratchet{Send: &sendA, Recv: &recvA, Local: dA, Remote: qB}
-
-		sendB, recvB := p.Fork("sender", []byte("B"), []byte("A"))
-		b := &adratchet.Ratchet{Send: &sendB, Recv: &recvB, Local: dB, Remote: qA}
-		return a, b
-	}
-
-	t.Run("successful round trip", func(t *testing.T) {
-		a, b := setup()
-		msg := a.SendMessage(nil, []byte("hello"))
-		out, err := b.ReceiveMessage(nil, msg)
-		if err != nil {
-			t.Fatalf("ReceiveMessage failed: %v", err)
-		}
-		if !bytes.Equal(out, []byte("hello")) {
-			t.Errorf("expected %q, got %q", "hello", out)
-		}
-	})
-
-	t.Run("short ciphertext", func(t *testing.T) {
-		a, _ := setup()
-		_, err := a.ReceiveMessage(nil, make([]byte, adratchet.Overhead-1))
-		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
-			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
-		}
-	})
-
-	t.Run("invalid tag", func(t *testing.T) {
-		a, b := setup()
-		msg := a.SendMessage(nil, []byte("hello"))
-		msg[len(msg)-1] ^= 1
-		_, err := b.ReceiveMessage(nil, msg)
-		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
-			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
-		}
-	})
+	p := newplex.NewProtocol("test")
+	p.Mix("shared key", []byte("secret"))
 
 	t.Run("out of order", func(t *testing.T) {
-		a, b := setup()
-		_ = a.SendMessage(nil, []byte("first"))
-		msg2 := a.SendMessage(nil, []byte("second"))
+		alice := adratchet.NewInitiator(&p, dA, qB)
+		bea := adratchet.NewResponder(&p, dB, qA)
 
-		_, err := b.ReceiveMessage(nil, msg2)
-		if err == nil {
-			t.Error("should have failed to receive out-of-order message")
+		// Alice sends 5 messages.
+		msgs := make([][]byte, 5)
+		for i := range 5 {
+			msgs[i] = alice.SendMessage([]byte{byte(i)})
+		}
+
+		// Bea receives them out of order: 2, 0, 4, 1, 3.
+		order := []int{2, 0, 4, 1, 3}
+		for _, i := range order {
+			v, err := bea.ReceiveMessage(msgs[i])
+			if err != nil {
+				t.Fatalf("failed to receive message %d: %v", i, err)
+			}
+			if !bytes.Equal(v, []byte{byte(i)}) {
+				t.Errorf("expected %d, got %v", i, v)
+			}
 		}
 	})
 
-	t.Run("wrong keys", func(t *testing.T) {
-		a, b := setup()
-		drbg := testdata.New("wrong keys")
-		wrongD, _ := drbg.KeyPair()
-		b.Local = wrongD // B has wrong local key
+	t.Run("DH ratchet", func(t *testing.T) {
+		alice := adratchet.NewInitiator(&p, dA, qB)
+		bea := adratchet.NewResponder(&p, dB, qA)
 
-		msg := a.SendMessage(nil, []byte("hello"))
-		_, err := b.ReceiveMessage(nil, msg)
-		if err == nil {
-			t.Error("should have failed with wrong local key")
+		// Alice sends msg 1.
+		msg1 := alice.SendMessage([]byte("msg1"))
+
+		// Bea receives msg 1.
+		if _, err := bea.ReceiveMessage(msg1); err != nil {
+			t.Fatalf("bea failed to receive msg1: %v", err)
+		}
+
+		// Bea sends msg 2 (triggers DH ratchet on Alice side when she receives it).
+		msg2 := bea.SendMessage([]byte("msg2"))
+
+		// Alice receives msg 2.
+		if _, err := alice.ReceiveMessage(msg2); err != nil {
+			t.Fatalf("alice failed to receive msg2: %v", err)
+		}
+
+		// Alice sends msg 3 and msg 4. (These will have a new DH key).
+		msg3 := alice.SendMessage([]byte("msg3"))
+		msg4 := alice.SendMessage([]byte("msg4"))
+
+		// Bea receives msg 4 first.
+		v, err := bea.ReceiveMessage(msg4)
+		if err != nil {
+			t.Fatalf("bea failed to receive msg4: %v", err)
+		}
+		if !bytes.Equal(v, []byte("msg4")) {
+			t.Errorf("expected msg4, got %q", v)
+		}
+
+		// Bea receives msg 3.
+		v, err = bea.ReceiveMessage(msg3)
+		if err != nil {
+			t.Fatalf("bea failed to receive msg3: %v", err)
+		}
+		if !bytes.Equal(v, []byte("msg3")) {
+			t.Errorf("expected msg3, got %q", v)
+		}
+	})
+
+	t.Run("invalid message", func(t *testing.T) {
+		alice := adratchet.NewInitiator(&p, dA, qB)
+		bea := adratchet.NewResponder(&p, dB, qA)
+
+		msg := alice.SendMessage([]byte("hello"))
+		msg[len(msg)-1] ^= 0xff // Corrupt the tag
+
+		if _, err := bea.ReceiveMessage(msg); err == nil {
+			t.Error("expected error for corrupted message, got none")
+		}
+	})
+
+	t.Run("too short", func(t *testing.T) {
+		bea := adratchet.NewResponder(&p, dB, qA)
+		if _, err := bea.ReceiveMessage([]byte("too short")); err == nil {
+			t.Error("expected error for too short message, got none")
+		}
+	})
+
+	t.Run("already received", func(t *testing.T) {
+		alice := adratchet.NewInitiator(&p, dA, qB)
+		bea := adratchet.NewResponder(&p, dB, qA)
+
+		msg := alice.SendMessage([]byte("hello"))
+		if _, err := bea.ReceiveMessage(msg); err != nil {
+			t.Fatalf("failed to receive message: %v", err)
+		}
+
+		if _, err := bea.ReceiveMessage(msg); err == nil {
+			t.Error("expected error for already received message, got none")
+		}
+	})
+
+	t.Run("gap too large", func(t *testing.T) {
+		alice := adratchet.NewInitiator(&p, dA, qB)
+		bea := adratchet.NewResponder(&p, dB, qA)
+
+		var msg []byte
+		for range 1002 {
+			msg = alice.SendMessage([]byte("hello"))
+		}
+
+		if _, err := bea.ReceiveMessage(msg); err == nil {
+			t.Error("expected error for gap too large, got none")
+		}
+	})
+
+	t.Run("invalid public key", func(t *testing.T) {
+		alice := adratchet.NewInitiator(&p, dA, qB)
+		bea := adratchet.NewResponder(&p, dB, qA)
+
+		msg := alice.SendMessage([]byte("hello"))
+		// Ristretto255 points are 32 bytes, and the highest bit must be 0 for canonical encoding.
+		msg[31] |= 0x80
+
+		if _, err := bea.ReceiveMessage(msg); err == nil {
+			t.Error("expected error for invalid public key, got none")
+		}
+	})
+
+	t.Run("new key gap too large", func(t *testing.T) {
+		alice := adratchet.NewInitiator(&p, dA, qB)
+		bea := adratchet.NewResponder(&p, dB, qA)
+
+		// Alice sends many messages under the first key.
+		for range 1001 {
+			alice.SendMessage([]byte("skipped"))
+		}
+
+		// Alice ratchets.
+		alice.Ratchet()
+
+		// Alice sends a message under the second key.
+		msg := alice.SendMessage([]byte("new key"))
+
+		// Bea receives it. pn should be 1001, which is > MaxSkip.
+		if _, err := bea.ReceiveMessage(msg); err == nil {
+			t.Error("expected error for new key gap too large, got none")
 		}
 	})
 }
