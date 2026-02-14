@@ -93,7 +93,8 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 		iSrE := ristretto255.NewIdentityElement().ScalarMult(dIS, qRE)
 		p.Mix("is-re", iSrE.Bytes())
 
-		// Fork the protocol into recv and send clones.
+		// Ratchet and fork the protocol into recv and send clones.
+		p.Ratchet("handshake")
 		a, b := p.Fork("sender", []byte("initiator"), []byte("responder"))
 		send, recv = &a, &b
 
@@ -168,7 +169,8 @@ func Respond(domain string, rand io.Reader, dRS *ristretto255.Scalar, request []
 		iSrE := ristretto255.NewIdentityElement().ScalarMult(dRE, qIS)
 		p.Mix("is-re", iSrE.Bytes())
 
-		// Fork the protocol into recv and send clones.
+		// Fork the protocol and fork it into recv and send clones.
+		p.Ratchet("handshake")
 		a, b := p.Fork("sender", []byte("responder"), []byte("initiator"))
 		send, recv = &a, &b
 
