@@ -249,6 +249,14 @@ func (p *Protocol) Clone() Protocol {
 	return *p
 }
 
+// Equal returns 1 if p and p2 are equal, and 0 otherwise.
+func (p *Protocol) Equal(p2 *Protocol) int {
+	p.checkStreaming()
+	a, _ := p.MarshalBinary()
+	b, _ := p2.MarshalBinary()
+	return subtle.ConstantTimeCompare(a, b)
+}
+
 // AppendBinary appends the binary representation of the protocol's state to the given slice. It implements
 // encoding.BinaryAppender.
 //

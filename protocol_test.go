@@ -29,6 +29,30 @@ func TestProtocol_String(t *testing.T) {
 	}
 }
 
+func TestProtocol_Equal(t *testing.T) {
+	t.Run("equal", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		p1.Mix("one", []byte{1})
+		p2 := newplex.NewProtocol("example")
+		p2.Mix("one", []byte{1})
+
+		if got, want := p1.Equal(&p2), 1; got != want {
+			t.Errorf("Equal = %v, want = %v", got, want)
+		}
+	})
+
+	t.Run("not equal", func(t *testing.T) {
+		p1 := newplex.NewProtocol("example")
+		p1.Mix("one", []byte{1})
+		p2 := newplex.NewProtocol("example")
+		p2.Mix("one", []byte{2})
+
+		if got, want := p1.Equal(&p2), 0; got != want {
+			t.Errorf("Equal = %v, want = %v", got, want)
+		}
+	})
+}
+
 func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
 	l, r := p.Fork("side", []byte("l"), []byte("r"))
