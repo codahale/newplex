@@ -41,6 +41,7 @@
     * [State Operations](#state-operations)
       * [`Ratchet`](#ratchet)
       * [`Clone`](#clone)
+      * [`Clear`](#clear)
   * [The Protocol Framework](#the-protocol-framework)
     * [Operation Codes](#operation-codes)
     * [The Two-Frame Structure](#the-two-frame-structure)
@@ -611,6 +612,10 @@ Ratcheting the duplex reduces its available rate by 32 bytes to a total of 62 by
 
 The `Clone` operation creates an exact, independent copy of the current duplex session. This includes the full 128-byte
 `state`, the current `rateIdx`, and the `frameIdx`.
+
+#### `Clear`
+
+The `Clear` operation overwrites the duplex state, rate index, and frame index with zeros.
 
 ## The Protocol Framework
 

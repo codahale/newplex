@@ -38,6 +38,7 @@ var ErrInvalidCiphertext = errors.New("newplex: invalid ciphertext")
 type Protocol struct {
 	duplex    duplex
 	streaming bool
+	cleared   bool
 }
 
 // NewProtocol creates a new Protocol with the given domain separation string.
@@ -62,7 +63,7 @@ func (p *Protocol) String() string {
 //
 // Mix panics if a streaming operation is currently active.
 func (p *Protocol) Mix(label string, input []byte) {
-	p.checkStreaming()
+	p.checkState()
 	p.duplex.frame()
 	p.duplex.absorbByte(opMix)
 	p.duplex.absorb([]byte(label))
@@ -76,7 +77,7 @@ func (p *Protocol) Mix(label string, input []byte) {
 //
 // Derive panics if n is negative or if a streaming operation is currently active.
 func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
-	p.checkStreaming()
+	p.checkState()
 	if n < 0 {
 		panic("invalid argument to Derive: n cannot be negative")
 	}
@@ -107,7 +108,7 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 //
 // Mask panics if a streaming operation is currently active.
 func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
-	p.checkStreaming()
+	p.checkState()
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
 	p.duplex.frame()
 	p.duplex.absorbByte(opCrypt)
@@ -129,7 +130,7 @@ func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 //
 // Unmask panics if a streaming operation is currently active.
 func (p *Protocol) Unmask(label string, dst, ciphertext []byte) []byte {
-	p.checkStreaming()
+	p.checkState()
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
 	p.duplex.frame()
 	p.duplex.absorbByte(opCrypt)
@@ -150,7 +151,7 @@ func (p *Protocol) Unmask(label string, dst, ciphertext []byte) []byte {
 //
 // Seal panics if a streaming operation is currently active.
 func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
-	p.checkStreaming()
+	p.checkState()
 
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
@@ -181,7 +182,7 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 //
 // Open panics if a streaming operation is currently active.
 func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, error) {
-	p.checkStreaming()
+	p.checkState()
 
 	if len(ciphertextAndTag) < TagSize {
 		return nil, ErrInvalidCiphertext
@@ -212,7 +213,7 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 // Fork returns two copies of the receiver, with the left side having absorbed the left value and the right side having
 // absorbed the right.
 func (p *Protocol) Fork(label string, leftValue, rightValue []byte) (left, right Protocol) {
-	p.checkStreaming()
+	p.checkState()
 
 	// Make two copies.
 	left, right = *p, *p
@@ -238,7 +239,7 @@ func (p *Protocol) Fork(label string, leftValue, rightValue []byte) (left, right
 
 // Ratchet irreversibly modifies the protocol's state, preventing rollback and establishing forward secrecy.
 func (p *Protocol) Ratchet(label string) {
-	p.checkStreaming()
+	p.checkState()
 	p.duplex.frame()
 	p.duplex.absorbByte(opRatchet)
 	p.duplex.absorb([]byte(label))
@@ -251,13 +252,20 @@ func (p *Protocol) Ratchet(label string) {
 //
 // Clone panics if a streaming operation is currently active.
 func (p *Protocol) Clone() Protocol {
-	p.checkStreaming()
+	p.checkState()
 	return *p
+}
+
+// Clear erases the protocol's state
+func (p *Protocol) Clear() {
+	p.checkState()
+	p.duplex.clear()
+	p.cleared = true
 }
 
 // Equal returns 1 if p and p2 are equal, and 0 otherwise.
 func (p *Protocol) Equal(p2 *Protocol) int {
-	p.checkStreaming()
+	p.checkState()
 	return p.duplex.equal(&p2.duplex)
 }
 
@@ -266,7 +274,7 @@ func (p *Protocol) Equal(p2 *Protocol) int {
 //
 // AppendBinary panics if a streaming operation is currently active.
 func (p *Protocol) AppendBinary(b []byte) ([]byte, error) {
-	p.checkStreaming()
+	p.checkState()
 	return p.duplex.AppendBinary(b)
 }
 
@@ -274,7 +282,7 @@ func (p *Protocol) AppendBinary(b []byte) ([]byte, error) {
 //
 // MarshalBinary panics if a streaming operation is currently active.
 func (p *Protocol) MarshalBinary() (data []byte, err error) {
-	p.checkStreaming()
+	p.checkState()
 	return p.duplex.MarshalBinary()
 }
 
@@ -283,13 +291,16 @@ func (p *Protocol) MarshalBinary() (data []byte, err error) {
 //
 // UnmarshalBinary panics if a streaming operation is currently active.
 func (p *Protocol) UnmarshalBinary(data []byte) error {
-	p.checkStreaming()
+	p.checkState()
 	return p.duplex.UnmarshalBinary(data)
 }
 
-func (p *Protocol) checkStreaming() {
+func (p *Protocol) checkState() {
 	if p.streaming {
 		panic("newplex: protocol is currently streaming")
+	}
+	if p.cleared {
+		panic("newplex: protocol has been cleared")
 	}
 }
 

@@ -156,6 +156,13 @@ func (d *duplex) equal(d2 *duplex) int {
 		subtle.ConstantTimeEq(int32(d.frameIdx), int32(d2.frameIdx))
 }
 
+// clear zeros out the duplex's state.
+func (d *duplex) clear() {
+	clear(d.state[:])
+	d.rateIdx = 0
+	d.frameIdx = 0
+}
+
 // UnmarshalBinary restores the duplex's state from the given binary representation. It implements
 // encoding.BinaryUnmarshaler.
 func (d *duplex) UnmarshalBinary(data []byte) error {

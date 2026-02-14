@@ -12,7 +12,7 @@ import (
 //
 // MixWriter panics if a streaming operation is currently active.
 func (p *Protocol) MixWriter(label string, w io.Writer) *MixWriter {
-	p.checkStreaming()
+	p.checkState()
 	p.streaming = true
 	p.duplex.frame()
 	p.duplex.absorbByte(opMix)
@@ -29,7 +29,7 @@ func (p *Protocol) MixWriter(label string, w io.Writer) *MixWriter {
 //
 // MixReader panics if a streaming operation is currently active.
 func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
-	p.checkStreaming()
+	p.checkState()
 	p.streaming = true
 	p.duplex.frame()
 	p.duplex.absorbByte(opMix)
@@ -47,7 +47,7 @@ func (p *Protocol) MixReader(label string, r io.Reader) io.ReadCloser {
 //
 // MaskStream panics if a streaming operation is currently active.
 func (p *Protocol) MaskStream(label string) *CryptStream {
-	p.checkStreaming()
+	p.checkState()
 	p.streaming = true
 	p.duplex.frame()
 	p.duplex.absorbByte(opCrypt)
@@ -67,7 +67,7 @@ func (p *Protocol) MaskStream(label string) *CryptStream {
 //
 // UnmaskStream panics if a streaming operation is currently active.
 func (p *Protocol) UnmaskStream(label string) *CryptStream {
-	p.checkStreaming()
+	p.checkState()
 	p.streaming = true
 	p.duplex.frame()
 	p.duplex.absorbByte(opCrypt)

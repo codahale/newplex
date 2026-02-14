@@ -256,6 +256,17 @@ func TestDuplex_Decrypt(t *testing.T) {
 	})
 }
 
+func TestDuplex_Clear(t *testing.T) {
+	var d1, d2 duplex
+	d1.absorb([]byte("input input input"))
+	d1.permute()
+	d1.clear()
+
+	if d1.equal(&d2) == 0 {
+		t.Error("cleared duplex not equal to uninitialized duplex")
+	}
+}
+
 func TestDuplex_Equal(t *testing.T) {
 	t.Run("equal", func(t *testing.T) {
 		var d1, d2 duplex

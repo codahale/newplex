@@ -60,6 +60,18 @@ func TestProtocol_Clone(t *testing.T) {
 	}
 }
 
+func TestProtocol_Clear(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+
+	p := newplex.NewProtocol("clear")
+	p.Clear()
+	p.Derive("test", nil, 8)
+}
+
 func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
 	l, r := p.Fork("side", []byte("l"), []byte("r"))
