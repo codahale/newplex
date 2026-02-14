@@ -1,6 +1,6 @@
 module github.com/codahale/newplex
 
-go 1.25.6
+go 1.26
 
 require (
 	github.com/gtank/ristretto255 v0.2.0
