@@ -13,7 +13,6 @@ import (
 	"net"
 
 	"github.com/codahale/newplex/aestream"
-	"github.com/codahale/newplex/aestream/ecdhratchet"
 	"github.com/codahale/newplex/handshake"
 	"github.com/gtank/ristretto255"
 )
@@ -91,14 +90,8 @@ func main() {
 				panic(err)
 			}
 
-			ratchet := &ecdhratchet.Ratchet{
-				Receiver: dIS,
-				Sender:   qRS,
-			}
 			r := aestream.NewReader(recv, client, aestream.MaxBlockSize)
-			r.Ratchet = ratchet
 			w := aestream.NewWriter(send, client, aestream.MaxBlockSize)
-			w.Ratchet = ratchet
 			defer func() {
 				log.Info("closing aestream")
 				err = w.Close()

@@ -13,7 +13,6 @@ import (
 	"net"
 
 	"github.com/codahale/newplex/aestream"
-	"github.com/codahale/newplex/aestream/ecdhratchet"
 	"github.com/codahale/newplex/handshake"
 	"github.com/gtank/ristretto255"
 )
@@ -86,14 +85,8 @@ func main() {
 			}
 			log.Info("handshake established", "pk", hex.EncodeToString(qIS.Bytes()))
 
-			ratchet := &ecdhratchet.Ratchet{
-				Receiver: dRS,
-				Sender:   qIS,
-			}
 			r := aestream.NewReader(recv, conn, aestream.MaxBlockSize)
-			r.Ratchet = ratchet
 			w := aestream.NewWriter(send, conn, aestream.MaxBlockSize)
-			w.Ratchet = ratchet
 			defer func() {
 				log.Info("closing aestream")
 				err = w.Close()

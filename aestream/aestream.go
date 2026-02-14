@@ -23,20 +23,8 @@ import (
 // this size.
 const MaxBlockSize = 1<<24 - 1
 
-// ErrBlockTooLarge is returned when a reading a block which is larger than the specified maximum block size.
+// ErrBlockTooLarge is returned when a reading a block that is larger than the specified maximum block size.
 var ErrBlockTooLarge = errors.New("newplex: block size > max block size")
-
-// Ratchet is a generic double-ratchet mechanism.
-type Ratchet interface {
-	// BlockSize returns the size of each ratchet block in bytes.
-	BlockSize() int
-
-	// Send generates a new ratchet key, returning the ciphertext to be sent and the associated shared secret.
-	Send() (ct, ss []byte)
-
-	// Receive converts a ratchet ciphertext into the associated shared secret or returns an error.
-	Receive(ct []byte) (ss []byte, err error)
-}
 
 // Writer encrypts written data in blocks, ensuring both confidentiality and authenticity.
 type Writer struct {
@@ -45,9 +33,6 @@ type Writer struct {
 	buf          []byte
 	closed       bool
 	maxBlockSize int
-
-	// Ratchet is an optional ratchet mechanism for the writer.
-	Ratchet Ratchet
 }
 
 // NewWriter wraps the given newplex.Protocol and io.Writer with a streaming authenticated encryption writer.
@@ -69,7 +54,6 @@ func NewWriter(p *newplex.Protocol, w io.Writer, maxBlockSize int) *Writer {
 		buf:          make([]byte, 0, 1024),
 		closed:       false,
 		maxBlockSize: maxBlockSize,
-		Ratchet:      nil,
 	}
 }
 
@@ -106,26 +90,13 @@ func (s *Writer) Close() error {
 }
 
 func (s *Writer) sealAndWrite(p []byte) error {
-	// Ensure we have enough room for the ratchet block, if any.
-	var ratchetBufferSize int
-	if s.Ratchet != nil && len(p) > 0 {
-		ratchetBufferSize = s.Ratchet.BlockSize() + newplex.TagSize
-	}
-
 	// Encode a header with a 3-byte big endian block length and seal it.
-	s.buf = slices.Grow(s.buf[:0], headerSize+newplex.TagSize+ratchetBufferSize+len(p)+newplex.TagSize)
+	s.buf = slices.Grow(s.buf[:0], headerSize+newplex.TagSize+len(p)+newplex.TagSize)
 	header := s.buf[:headerSize]
 	putUint24(header, uint32(len(p))) //nolint:gosec // len(p) <= MaxBlockSize
 	block := s.p.Seal("header", header[:0], header)
 
-	// If a ratchet is specified, generate a ratchet block.
-	if s.Ratchet != nil && len(p) > 0 {
-		ct, ss := s.Ratchet.Send()
-		block = s.p.Seal("ratchet", block, ct)
-		s.p.Mix("ratchet-key", ss)
-	}
-
-	// Seal the block, append it to the header/ratchet block, and send it.
+	// Seal the block, append it to the header block, and send it.
 	block = s.p.Seal("block", block, p)
 	if _, err := s.w.Write(block); err != nil {
 		return err
@@ -141,9 +112,6 @@ type Reader struct {
 	buf, blockBuf []byte
 	eos           bool
 	maxBlockSize  int
-
-	// Ratchet is an optional ratchet mechanism for the writer.
-	Ratchet Ratchet
 }
 
 // NewReader wraps the given newplex.Protocol and io.Reader with a streaming authenticated encryption reader. See
@@ -168,7 +136,6 @@ func NewReader(p *newplex.Protocol, r io.Reader, maxBlockSize int) *Reader {
 		blockBuf:     nil,
 		eos:          false,
 		maxBlockSize: maxBlockSize,
-		Ratchet:      nil,
 	}
 }
 
@@ -199,20 +166,6 @@ func (o *Reader) Read(p []byte) (n int, err error) {
 		blockLen := int(uint24(header))
 		if blockLen > o.maxBlockSize {
 			return 0, ErrBlockTooLarge
-		}
-
-		// If a ratchet is specified, process the ratchet block.
-		if o.Ratchet != nil && blockLen != 0 {
-			var ct, ss []byte
-			ct, err = o.readAndOpen("ratchet", o.Ratchet.BlockSize())
-			if err != nil {
-				return 0, err
-			}
-			ss, err = o.Ratchet.Receive(ct)
-			if err != nil {
-				return 0, err
-			}
-			o.p.Mix("ratchet-key", ss)
 		}
 
 		// Read and open the block.
