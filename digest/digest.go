@@ -50,7 +50,7 @@ func (d *digest) Write(p []byte) (n int, err error) {
 }
 
 func (d *digest) Sum(b []byte) []byte {
-	p := d.w.Fork()
+	p := d.w.Branch()
 	var label string
 	if d.size == KeyedSize {
 		label = "tag"
