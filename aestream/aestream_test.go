@@ -111,16 +111,14 @@ func TestNewWriter(t *testing.T) {
 			}
 		}()
 
-		p := newplex.NewProtocol("example")
-		aestream.NewWriter(&p, io.Discard, 0)
+		aestream.NewWriter(new(newplex.NewProtocol("example")), io.Discard, 0)
 	})
 }
 
 func TestWriter_Write(t *testing.T) {
 	t.Run("underlying writer error", func(t *testing.T) {
-		p := newplex.NewProtocol("example")
 		ew := &testdata.ErrWriter{Err: errors.New("write failed")}
-		w := aestream.NewWriter(&p, ew, aestream.MaxBlockSize)
+		w := aestream.NewWriter(new(newplex.NewProtocol("example")), ew, aestream.MaxBlockSize)
 
 		_, err := w.Write([]byte("hello"))
 		if !errors.Is(err, ew.Err) {
@@ -202,8 +200,7 @@ func TestNewReader(t *testing.T) {
 
 func TestReader_Read(t *testing.T) {
 	t.Run("empty read", func(t *testing.T) {
-		p := newplex.NewProtocol("example")
-		r := aestream.NewReader(&p, bytes.NewReader(nil), aestream.MaxBlockSize)
+		r := aestream.NewReader(new(newplex.NewProtocol("example")), bytes.NewReader(nil), aestream.MaxBlockSize)
 		n, err := r.Read(nil)
 		if n != 0 || err != nil {
 			t.Errorf("expected 0, nil; got %d, %v", n, err)
@@ -211,9 +208,8 @@ func TestReader_Read(t *testing.T) {
 	})
 
 	t.Run("underlying reader error", func(t *testing.T) {
-		p := newplex.NewProtocol("example")
 		er := &testdata.ErrReader{Err: errors.New("read failed")}
-		r := aestream.NewReader(&p, er, aestream.MaxBlockSize)
+		r := aestream.NewReader(new(newplex.NewProtocol("example")), er, aestream.MaxBlockSize)
 
 		_, err := r.Read(make([]byte, 100))
 		if !errors.Is(err, er.Err) {
@@ -222,8 +218,7 @@ func TestReader_Read(t *testing.T) {
 	})
 
 	t.Run("empty stream", func(t *testing.T) {
-		p := newplex.NewProtocol("example")
-		r := aestream.NewReader(&p, bytes.NewReader(nil), aestream.MaxBlockSize)
+		r := aestream.NewReader(new(newplex.NewProtocol("example")), bytes.NewReader(nil), aestream.MaxBlockSize)
 		_, err := r.Read(make([]byte, 100))
 		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
 			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
@@ -231,17 +226,15 @@ func TestReader_Read(t *testing.T) {
 	})
 
 	t.Run("invalid header tag", func(t *testing.T) {
-		p1 := newplex.NewProtocol("example")
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(new(newplex.NewProtocol("example")), buf, aestream.MaxBlockSize)
 		_, _ = w.Write([]byte("message"))
 		_ = w.Close()
 
 		data := buf.Bytes()
 		data[5] ^= 1 // tamper with header tag
 
-		p2 := newplex.NewProtocol("example")
-		r := aestream.NewReader(&p2, bytes.NewReader(data), aestream.MaxBlockSize)
+		r := aestream.NewReader(new(newplex.NewProtocol("example")), bytes.NewReader(data), aestream.MaxBlockSize)
 		_, err := io.ReadAll(r)
 		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
 			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
@@ -249,17 +242,15 @@ func TestReader_Read(t *testing.T) {
 	})
 
 	t.Run("invalid block tag", func(t *testing.T) {
-		p1 := newplex.NewProtocol("example")
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(new(newplex.NewProtocol("example")), buf, aestream.MaxBlockSize)
 		_, _ = w.Write([]byte("message"))
 		_ = w.Close()
 
 		data := buf.Bytes()
 		data[len(data)-1] ^= 1 // tamper with block tag
 
-		p2 := newplex.NewProtocol("example")
-		r := aestream.NewReader(&p2, bytes.NewReader(data), aestream.MaxBlockSize)
+		r := aestream.NewReader(new(newplex.NewProtocol("example")), bytes.NewReader(data), aestream.MaxBlockSize)
 		_, err := io.ReadAll(r)
 		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
 			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
