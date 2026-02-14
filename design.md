@@ -433,8 +433,6 @@ permutation `f` (Simpira-1024) on the entire state and resets `rateIdx` and `fra
 
 ```text
 function Permute():
-  if rateIdx == 0:            // Do not permute if the rate has not been touched.
-    return
   state[rateIdx] ^= frameIdx  // Absorb framing metadata
   state[rateIdx+1] ^= 0x01    // Apply pad10*1 padding
   state[PAD_BYTE_IDX] ^= 0x80
@@ -507,7 +505,8 @@ with the security level of a generic state recovery attack at `2**c`.
 
 ```text
 function Ratchet():
-  Permute()
+  if rateIdx > 0: // Do not permute if the rate has not been touched.
+    Permute()
   for i in 0..CAPACITY_BYTES:
     state[i] = 0x00
   rateIdx = CAPACITY_BYTES
