@@ -1,5 +1,94 @@
 # The Newplex Framework
 
+<!-- TOC -->
+* [The Newplex Framework](#the-newplex-framework)
+  * [Introduction](#introduction)
+    * [Design Goals](#design-goals)
+    * [Security Model](#security-model)
+    * [Data Types and Conventions](#data-types-and-conventions)
+        * [Data Types](#data-types)
+        * [Integer Encoding](#integer-encoding)
+        * [Conventions](#conventions)
+  * [The Simpira-1024 Permutation](#the-simpira-1024-permutation)
+    * [Security Claims](#security-claims)
+    * [Cryptanalytic History](#cryptanalytic-history)
+    * [Rationale](#rationale)
+      * [Hardware Acceleration](#hardware-acceleration)
+      * [Architectural Parity](#architectural-parity)
+      * [Implementation Compactness](#implementation-compactness)
+  * [The Duplex Construction](#the-duplex-construction)
+    * [Parameters](#parameters)
+    * [Framing](#framing)
+    * [Constants](#constants)
+    * [Variables And State Layout](#variables-and-state-layout)
+      * [`state`](#state)
+      * [`rateIdx`](#rateidx)
+      * [`frameIdx`](#frameidx)
+    * [Implementation Note: Bit vs. Byte Padding](#implementation-note-bit-vs-byte-padding)
+    * [Data Operations](#data-operations)
+      * [`Absorb`](#absorb)
+      * [`Squeeze`](#squeeze)
+      * [`Encrypt`/`Decrypt`](#encryptdecrypt)
+        * [IND-EAV (Indistinguishability against Eavesdropping)](#ind-eav-indistinguishability-against-eavesdropping)
+        * [IND-CPA (Indistinguishability under Chosen Plaintext Attack)](#ind-cpa-indistinguishability-under-chosen-plaintext-attack)
+        * [Plaintext Dependency](#plaintext-dependency)
+    * [Control Operations](#control-operations)
+      * [`Frame`](#frame)
+      * [`Permute`](#permute)
+    * [Worked Example: Domain Separation through Framing](#worked-example-domain-separation-through-framing)
+      * [Sequence A: `Absorb(0xCA); Absorb(0xFE)`](#sequence-a-absorb0xca-absorb0xfe)
+      * [Sequence B: `Absorb(0xCA); Frame(); Absorb(0xFE)`](#sequence-b-absorb0xca-frame-absorb0xfe)
+    * [State Operations](#state-operations)
+      * [`Ratchet`](#ratchet)
+      * [`Clone`](#clone)
+  * [The Protocol Framework](#the-protocol-framework)
+    * [Operation Codes](#operation-codes)
+    * [The Two-Frame Structure](#the-two-frame-structure)
+    * [Domain Separation Labels](#domain-separation-labels)
+    * [Transcript Security](#transcript-security)
+    * [Operations](#operations)
+      * [`Init`](#init)
+      * [`Mix`](#mix)
+      * [`Derive`](#derive)
+        * [Random Oracle](#random-oracle)
+        * [KDF Security](#kdf-security)
+        * [KDF Chains](#kdf-chains)
+      * [`Mask` / `Unmask`](#mask--unmask)
+        * [Cryptographic Properties](#cryptographic-properties)
+      * [`Seal`/`Open`](#sealopen)
+        * [Cryptographic Properties](#cryptographic-properties-1)
+      * [`Fork`](#fork)
+      * [`Ratchet`](#ratchet-1)
+  * [Basic Schemes](#basic-schemes)
+    * [Message Digest](#message-digest)
+      * [Cryptographic Properties](#cryptographic-properties-2)
+      * [Security Analysis](#security-analysis)
+    * [Message Authentication Code (MAC)](#message-authentication-code-mac)
+      * [Cryptographic Properties](#cryptographic-properties-3)
+      * [Security Analysis](#security-analysis-1)
+    * [Stream Cipher](#stream-cipher)
+      * [Cryptographic Properties](#cryptographic-properties-4)
+      * [Security Analysis](#security-analysis-2)
+    * [Authenticated Encryption with Associated Data (AEAD)](#authenticated-encryption-with-associated-data-aead)
+      * [Cryptographic Properties](#cryptographic-properties-5)
+      * [Security Analysis](#security-analysis-3)
+    * [Deterministic Authenticated Encryption (SIV)](#deterministic-authenticated-encryption-siv)
+      * [Cryptographic Properties](#cryptographic-properties-6)
+      * [Security Analysis](#security-analysis-4)
+    * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
+      * [Cryptographic Properties](#cryptographic-properties-7)
+      * [Security Analysis](#security-analysis-5)
+  * [Complex Schemes](#complex-schemes)
+    * [Digital Signature](#digital-signature)
+    * [Hybrid Public Key Encryption (HPKE)](#hybrid-public-key-encryption-hpke)
+    * [Signcryption](#signcryption)
+    * [Mutually Authenticated Handshake](#mutually-authenticated-handshake)
+    * [Asynchronous Double Ratchet](#asynchronous-double-ratchet)
+    * [Password-Authenticated Key Exchange (PAKE)](#password-authenticated-key-exchange-pake)
+    * [Verifiable Random Function (VRF)](#verifiable-random-function-vrf)
+    * [Oblivious Pseudorandom Function (OPRF) and Verifiable Pseudorandom Function (VOPRF)](#oblivious-pseudorandom-function-oprf-and-verifiable-pseudorandom-function-voprf)
+<!-- TOC -->
+
 ## Introduction
 
 Newplex is a cryptographic framework that provides a unified interface for unkeyed and symmetric-key operations. It is
@@ -60,6 +149,10 @@ disambiguated with distinct operation codes, and all operations require domain s
 and metadata preclude ambiguity between operations and enforce domain separation at the state level, any successful
 attack against the protocol implies a collision or distinguishing attack against the duplex construction or permutation
 itself.
+
+Finally, the security model assumes a constant-time implementation of Simpira-1024. A lookup table-based implementation
+of the AES round function could leak secret data via side channels. The use of AES hardware instructions largely
+mitigates this concern on common architectures.
 
 ### Data Types and Conventions
 
@@ -707,7 +800,7 @@ with the duplex's state to produce both the ciphertext and the duplex's new stat
 Unlike [`Derive`](#derive) and [`Seal`](#sealopen), `Mask` does not require the length of the plaintext to be known in
 advance, and is suitable for streaming operations.
 
-##### Security Properties
+##### Cryptographic Properties
 
 > [!WARNING]
 > **`Mask` does not protect the authenticity of the ciphertext.**
@@ -772,7 +865,7 @@ returned. Otherwise, an error is returned.
 The ciphertext is dependent on the length of the plaintext, making `Seal` unsuitable for streaming operations. See
 the [streaming authenticated encryption](#streaming-authenticated-encryption) scheme for a solution.
 
-##### Security Properties
+##### Cryptographic Properties
 
 * `Seal` and `Open` provide IND-CCA2 security if one of the protocol's inputs includes a probabilistic value, like a
   nonce.
