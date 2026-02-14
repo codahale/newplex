@@ -138,7 +138,7 @@ func FuzzProtocolReversibility(f *testing.F) {
 
 				p1.Mix(label, input)
 
-				operations = append(operations, operation{ //nolint:exhaustruct // it's fine
+				operations = append(operations, operation{
 					opType: 0,
 					label:  label,
 					input:  input,
@@ -151,7 +151,7 @@ func FuzzProtocolReversibility(f *testing.F) {
 
 				output := p1.Derive(label, nil, int(n))
 
-				operations = append(operations, operation{ //nolint:exhaustruct // it's fine
+				operations = append(operations, operation{
 					opType: 1,
 					label:  label,
 					n:      int(n),
@@ -165,7 +165,7 @@ func FuzzProtocolReversibility(f *testing.F) {
 
 				output := p1.Mask(label, nil, input)
 
-				operations = append(operations, operation{ //nolint:exhaustruct // it's fine
+				operations = append(operations, operation{
 					opType: 2,
 					label:  label,
 					input:  input,
@@ -179,7 +179,7 @@ func FuzzProtocolReversibility(f *testing.F) {
 
 				output := p1.Seal(label, nil, input)
 
-				operations = append(operations, operation{ //nolint:exhaustruct // it's fine
+				operations = append(operations, operation{
 					opType: 3,
 					label:  label,
 					input:  input,

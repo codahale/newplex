@@ -1,4 +1,4 @@
-package newplex //nolint:testpackage // testing duplex internals
+package newplex
 
 import (
 	"encoding/hex"
@@ -428,7 +428,6 @@ func BenchmarkDuplex_Decrypt(b *testing.B) {
 	}
 }
 
-//nolint:gochecknoglobals // this is fine
 var lengths = []struct {
 	name string
 	n    int

@@ -52,7 +52,7 @@ func Hash(domain string, password, salt []byte, spaceCost, timeCost, parallelism
 						idxBlock := b[:0]
 						idxBlock = binary.LittleEndian.AppendUint32(idxBlock, t)
 						idxBlock = binary.LittleEndian.AppendUint32(idxBlock, m)
-						idxBlock = binary.LittleEndian.AppendUint32(idxBlock, uint32(i)) //nolint:gosec // i < 3
+						idxBlock = binary.LittleEndian.AppendUint32(idxBlock, uint32(i))
 						hash(h, &cnt, salt, idxBlock, idxBlock[:4])
 						other := binary.LittleEndian.Uint32(idxBlock) % spaceCost
 						hash(h, &cnt, buf[m][:], buf[other][:], buf[m][:])

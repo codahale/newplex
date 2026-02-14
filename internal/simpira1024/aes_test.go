@@ -1,4 +1,4 @@
-package simpira1024 //nolint:testpackage // explicitly testing internals
+package simpira1024
 
 import (
 	"encoding/hex"

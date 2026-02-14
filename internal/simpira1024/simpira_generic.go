@@ -21,7 +21,7 @@ func fCB(x [16]byte, c uint32) [16]byte {
 
 // permuteGeneric is an implementation of Algorithm 9 from the Simpira V2 paper.
 func permuteGeneric(state *[Width]byte) {
-	const R = 18 //nolint:gocritic // for clarity
+	const R = 18
 	c := uint32(1)
 	s := [6]int{0, 1, 6, 5, 4, 3}
 	t := [2]int{2, 7}

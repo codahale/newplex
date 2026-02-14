@@ -52,7 +52,6 @@ func BenchmarkAEAD_Open(b *testing.B) {
 	}
 }
 
-//nolint:gochecknoglobals // this is fine
 var lengths = []struct {
 	name string
 	n    int

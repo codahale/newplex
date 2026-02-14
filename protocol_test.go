@@ -62,7 +62,7 @@ func TestProtocol_Clone(t *testing.T) {
 
 func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
-	l, r := p.Fork("side", []byte("l"), []byte("r")) //nolint:staticcheck // false positive
+	l, r := p.Fork("side", []byte("l"), []byte("r"))
 
 	if p.Equal(&l) == 1 {
 		t.Error("Left side of fork is the same as the parent")

@@ -17,7 +17,6 @@ import (
 	"github.com/gtank/ristretto255"
 )
 
-//nolint:funlen // it's complicated
 func main() {
 	var (
 		listen  = flag.String("listen", "127.0.0.1:5050", "the address to listen on")

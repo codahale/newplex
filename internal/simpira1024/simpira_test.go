@@ -1,4 +1,4 @@
-package simpira1024 //nolint:testpackage // need access to generic impl
+package simpira1024
 
 import (
 	"bytes"

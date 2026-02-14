@@ -59,8 +59,14 @@ jobs:
         go-version: 'stable'
         cache: false
 
-    - name: Lint
-      uses: golangci/golangci-lint-action@v9
-      with:
-        version: latest
-        args: --timeout=5m
+    - name: go fmt
+      run: go fmt ./... && git diff --exit-code
+
+    - name: go vet
+      run: go vet ./...
+
+    - name: go fix
+      run: go fix ./... && git diff --exit-code
+
+    - name: go mod tidy
+      run: go mod tidy && git diff --exit-code

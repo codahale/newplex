@@ -19,7 +19,7 @@ const (
 // New returns a new hash.Hash instance which uses the given domain string.
 func New(domain string) hash.Hash {
 	base := newplex.NewProtocol(domain)
-	d := &digest{ //nolint:exhaustruct // initialized via Reset
+	d := &digest{
 		base: base,
 		size: UnkeyedSize,
 	}
@@ -31,7 +31,7 @@ func New(domain string) hash.Hash {
 func NewKeyed(domain string, key []byte) hash.Hash {
 	base := newplex.NewProtocol(domain)
 	base.Mix("key", key)
-	d := &digest{ //nolint:exhaustruct // initialized via Reset
+	d := &digest{
 		base: base,
 		size: KeyedSize,
 	}

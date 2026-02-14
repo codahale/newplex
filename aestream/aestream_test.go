@@ -406,7 +406,6 @@ func Example() {
 	// plaintext  = hello world
 }
 
-//nolint:gochecknoglobals // this is fine
 var lengths = []struct {
 	name string
 	n    int
