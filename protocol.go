@@ -55,7 +55,7 @@ func NewProtocol(domain string) Protocol {
 
 // String returns a safe string representation of the protocol's state for debugging purposed.
 func (p *Protocol) String() string {
-	clone := *p
+	clone := p.Clone()
 	return fmt.Sprintf("Protocol(%x)", clone.Derive("debug", nil, 8))
 }
 
