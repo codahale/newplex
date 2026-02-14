@@ -241,6 +241,17 @@ func (p *Protocol) Fork(label string, leftValue, rightValue []byte) (left, right
 	return left, right
 }
 
+// Ratchet irreversibly modifies the protocol's state, preventing rollback and establishing forward secrecy.
+func (p *Protocol) Ratchet(label string) {
+	p.checkStreaming()
+	p.duplex.frame()
+	p.duplex.absorbByte(opRatchet)
+	p.duplex.absorb([]byte(label))
+	p.duplex.frame()
+	p.duplex.absorbByte(opRatchet | 0x80)
+	p.duplex.ratchet()
+}
+
 // Clone returns a full clone of the receiver.
 //
 // Clone panics if a streaming operation is currently active.
@@ -302,6 +313,7 @@ const (
 	opCrypt     = 0x04 // Mask or decrypt an input value.
 	opAuthCrypt = 0x05 // Seal or open an input value.
 	opFork      = 0x06 // Fork a protocol into left and right branches.
+	opRatchet   = 0x07 // Ratchet a protocol's state to prevent rollback.
 )
 
 // sliceForAppend takes a slice and a requested number of bytes. It returns a slice with the contents of the given slice

@@ -77,6 +77,19 @@ func TestProtocol_Fork(t *testing.T) {
 	}
 }
 
+func TestProtocol_Ratchet(t *testing.T) {
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("a thing", []byte("another thing"))
+
+	p2 := newplex.NewProtocol("example")
+	p2.Mix("a thing", []byte("another thing"))
+	p2.Ratchet("ratchet")
+
+	if p1.Equal(&p2) == 1 {
+		t.Errorf("post-ratchet states should not be equal")
+	}
+}
+
 func TestProtocol_MarshalBinary(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("a thing", []byte("another thing"))
