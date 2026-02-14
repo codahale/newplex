@@ -177,8 +177,8 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 // of dst must not overlap ciphertext.
 //
 // WARNING: Open decrypts the ciphertext in-place before verifying the authentication tag. If the tag is invalid, the
-// decrypted plaintext (which is now in dst) is zeroed out, but the original ciphertext is lost. If you need to preserve
-// the ciphertext in case of error, do not use in-place decryption (i.e., do not use ciphertext[:0] as dst).
+// decrypted plaintext (which is now in dst) is zeroed out, but the original ciphertext is lost. To preserve the
+// ciphertext in case of error, do not use in-place decryption (i.e., do not use ciphertext[:0] as dst).
 //
 // Open panics if a streaming operation is currently active.
 func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, error) {

@@ -577,7 +577,7 @@ The final input to the permutation is `[0xCA, 0x00, 0xFE, 0x02, 0x01, 0x80]`.
 Even though both sequences processed the same input bytes in the same order (`[0xCA, 0xFE]`), the final permutation
 inputs are distinct. In Sequence A, the data occupies contiguous indices and the frame metadata is zero. In Sequence B,
 the `Frame` operation absorbed the previous `frameIdx` into the state and moved the absorption position of the second
-data byte (`0xFE`). This mechanism ensures that the duplex state is not just a transcript of the data, but of the
+data byte (`0xFE`). This mechanism ensures that the duplex state is not just a transcript of the data but of the
 metadata as well.
 
 ### State Operations
@@ -1338,11 +1338,10 @@ Validity.
   framework to provide stronger guarantees, particularly regarding how the scheme hides the boundaries of fragmented
   data and limits the exact amount of length information leaked to an adversary observing the stream's network packets.
 * **Block IND-CCA2 and Stateful Decryption:** In a streaming context, the standard IND-CCA2 game is evaluated
-  block-by-block. Each individual block must maintain full indistinguishability and integrity. Furthermore, the
-  decryption oracle in this game is stateful. It evaluates the sequence of the ciphertexts as part of the authentication
-  context. A scheme achieves stateful security if an adversary is computationally unable to reorder, replay, duplicate,
-  or drop intermediate blocks without the decryption oracle immediately detecting the state desynchronization and
-  halting.
+  block-by-block. Each block must maintain full indistinguishability and integrity. Furthermore, the decryption oracle
+  in this game is stateful. It evaluates the sequence of the ciphertexts as part of the authentication context. A scheme
+  achieves stateful security if an adversary is computationally unable to reorder, replay, duplicate, or drop
+  intermediate blocks without the decryption oracle immediately detecting the state desynchronization and halting.
 * **Termination Validity (Truncation Resistance):** Because a stream's length is open-ended, an adversary can trivially
   launch a truncation attack by simply severing the network connection or dropping the final packets. A formally secure
   streaming scheme must guarantee termination validity. This requires the end of the stream to be explicitly and
@@ -1364,10 +1363,10 @@ chain provides stateful decryption and block IND-CCA2 security, immediately dete
 duplicate, or drop intermediate blocks.
 
 Furthermore, the construction addresses the stricter boundary-hiding and fragmentation resistance goals of OAE2. By
-utilizing a two-step sealing process for each chunk—independently sealing the 3-byte length header before sealing the
-block itself—the scheme strongly authenticates the chunk boundaries. If an adversary attempts to shift block boundaries
-or manipulate the framing, the decryption oracle will fail to authenticate the length header and halt before attempting
-to process the modified chunk. This limits the leakage of length information and prevents the adversary from gaining an
+using a two-step sealing process for each chunk—independently sealing the 3-byte length header before sealing the block
+itself—the scheme strongly authenticates the chunk boundaries. If an adversary attempts to shift block boundaries or
+manipulate the framing, the decryption oracle will fail to authenticate the length header and halt before attempting to
+process the modified chunk. This limits the leakage of length information and prevents the adversary from gaining an
 advantage through maliciously fragmented ciphertexts.
 
 Finally, the scheme achieves termination validity by mandating a final, authenticated zero-length block.
@@ -1744,7 +1743,7 @@ keys.
 ### Password-Authenticated Key Exchange (PAKE)
 
 A Password-Authenticated Key Exchange (PAKE) allows two parties who share a low-entropy secret--such as a human-readable
-password--to establish a high-entropy, cryptographically secure shared state. By performing a key exchange that is
+password--to establish a high-entropy, cryptographically secure shared state. By performing a key exchange
 mathematically bound to the shared secret, the protocol guarantees that an active attacker cannot mount an offline
 dictionary attack simply by observing or intercepting the network traffic. An attacker is restricted to a single online
 guess per execution, ensuring that even weak passwords can establish robust communication channels.

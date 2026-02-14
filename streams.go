@@ -132,7 +132,7 @@ func (m *mixReader) Close() error {
 
 // CryptStream implements a streaming version of a protocol's Mask or Unmask operation.
 //
-// N.B.: After the stream has been masked or unmasked, the caller MUST call Close in order to complete the operation.
+// N.B.: After the stream has been masked or unmasked, the caller MUST call Close to complete the operation.
 type CryptStream struct {
 	p      *Protocol
 	f      func(dst, src []byte)
