@@ -53,6 +53,15 @@ func TestProtocol_Equal(t *testing.T) {
 	})
 }
 
+func TestProtocol_Clone(t *testing.T) {
+	p1 := newplex.NewProtocol("example")
+	p1.Mix("one", []byte{1})
+
+	if p1.Equal(new(p1.Clone())) == 0 {
+		t.Errorf("post-clone states should be equal")
+	}
+}
+
 func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
 	l, r := p.Fork("side", []byte("l"), []byte("r"))
