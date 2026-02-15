@@ -1496,12 +1496,20 @@ adherence to complex specifications like RFC 6979 to safely generate determinist
 
 Newplex significantly lowers this implementation burden. By relying on the continuous duplex state, the message and the
 signer's public key are automatically and irrevocably bound to the challenge scalar `c`, naturally resisting
-context-confusion attacks without requiring standard rigid serialization formats.
+context-confusion and message malleability attacks without requiring standard rigid serialization formats.
+
+The security of this scheme reduces to the discrete logarithm problem and the indifferentiability of the duplex from a
+random oracle. The Fiat-Shamir transform relies on the `Derive` operation's property as a random oracle to produce
+uniformly random challenge scalars that are cryptographically bound to the entire transcript. Because the transcript
+includes the signer's identity, the message, and the commitment point, the resulting signature achieves strong
+existential unforgeability under chosen-message attacks (sUF-CMA).
 
 More importantly, the `Fork` operation cleanly isolates the secret key material. By branching the state into a `prover`,
 the private key `d` can be safely absorbed to deterministically derive `k`. Because the `verifier` branch never sees
 this private key, it securely mirrors the exact state that a third-party verifier will construct when checking the
-signature, ensuring perfect synchronization between the creator and the evaluator of the proof.
+signature, ensuring synchronization between the prover and the verifier of the proof. The use of a random hedge protects
+the deterministic derivation of `k` against fault-injection attacks, ensuring that even if the private key is
+compromised via side channels, the randomness of the commitment point is preserved.
 
 ### Hybrid Public Key Encryption (HPKE)
 
@@ -1557,9 +1565,9 @@ Newplex replaces this entire composite structure. The sequence of `Mix` operatio
 construction, absorbing the three public keys and two shared secrets to establish a shared protocol state.
 
 Because every input--including the sender and receiver identities--is absorbed directly into the protocol transcript,
-the context is inherently strongly committing. Any modification to the public keys, the ephemeral key, or the ciphertext
-by an attacker will produce a divergent pre-`Seal` state. This guarantees that the final `Open` operation will fail,
-providing IND-CCA2 security without the overhead of a separate DEM or MAC wrapper.
+the context is inherently strongly committing (CMT-4). Any modification to the public keys, the ephemeral key, or the
+ciphertext by an attacker will produce a divergent pre-`Seal` state. This guarantees that the final `Open` operation
+will fail, providing IND-CCA2 security without the overhead of a separate DEM or MAC wrapper.
 
 ### Signcryption
 
@@ -1653,10 +1661,11 @@ function SigncryptOpen(dR, QS, payload):
   return message
 ```
 
-This scheme is both outsider- and insider-secure for both confidentiality and authenticity. An outsider adversary in
-possession of both public keys will be unable to read plaintexts or forge ciphertexts. An insider adversary in
-possession of the sender's private key will be unable to read plaintexts. An insider adversary in possession of the
-receiver's private key will be unable to forge ciphertexts.
+This scheme is both outsider- and insider-secure for both confidentiality and authenticity. Outsider security ensures
+that an adversary in possession of only public keys will be unable to read plaintexts or forge ciphertexts. Insider
+security for confidentiality ensures that the sender cannot read messages sent to other receivers, while insider
+security for authenticity ensures that the receiver cannot forge a message from the sender to themselves (e.g., to
+show to a judge).
 
 Because a Newplex protocol is an incremental, stateful way of building a cryptographic scheme, this integrated
 signcryption scheme is stronger than generic schemes which combine separate public key encryption and digital signature
@@ -1672,15 +1681,15 @@ With this scheme, on the other hand, the digital signature isn't of the cipherte
 protocol. The challenge scalar `r` is derived from the protocol's state, which depends on (among other things) the ECDH
 shared secret. Unless the adversary already knows the shared secret (i.e., the secret key that the plaintext is
 encrypted with), they can't create their own signature (which they're trying to do to trick someone into giving them the
-plaintext).
+plaintext). This provides robust non-malleability and CMT-4 security.
 
 An adversary attacking an `StE` scheme can decrypt a signed message sent to them and re-encrypt it for someone else,
-allowing them to pose as the original sender. This scheme makes simple replay attacks impossible by including both the
-intended sender and receiver's public keys in the protocol state. The
-initial [HPKE-style](#hybrid-public-key-encryption-hpke) portion of the protocol can be trivially constructed by an
-adversary with an ephemeral key pair of their choosing. However, the final portion is the sUF-CMA
-secure [Schnorr signature scheme](#digital-signature) from the previous section and unforgeable without the sender's
-private key.
+allowing them to pose as the original sender. This scheme makes simple replay and re-encryption attacks impossible by
+including both the intended sender and receiver's public keys and their shared secret in the protocol state. The
+initial [HPKE-style](#hybrid-public-key-encryption-hpke) portion of the protocol establishes the session's
+confidentiality,
+while the final portion is the sUF-CMA secure [Schnorr signature scheme](#digital-signature) from the previous section,
+which is unforgeable without the sender's private key even by an insider (the receiver).
 
 ### Mutually Authenticated Handshake
 
@@ -1703,14 +1712,16 @@ Newplex collapses this traditional stack into a single, continuous duplex state,
 and the AEAD cipher simultaneously. As the initiator and responder compute their Diffie-Hellman shared secrets, they
 simply absorb them directly into the protocol state using `Mix` operations. When the static public identities are sealed
 or opened, the underlying state has already absorbed the entire sequence of prior operations, meaning a successful
-decryption implicitly authenticates the historical transcript without requiring a separate hash verification step.
+decryption implicitly authenticates the historical transcript and ensures both parties share the exact same view of the
+handshake, naturally resisting reordering and reflection attacks.
 
 At the conclusion of the handshake, the framework provides a natural transition into the transport phase. A `Ratchet`
 operation irreversibly modifies the state, providing an absolute forward-secrecy boundary that prevents an attacker from
-inverting the state to recover the ephemeral key material. Finally, a `Fork` operation cleanly splits the authenticated
-root state into independent sending and receiving pipes. This establishes bidirectional transport channels securely
-bound to both the handshake transcript and the intended channel use without requiring the explicit derivation, storage,
-or management of standalone symmetric transport keys.
+inverting the state to recover the ephemeral key material or previous session secrets even if the long-term static keys
+are later compromised. Finally, a `Fork` operation cleanly splits the authenticated root state into independent sending
+and receiving pipes. This establishes bidirectional transport channels securely bound to both the handshake transcript
+and the intended channel use without requiring the explicit derivation, storage, or management of standalone symmetric
+transport keys.
 
 ### Asynchronous Double Ratchet
 
@@ -1731,14 +1742,15 @@ Newplex replaces this entire key-derivation pipeline through the use of independ
 When an asymmetric ratchet step occurs, the new Diffie-Hellman shared secret is absorbed into the relevant receiving or
 sending pipe using `Mix` operations. Instead of generating standalone symmetric keys for each message, Newplex clones
 the active pipe to create a single-use message state. By mixing the unencrypted header into this cloned protocol before
-sealing or opening the payload, the ciphertext is cryptographically bound to its metadata without requiring a separate
-authentication step.
+sealing or opening the payload, the ciphertext is cryptographically bound to its metadata (including the public key and
+message number) without requiring a separate authentication step, providing CMT-4 security for every message.
 
 To guarantee forward secrecy, the framework uses an explicit `Ratchet` operation to irreversibly advance the main
 sending or receiving pipe after a message state is cloned. An adversary who steals the device's current state cannot
 invert it to recover the protocol states used for previous messages. This provides the exact security properties of a
 traditional hash-based KDF chain, but without the architectural overhead of managing discrete message keys and chain
-keys.
+keys. Furthermore, because the `Ratchet` operation clears 32 bytes of the duplex rate, the scheme achieves 128-bit
+post-compromise security as soon as a new secret Diffie-Hellman shared secret is mixed into the state.
 
 ### Password-Authenticated Key Exchange (PAKE)
 
@@ -1759,15 +1771,17 @@ engineering rigor.
 Newplex streamlines this flow by using the continuous duplex state to derive both the group parameters and the final
 keys. Both parties initialize the protocol and use `Mix` operations to absorb the session identifiers, participant IDs,
 and the shared password. Instead of implementing a standalone Hash-to-Curve suite, Newplex leverages the `Derive`
-operation to extract pseudorandom bytes directly from this password-bound transcript, mapping them to a valid
-Ristretto255 element that serves as the unique base point.
+operation's random oracle property to extract 64 bytes of pseudorandom bytes directly from this password-bound
+transcript, passing them to `ElementDerive` to map them to a valid Ristretto255 element that serves as the unique base
+point.
 
 The participants then generate random scalars, multiply them by this derived base point, and exchange the resulting
 elements. Once these elements and the final Diffie-Hellman shared secret are mixed back into the duplex, the protocol
 state is fully authenticated. Because every step--from the initial password input to the final exchanged elements--is
-incrementally absorbed into the exact same continuous state, the final transcript is strongly bound to the password.
-Any deviation, such as an incorrect password or an attacker injecting forged elements, inherently produces a divergent
-state, causing all operations on the channel to gracefully and safely fail.
+incrementally absorbed into the exact same continuous state, the final transcript is strongly bound to the password and
+session identifiers. This provides robust resistance to offline dictionary attacks, as any deviation in the password
+or public elements inherently produces a divergent state. An attacker's success is strictly bounded by the probability
+of guessing the password in a single online attempt.
 
 ### Verifiable Random Function (VRF)
 
@@ -1788,18 +1802,21 @@ points. Ensuring strict domain separation across these distinct hashing phases i
 
 Newplex unifies this entire process into a single, continuous flow. To map the input message to the curve, the
 protocol initializes the state, mixes in the prover's public key and the message, and uses the `Derive` operation
-to extract a valid curve point. This entirely replaces the need for a standalone Hash-to-Curve suite. The
-prover multiplies this point by their private key to yield the evaluated point, mixes it back into the protocol, and
-directly derives the requested length of pseudorandom output. Because the duplex absorbs every input at every step, the
-final output is strongly bound to both the message and the prover's identity.
+to extract 64 bytes of pseudorandom output, which is then mapped to a curve point via `ElementDerive`. This entirely
+replaces the need for a standalone Hash-to-Curve suite, leveraging the indifferentiability of the duplex from a random
+oracle to ensure a uniform distribution of points. The prover multiplies this point by their private key to yield the
+evaluated point, mixes it back into the protocol, and directly derives the requested length of pseudorandom output.
+Because the duplex absorbs every input at every step, the final output is strongly bound to both the message and the
+prover's identity, ensuring uniqueness and collision resistance.
 
 To construct the DLEQ proof, Newplex leverages the same `Fork` technique used in the digital signature scheme. The state
 splits into prover and verifier branches. The prover branch safely absorbs the private key and random hedging data to
 generate a commitment scalar and its corresponding commitment points. The verifier branch absorbs these public points
-and derives the challenge scalar. This explicitly maps the underlying interactive protocol to a non-interactive
-zero-knowledge proof. During verification, the evaluating party reconstructs the identical state machine, mixing in the
-proof elements to derive the expected challenge. If the proof is valid, the state naturally outputs the verified
-pseudorandom bytes, eliminating the need for separate hash, XOF, or KDF algorithms.
+and derives the challenge scalar from the unified transcript. This explicitly maps the underlying interactive protocol
+to a non-interactive zero-knowledge proof in the random oracle model. During verification, the evaluating party
+reconstructs the identical state machine, mixing in the proof elements to derive the expected challenge. If the proof is
+valid, the state naturally outputs the verified pseudorandom bytes, eliminating the need for separate hash, XOF, or KDF
+algorithms.
 
 ### Oblivious Pseudorandom Function (OPRF) and Verifiable Pseudorandom Function (VOPRF)
 
@@ -1823,16 +1840,18 @@ notorious source of subtle engineering vulnerabilities.
 Newplex streamlines this multi-stage protocol by again relying on the continuous evolution of a single duplex state. To
 initiate the exchange, the client initializes the protocol, mixes in their private input, and invokes a `Fork`
 operation to cleanly divide the state into an element branch and a PRF branch. The element branch immediately uses a
-`Derive` operation to map the input to a secure curve point, entirely bypassing the need for a standalone Hash-to-Curve
-suite. After blinding, transmitting, and receiving the evaluated element from the server, the client unblinds the
-element and mixes it directly into the waiting PRF branch. A final `Derive` operation extracts the requested
-pseudorandom output.
+`Derive` operation to map the input to a secure curve point via `ElementDerive`, entirely bypassing the need for a
+standalone Hash-to-Curve suite. After blinding, transmitting, and receiving the evaluated element from the server, the
+client unblinds the element and mixes it directly into the waiting PRF branch. A final `Derive` operation extracts the
+requested pseudorandom output, ensuring that the final PRF result is cryptographically bound to the client's original
+private input and the server's evaluation.
 
 Adding verifiability to this flow highlights the framework's simplicity when constructing complex zero-knowledge proofs.
 Rather than importing specialized hashing suites to compute the DLEQ proof, the server simply iterates over the blinded
 and evaluated elements, mixing them into the protocol state to directly derive the pseudorandom weighting scalars
 necessary for batching. It then absorbs the resulting composite elements alongside the proof commitments to derive the
-final challenge scalar. The client verification mirrors this flow, reconstructing the composites and the expected
-challenge from their own state machine. This replaces a brittle collection of specialized hashing routines with
-a unified, continuous cryptographic context.
+final challenge scalar using the `Derive` operation as a random oracle. The client verification mirrors this flow,
+reconstructing the composites and the expected challenge from their own state machine. This replaces a brittle
+collection of specialized hashing routines with a unified, continuous cryptographic context that provides both client
+privacy and server verifiability.
 
