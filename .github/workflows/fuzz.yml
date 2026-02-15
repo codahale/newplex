@@ -20,6 +20,7 @@ jobs:
           - { target: FuzzAEAD, package: . }
           - { target: FuzzProtocolDivergence, package: . }
           - { target: FuzzProtocolReversibility, package: . }
+          - { target: FuzzProtocol_Open, package: . }
           - { target: FuzzPermute, package: ./internal/simpira1024 }
 
     steps:
