@@ -1429,6 +1429,11 @@ function AEStreamRecv(key, nonce, ct, pt):
   return ErrInvalidCiphertext                       // Return an error if the stream is truncated.
 ```
 
+> [!NOTE]
+> The use of a 3-byte big-endian integer (`I2OSP(|block|, 3)`) for the sealed header limits the maximum size of an
+> individual block to `2**(24-1)` bytes, or exactly 16 MiB. This provides a balance between efficiency and protection
+> against memory-exhaustion attacks.
+
 #### Cryptographic Properties
 
 The formal evaluation of a streaming authenticated encryption scheme extends standard AEAD games to account for the
