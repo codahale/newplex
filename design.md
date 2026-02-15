@@ -7,6 +7,7 @@
     * [Comparison with Related Frameworks](#comparison-with-related-frameworks)
     * [Design Goals](#design-goals)
     * [Security Model](#security-model)
+      * [Safety in Implementation](#safety-in-implementation)
     * [Data Types and Conventions](#data-types-and-conventions)
         * [Data Types](#data-types)
         * [Integer Encoding](#integer-encoding)
@@ -204,6 +205,23 @@ output is cryptographically bound to the entire history of the session, includin
 Finally, the security model assumes a constant-time implementation of Simpira-1024. A lookup table-based implementation
 of the AES round function could leak secret data via side channels. The use of AES hardware instructions largely
 mitigates this concern on common architectures.
+
+#### Safety in Implementation
+
+To ensure the security of the Newplex framework, implementers **must** adhere to the following safety guidelines:
+
+* **Constant-Time Execution:** All operations involving secret data (keys, plaintexts, internal state) must be executed
+  in constant time. Specifically, comparisons of authentication tags or session secrets **must** use constant-time
+  comparison functions (e.g., `CT_EQ`) to prevent timing side-channel attacks, and the AES round implementation in
+  Simpira-1024 **must** be constant time.
+* **Memory Management:** Secret data should be cleared from memory as soon as possible. This includes zeroing out
+  buffers containing plaintexts, keys, and the internal duplex state before they are deallocated.
+* **In-Place Operations and Error Handling:** When performing in-place decryption (such as in `Open`), implementers
+  **must** ensure that if an authentication check fails, the provisional plaintext is immediately zeroed out and never
+  returned to the caller.
+* **No Secret Logging:** Never log key material, plaintexts, or internal state. Debug logs should only contain public
+  metadata and non-sensitive operation info. Safe debug representations of protocols can be obtained via cloning the
+  protocol and performing a `Derive` operation on the clone.
 
 ### Data Types and Conventions
 
