@@ -116,10 +116,10 @@ Security in Newplex is enforced through a strict grammar of cryptographic intent
 distinct levels. At the protocol (or scheme) level, different applications (e.g., a file encryption tool vs. a network
 handshake) are domain-separated by unique initialization strings. Individual operations within a protocol are bound to
 their semantic role, distinguishing between key material, public metadata, and encrypted payloads. By absorbing this
-context into the duplex state, Newplex prevents ambiguity attacks where valid data from one context is accepted in
-another. Furthermore, the design mandates constant-time execution for all secret-dependent operations and provides
-forward secrecy via a ratchet mechanism, ensuring that a compromise of the current state cannot retroactively expose
-past communications.
+context into the duplex state, Newplex ensures full context commitment, preventing ambiguity attacks where valid data
+from one context is accepted in another. Furthermore, the design mandates constant-time execution for all
+secret-dependent operations and provides forward secrecy via a ratchet mechanism, ensuring that a compromise of the
+current state cannot retroactively expose past communications.
 
 Finally, Newplex targets exceptional performance on 64-bit architectures. By building on the Simpira-1024
 permutation--which leverages ubiquitous AES hardware instructions (`AES-NI` on x86-64 and `FEAT_AES` on ARMv8)--the
@@ -149,7 +149,8 @@ result in distinct sequences of inputs to the underlying permutation. In additio
 disambiguated with distinct operation codes, and all operations require domain separation labels. Because the framing
 and metadata preclude ambiguity between operations and enforce domain separation at the state level, any successful
 attack against the protocol implies a collision or distinguishing attack against the duplex construction or permutation
-itself.
+itself. Furthermore, this construction ensures the protocol is full context committing (CMT-4): every bit of squeezed
+output is cryptographically bound to the entire history of the session, including all metadata and secret material.
 
 Finally, the security model assumes a constant-time implementation of Simpira-1024. A lookup table-based implementation
 of the AES round function could leak secret data via side channels. The use of AES hardware instructions largely
@@ -675,6 +676,11 @@ another, nor can they swap the contents of two operations with different operati
 established sequence causes the internal state of the participants to diverge, ensuring that a final authentication
 check will fail.
 
+These properties collectively provide full context commitment (CMT-4). Unlike traditional AEAD constructions where a
+ciphertext might only be a commitment to the key and nonce, a Newplex `Seal` is a commitment to the entire session
+transcript. This ensures that a ciphertext and tag pair is cryptographically inseparable from the specific protocol
+instance and sequence of operations that produced it.
+
 ### Operations
 
 #### `Init`
@@ -880,6 +886,13 @@ the [streaming authenticated encryption](#streaming-authenticated-encryption) sc
 * `Seal` and `Open` provide IND-CCA2 security if one of the protocol's inputs includes a probabilistic value, like a
   nonce.
 * The derived tag is dependent on every prior operation and its inputs, making `Seal` strongly context-committing.
+
+* `Seal` and `Open` provide indistinguishability under adaptive chosen-ciphertext attack (IND-CCA2), ensuring both
+  confidentiality and integrity, provided the protocol state is probabilistic (e.g., includes a nonce).
+* Because the authentication tag is derived from the duplex state after every preceding operation (including the domain
+  string, all previous labels, and all previous data), `Seal` provides a binding commitment to the entire session
+  context. Full context commitment (CMT-4) prevents partitioning oracle attacks and context-confusion vulnerabilities,
+  as a ciphertext and tag pair cannot be validly decrypted under a different key, nonce, associated data, or protocol state.
 
 #### `Fork`
 
