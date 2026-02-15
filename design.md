@@ -3,6 +3,8 @@
 <!-- TOC -->
 * [The Newplex Framework](#the-newplex-framework)
   * [Introduction](#introduction)
+  * [Architecture at a Glance](#architecture-at-a-glance)
+    * [Comparison with Related Frameworks](#comparison-with-related-frameworks)
     * [Design Goals](#design-goals)
     * [Security Model](#security-model)
     * [Data Types and Conventions](#data-types-and-conventions)
@@ -103,6 +105,53 @@ modern processors at a 128-bit security level.
 [Noise Protocol]: http://www.noiseprotocol.org
 
 [Xoodyak]: https://keccak.team/xoodyak.html
+
+## Architecture at a Glance
+
+Newplex is structured as a stack of four distinct layers, each building on the security and functionality of the one
+below it.
+
+```text
+ +-----------------------------------------------------------+
+ |                        Schemes                            |
+ | (AEAD, Signatures, PAKE, OPRF, Handshakes, Ratchets...)   |
+ +-----------------------------------------------------------+
+ |                   Protocol Framework                      |
+ | (Opcodes, Operation Labels, Metadata & Data Frames)       |
+ +-----------------------------------------------------------+
+ |                   Duplex Construction                     |
+ | (State Management, Framing, Padding, Ratcheting)          |
+ +-----------------------------------------------------------+
+ |                  Simpira-1024 Permutation                 |
+ | (AES hardware acceleration, 1024-bit width)               |
+ +-----------------------------------------------------------+
+```
+
+1. **Permutation Layer ([Simpira-1024](#the-simpira-1024-permutation)):** The foundation of the framework. It provides a
+   fixed-length, high-performance transformation of a 1024-bit state, leveraging hardware-accelerated AES instructions
+   for maximum efficiency.
+2. **Duplex Layer ([The Duplex Construction](#the-duplex-construction)):** The stateful engine. It manages the 1024-bit
+   state, logically partitioning it into a 768-bit rate and a 256-bit capacity. It handles data absorption, pseudorandom
+   squeezing, and internal framing boundaries.
+3. **Protocol Layer ([The Protocol Framework](#the-protocol-framework)):** The semantic enforcement layer. It wraps
+   duplex operations in a strict grammar of opcodes and labels, ensuring unique transcript decodability and providing.
+4. **Scheme Layer ([Basic](#basic-schemes) & [Complex](#complex-schemes) Schemes):** The application layer. It composes
+   protocol operations into interoperable cryptographic tools, ranging from simple hash functions and MACs to complex
+   multi-party protocols like OPRFs and Double Ratchets.
+
+### Comparison with Related Frameworks
+
+Newplex draws inspiration from several foundational cryptographic frameworks. The following table highlights the key
+architectural differences:
+
+| Feature            | Newplex            | STROBE             | Noise               | Xoodyak           |
+|--------------------|--------------------|--------------------|---------------------|-------------------|
+| **Permutation**    | Simpira-1024       | Keccak-f\[1600\]   | Mixed (e.g. ChaCha) | Xoodoo            |
+| **State Width**    | 1024 bits          | 1600 bits          | 512+ bits           | 384 bits          |
+| **Security Level** | 128-bit            | 128-bit            | 128-bit or 256-bit  | 128-bit           |
+| **Primary Target** | 64-bit Performance | Embedded/Compact   | Network Handshakes  | Efficient Hashing |
+| **Framing**        | STROBE-style Index | STROBE-style Index | Protocol-specific   | Cyclic Duplex     |
+| **Key Property**   | Flexible/Universal | Flexible/Universal | Composable          | Lightweight       |
 
 ### Design Goals
 
@@ -350,7 +399,9 @@ can combine metadata and raw data into a single, efficient process without riski
 
 ### Constants
 
-To ensure clarity in the operation of the duplex, the following constants are defined based on the selected parameters:
+To ensure clarity in the operation of the duplex, the following constants are defined based on the selected parameters.
+The effective rate is limited to 94 bytes to accommodate the 32-byte capacity while reserving two bytes at the end of
+every 96-byte rate block for mandatory framing and padding metadata.
 
 | Constant       | Value | Description                                                                                               |
 |----------------|-------|-----------------------------------------------------------------------------------------------------------|
@@ -653,7 +704,11 @@ state.
 ### The Two-Frame Structure
 
 To enforce domain separation at the operation level, every operation (except `Init`) performs duplex operations within
-two distinct frames: the metadata frame and the data frame. During the metadata frame, the protocol absorbs the base
+two distinct **operation phases**: the metadata frame and the data frame. While the duplex engine uses the term `Frame`
+to describe the low-level delimitation of data, the protocol framework uses these phases to distinguish between
+cryptographic intent (metadata) and the primary payload (data).
+
+During the metadata frame, the protocol absorbs the base
 opcode (with the high bit cleared) and a domain separation label with the duplex. This binds the intent of the operation
 to the transcript. During the data frame, it absorbs the modified opcode (with the high bit set) with the duplex before
 executing the primary logic of the operation.
@@ -909,7 +964,8 @@ the [streaming authenticated encryption](#streaming-authenticated-encryption) sc
 * Because the authentication tag is derived from the duplex state after every preceding operation (including the domain
   string, all previous labels, and all previous data), `Seal` provides a binding commitment to the entire session
   context. Full context commitment (CMT-4) prevents partitioning oracle attacks and context-confusion vulnerabilities,
-  as a ciphertext and tag pair cannot be validly decrypted under a different key, nonce, associated data, or protocol state.
+  as a ciphertext and tag pair cannot be validly decrypted under a different key, nonce, associated data, or protocol
+  state.
 
 #### `Fork`
 
