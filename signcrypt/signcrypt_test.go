@@ -23,7 +23,7 @@ func TestOpen(t *testing.T) {
 		}
 
 		if got, want := plaintext, []byte("this is a message"); !bytes.Equal(got, want) {
-			t.Errorf("Open(Seal(%x)) = %x, want = %x", want, got, want)
+			t.Errorf("Open() = %x, want = %x", got, want)
 		}
 	})
 

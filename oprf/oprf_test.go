@@ -54,10 +54,10 @@ func TestBlind(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if blind.Equal(ristretto255.NewScalar()) == 1 {
+		if got, want := blind.Equal(ristretto255.NewScalar()), 0; got != want {
 			t.Error("blind should not be zero")
 		}
-		if blindedElement.Equal(ristretto255.NewIdentityElement()) == 1 {
+		if got, want := blindedElement.Equal(ristretto255.NewIdentityElement()), 0; got != want {
 			t.Error("blindedElement should not be identity")
 		}
 	})
@@ -134,8 +134,8 @@ func TestEvaluate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(clientPRF, serverPRF) {
-			t.Errorf("mismatched PRF: %x != %x", clientPRF, serverPRF)
+		if got, want := clientPRF, serverPRF; !bytes.Equal(got, want) {
+			t.Errorf("clientPRF = %x, want %x (mismatched PRF)", got, want)
 		}
 	})
 

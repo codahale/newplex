@@ -29,8 +29,8 @@ func TestProtocol_MixReader(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if p1.Equal(&p2) != 1 {
-		t.Error("divergent protocol states")
+	if got, want := p1.Equal(&p2), 1; got != want {
+		t.Errorf("Equal() = %v, want %v (divergent protocol states)", got, want)
 	}
 }
 
@@ -59,8 +59,8 @@ func TestProtocol_MixWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if p1.Equal(&p2) != 1 {
-		t.Error("divergent protocol states")
+	if got, want := p1.Equal(&p2), 1; got != want {
+		t.Errorf("Equal() = %v, want %v (divergent protocol states)", got, want)
 	}
 }
 
@@ -86,8 +86,8 @@ func TestProtocol_MaskStream(t *testing.T) {
 		t.Errorf("MaskReader(msg) = %x, want = %x", got, want)
 	}
 
-	if p1.Equal(&p2) != 1 {
-		t.Error("divergent protocol states")
+	if got, want := p1.Equal(&p2), 1; got != want {
+		t.Errorf("Equal() = %v, want %v (divergent protocol states)", got, want)
 	}
 }
 
@@ -113,7 +113,7 @@ func TestProtocol_UnmaskStream(t *testing.T) {
 		t.Errorf("UnmaskReader(Mask(msg)) = %x, want = %x", got, want)
 	}
 
-	if p1.Equal(&p2) != 1 {
-		t.Error("divergent protocol states")
+	if got, want := p1.Equal(&p2), 1; got != want {
+		t.Errorf("Equal() = %v, want %v (divergent protocol states)", got, want)
 	}
 }

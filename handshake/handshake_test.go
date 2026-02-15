@@ -19,8 +19,8 @@ func TestInitiate(t *testing.T) {
 			t.Fatalf("Initiate failed: %v", err)
 		}
 
-		if len(request) != handshake.RequestSize {
-			t.Errorf("expected request size %d, got %d", handshake.RequestSize, len(request))
+		if got, want := len(request), handshake.RequestSize; got != want {
+			t.Errorf("len(request) = %d, want %d", got, want)
 		}
 
 		if finish == nil {
@@ -51,8 +51,8 @@ func TestRespond(t *testing.T) {
 			t.Fatalf("Respond failed: %v", err)
 		}
 
-		if len(response) != handshake.ResponseSize {
-			t.Errorf("expected response size %d, got %d", handshake.ResponseSize, len(response))
+		if got, want := len(response), handshake.ResponseSize; got != want {
+			t.Errorf("len(response) = %d, want %d", got, want)
 		}
 
 		if finish == nil {
@@ -121,12 +121,11 @@ func TestHandshake(t *testing.T) {
 			t.Errorf("mismatched initiator public key")
 		}
 
-		// Verify keys derived from both ends match
-		if iSend.Equal(rRecv) != 1 {
-			t.Error("mismatched iSend/rRecv")
+		if got, want := iSend.Equal(rRecv), 1; got != want {
+			t.Errorf("iSend.Equal(rRecv) = %v, want %v", got, want)
 		}
-		if rSend.Equal(iRecv) != 1 {
-			t.Error("mismatched rSend/iRecv")
+		if got, want := rSend.Equal(iRecv), 1; got != want {
+			t.Errorf("rSend.Equal(iRecv) = %v, want %v", got, want)
 		}
 	})
 

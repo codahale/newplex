@@ -25,8 +25,8 @@ func TestOpen(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if got, want := plaintext, message; !bytes.Equal(plaintext, message) {
-			t.Errorf("Open(Seal(%x)) = %x", want, got)
+		if got, want := plaintext, message; !bytes.Equal(got, want) {
+			t.Errorf("Open() = %x, want = %x", got, want)
 		}
 	})
 

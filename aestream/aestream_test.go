@@ -37,7 +37,7 @@ func TestNewWriter(t *testing.T) {
 		}
 
 		if got, want := b, []byte("here's one message; and another"); !bytes.Equal(got, want) {
-			t.Errorf("NewReader(NewWriter(%x)) = %x, want = %x", want, got, want)
+			t.Errorf("io.ReadAll() = %x, want = %x", got, want)
 		}
 	})
 
@@ -68,7 +68,7 @@ func TestNewWriter(t *testing.T) {
 		}
 
 		if got, want := b, message; !bytes.Equal(got, want) {
-			t.Errorf("NewReader(NewWriter(%x)) = %x, want = %x", want, got, want)
+			t.Errorf("io.ReadAll() = %x, want = %x", got, want)
 		}
 	})
 

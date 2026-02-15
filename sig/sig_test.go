@@ -20,8 +20,8 @@ func TestSign(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if len(signature) != sig.Size {
-			t.Errorf("expected signature size %d, got %d", sig.Size, len(signature))
+		if got, want := len(signature), sig.Size; got != want {
+			t.Errorf("len(signature) = %d, want %d", got, want)
 		}
 	})
 
@@ -50,7 +50,7 @@ func TestVerify(t *testing.T) {
 		}
 
 		if !valid {
-			t.Errorf("should have been valid")
+			t.Errorf("Verify() = false, want = true")
 		}
 	})
 
@@ -61,7 +61,7 @@ func TestVerify(t *testing.T) {
 		}
 
 		if valid {
-			t.Error("should not have been valid")
+			t.Errorf("Verify() = true, want = false")
 		}
 	})
 
@@ -72,7 +72,7 @@ func TestVerify(t *testing.T) {
 		}
 
 		if valid {
-			t.Error("should not have been valid")
+			t.Errorf("Verify() = true, want = false")
 		}
 	})
 

@@ -30,16 +30,16 @@ func TestSIV_New(t *testing.T) {
 func TestSIV_NonceSize(t *testing.T) {
 	c := siv.New("com.example.test", make([]byte, 32), 16)
 
-	if ns := c.NonceSize(); ns != 16 {
-		t.Errorf("NonceSize() = %d, want 16", ns)
+	if got, want := c.NonceSize(), 16; got != want {
+		t.Errorf("NonceSize() = %d, want %d", got, want)
 	}
 }
 
 func TestSIV_Overhead(t *testing.T) {
 	c := siv.New("com.example.test", make([]byte, 32), 16)
 
-	if oh := c.Overhead(); oh != newplex.TagSize {
-		t.Errorf("Overhead() = %d, want %d", oh, newplex.TagSize)
+	if got, want := c.Overhead(), newplex.TagSize; got != want {
+		t.Errorf("Overhead() = %d, want %d", got, want)
 	}
 }
 
@@ -66,8 +66,8 @@ func TestSIV_Seal(t *testing.T) {
 
 		ciphertext := c.Seal(nil, nonce, plaintext, ad)
 
-		if len(ciphertext) != len(plaintext)+c.Overhead() {
-			t.Errorf("Ciphertext length = %d, want %d", len(ciphertext), len(plaintext)+c.Overhead())
+		if got, want := len(ciphertext), len(plaintext)+c.Overhead(); got != want {
+			t.Errorf("len(ciphertext) = %d, want %d", got, want)
 		}
 	})
 }
@@ -88,8 +88,8 @@ func TestSIV_Open(t *testing.T) {
 			t.Fatalf("Open failed: %v", err)
 		}
 
-		if !bytes.Equal(plaintext, decrypted) {
-			t.Errorf("Decrypted = %q, want %q", decrypted, plaintext)
+		if got, want := decrypted, plaintext; !bytes.Equal(got, want) {
+			t.Errorf("Open() = %q, want %q", got, want)
 		}
 	})
 

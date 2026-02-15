@@ -77,10 +77,10 @@ func TestState_ReceiveMessage(t *testing.T) {
 		for _, i := range order {
 			v, err := bea.ReceiveMessage(msgs[i])
 			if err != nil {
-				t.Fatalf("failed to receive message %d: %v", i, err)
+				t.Fatalf("ReceiveMessage(%d) failed: %v", i, err)
 			}
-			if !bytes.Equal(v, []byte{byte(i)}) {
-				t.Errorf("expected %d, got %v", i, v)
+			if got, want := v, []byte{byte(i)}; !bytes.Equal(got, want) {
+				t.Errorf("ReceiveMessage(%d) = %v, want %v", i, got, want)
 			}
 		}
 	})
@@ -114,8 +114,8 @@ func TestState_ReceiveMessage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bea failed to receive msg4: %v", err)
 		}
-		if !bytes.Equal(v, []byte("msg4")) {
-			t.Errorf("expected msg4, got %q", v)
+		if got, want := v, []byte("msg4"); !bytes.Equal(got, want) {
+			t.Errorf("ReceiveMessage(msg4) = %q, want %q", got, want)
 		}
 
 		// Bea receives msg 3.
@@ -123,8 +123,8 @@ func TestState_ReceiveMessage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bea failed to receive msg3: %v", err)
 		}
-		if !bytes.Equal(v, []byte("msg3")) {
-			t.Errorf("expected msg3, got %q", v)
+		if got, want := v, []byte("msg3"); !bytes.Equal(got, want) {
+			t.Errorf("ReceiveMessage(msg3) = %q, want %q", got, want)
 		}
 	})
 

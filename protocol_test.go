@@ -9,8 +9,10 @@ import (
 
 func TestNewProtocol(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
-	if p1.Equal(new(newplex.NewProtocol("other"))) == 1 {
-		t.Errorf("Domain separation failure")
+	p2 := newplex.NewProtocol("other")
+
+	if got, want := p1.Equal(&p2), 0; got != want {
+		t.Errorf("Equal() = %v, want = %v (domain separation failure)", got, want)
 	}
 }
 
@@ -52,8 +54,9 @@ func TestProtocol_Clone(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("one", []byte{1})
 
-	if p1.Equal(new(p1.Clone())) == 0 {
-		t.Errorf("post-clone states should be equal")
+	p2 := p1.Clone()
+	if got, want := p1.Equal(&p2), 1; got != want {
+		t.Errorf("Equal() = %v, want = %v (post-clone states should be equal)", got, want)
 	}
 }
 
@@ -73,26 +76,36 @@ func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
 	l, r := p.Fork("side", []byte("l"), []byte("r"))
 
-	if p.Equal(&l) == 1 {
-		t.Error("Left side of fork is the same as the parent")
-	}
-	if p.Equal(&r) == 1 {
-		t.Error("Right side of fork is the same as the parent")
-	}
-	if l.Equal(&r) == 1 {
-		t.Error("Left side of fork is the same as the right")
-	}
+	t.Run("left vs parent", func(t *testing.T) {
+		if got, want := p.Equal(&l), 0; got != want {
+			t.Errorf("Equal() = %v, want = %v (left side of fork same as parent)", got, want)
+		}
+	})
 
-	leftA, rightA := p.Fork("example", []byte("A"), []byte("B"))
-	leftB, rightB := p.Fork("example", []byte("B"), []byte("A"))
+	t.Run("right vs parent", func(t *testing.T) {
+		if got, want := p.Equal(&r), 0; got != want {
+			t.Errorf("Equal() = %v, want = %v (right side of fork same as parent)", got, want)
+		}
+	})
 
-	if got, want := leftA.String(), rightB.String(); got != want {
-		t.Errorf("%x != %x", got, want)
-	}
+	t.Run("left vs right", func(t *testing.T) {
+		if got, want := l.Equal(&r), 0; got != want {
+			t.Errorf("Equal() = %v, want = %v (left side of fork same as right)", got, want)
+		}
+	})
 
-	if got, want := rightA.String(), leftB.String(); got != want {
-		t.Errorf("%x != %x", got, want)
-	}
+	t.Run("commutativity", func(t *testing.T) {
+		leftA, rightA := p.Fork("example", []byte("A"), []byte("B"))
+		leftB, rightB := p.Fork("example", []byte("B"), []byte("A"))
+
+		if got, want := leftA.String(), rightB.String(); got != want {
+			t.Errorf("leftA.String() = %s, rightB.String() = %s", got, want)
+		}
+
+		if got, want := rightA.String(), leftB.String(); got != want {
+			t.Errorf("rightA.String() = %s, leftB.String() = %s", got, want)
+		}
+	})
 }
 
 func TestProtocol_Ratchet(t *testing.T) {
@@ -103,8 +116,8 @@ func TestProtocol_Ratchet(t *testing.T) {
 	p2.Mix("a thing", []byte("another thing"))
 	p2.Ratchet("ratchet")
 
-	if p1.Equal(&p2) == 1 {
-		t.Errorf("post-ratchet states should not be equal")
+	if got, want := p1.Equal(&p2), 0; got != want {
+		t.Errorf("Equal() = %v, want = %v (post-ratchet states should not be equal)", got, want)
 	}
 }
 
@@ -122,8 +135,8 @@ func TestProtocol_MarshalBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if p2.Equal(&p1) == 0 {
-		t.Errorf("unmarshaled state should be equal")
+	if got, want := p2.Equal(&p1), 1; got != want {
+		t.Errorf("Equal() = %v, want = %v (unmarshaled state should be equal)", got, want)
 	}
 }
 
@@ -161,8 +174,8 @@ func TestProtocol_Mix(t *testing.T) {
 		p2 := newplex.NewProtocol("empty-test")
 		p2.Mix("label", nil)
 
-		if p1.Equal(&p2) == 1 {
-			t.Errorf("Mix(''); Mix('label') should not be equal")
+		if got, want := p1.Equal(&p2), 0; got != want {
+			t.Errorf("Equal() = %v, want = %v (Mix(''); Mix('label') should not be equal)", got, want)
 		}
 	})
 }

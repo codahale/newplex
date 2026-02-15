@@ -28,8 +28,8 @@ func TestAES128(t *testing.T) {
 		roundKeys := expandKey128(key)
 		ct := aes128(pt, roundKeys)
 
-		if hex.EncodeToString(ct[:]) != tt.ct {
-			t.Errorf("AES-128(%s, %s) = %s, want = %x", tt.key, tt.pt, tt.ct, hex.EncodeToString(ct[:]))
+		if got, want := hex.EncodeToString(ct[:]), tt.ct; got != want {
+			t.Errorf("AES-128(%s, %s) = %s, want %s", tt.key, tt.pt, got, want)
 		}
 	}
 }
