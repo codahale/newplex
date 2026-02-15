@@ -383,13 +383,6 @@ A byte-index tracking where the current frame began (`0 <= frameIdx < 94`). It i
 is opened, the current `rateIdx` is recorded here, ensuring the boundary is preserved even if the frame spans multiple
 permutation blocks.
 
-> [!NOTE]
-> While the `pad10*1` scheme is defined in bits, in the context of Newplex's 96-byte rate, it is implemented as follows:
->
-> * The first bit of padding (the `1`) is the least-significant bit of the byte at `state[rateIdx]`.
-> * The last bit of padding (the final `1`) is the most-significant bit of the byte at `state[95]`.
-> * In practice, this means XORing `0x01` at the current position and `0x80` at the end of the rate.
-
 ### Data Operations
 
 These operations facilitate the primary flow of information into and out of the duplex state. Because the effective rate
@@ -526,12 +519,20 @@ permutation `f` (Simpira-1024) on the entire state and resets `rateIdx` and `fra
 ```text
 function Permute():
   state[rateIdx] ^= frameIdx  // Absorb framing metadata
-  state[rateIdx+1] ^= 0x01    // Apply pad10*1 padding
+  rateIdx += 1
+  state[rateIdx] ^= 0x01      // Apply pad10*1 padding
   state[PAD_BYTE_IDX] ^= 0x80
   Simpira1024(state)          // Permute state and reset indexes
   rateIdx = 0
   frameIdx = 0
 ```
+
+> [!NOTE]
+> While the `pad10*1` scheme is defined in bits, in the context of Newplex's 96-byte rate, it is implemented as follows:
+>
+> * The first bit of padding (the `1`) is the least-significant bit of the byte at `state[rateIdx]`.
+> * The last bit of padding (the final `1`) is the most-significant bit of the byte at `state[95]`.
+> * In practice, this means XORing `0x01` at the current position and `0x80` at the end of the rate.
 
 ### Worked Example: Domain Separation through Framing
 
