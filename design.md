@@ -44,7 +44,7 @@
   * [The Protocol Framework](#the-protocol-framework)
     * [Operation Codes](#operation-codes)
     * [The Two-Frame Structure](#the-two-frame-structure)
-    * [Domain Separation Labels](#domain-separation-labels)
+    * [Operation Labels](#operation-labels)
     * [Transcript Security](#transcript-security)
     * [Operations](#operations)
       * [`Init`](#init)
@@ -93,7 +93,8 @@
 
 Newplex is a cryptographic framework that provides a unified interface for unkeyed and symmetric-key operations. It is
 built on a duplex construction using the [Simpira-1024] permutation. Inspired by [STROBE], [Noise Protocol],
-and [Xoodyak], Newplex provides 10+ Gb/second performance on modern processors at a 128-bit security level.
+and [Xoodyak], Newplex is optimized for 64-bit architectures (x86-64 and ARM64) to provide 10+ Gb/second performance on
+modern processors at a 128-bit security level.
 
 [Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
 
@@ -213,10 +214,10 @@ In the following, `x` and `y` are integers:
 
 ## The Simpira-1024 Permutation
 
-The underlying permutation `f` used in Newplex is [Simpira-1024] (specifically Simpira v2 with `b=8`). Simpira is a
-Generalized Feistel Structure (GFS) that operates on a block size of 1024 bits. The round function `F` consists of two
-full rounds of the Advanced Encryption Standard (AES) block cipher. The permutation iterates this function over 18
-rounds to achieve full diffusion and confusion.
+The underlying permutation `f` used in Newplex is [Simpira-1024] (specifically Simpira v2 with `b=8`, where `b` is the
+number of 128-bit sub-blocks). Simpira is a Generalized Feistel Structure (GFS) that operates on a block size of 1024
+bits. The round function `F` consists of two full rounds of the Advanced Encryption Standard (AES) block cipher. The
+permutation iterates this function over 18 rounds to achieve full diffusion and confusion.
 
 ### Security Claims
 
@@ -654,29 +655,31 @@ executing the primary logic of the operation.
 | Metadata   | `F_META=0x00` | Absorbs the operation label.       |
 | Data       | `F_DATA=0x80` | Performs operation-specific logic. |
 
-### Domain Separation Labels
+### Operation Labels
 
-Every protocol operation requires a descriptive label. These labels act as internal documentation to be
-cryptographically folded into the state. The purpose of a label is to provide clarity for human readers, and each should
+Every protocol operation requires a descriptive operation label. These labels act as internal documentation to be
+cryptographically folded into the state, enforcing domain separation between different operations. The purpose of an
+operation label is to provide clarity for human readers and cryptographic distinctness for the duplex; each should
 describe the specific purpose of the data (e.g., `"p256-public-key"`, `"session-nonce"`, or `"json-payload"`). Generic
 or sequential labels like `"data"`, `"first"`, or `"1"` should be avoided, as they provide no semantic context and
-increase the risk of domain confusion. Internally, labels are implemented as Unicode strings with an NFC-normalized
-UTF-8 byte representation.
+increase the risk of domain confusion. Internally, operation labels are implemented as Unicode strings with an
+NFC-normalized UTF-8 byte representation.
 
 ### Transcript Security
 
 Because Newplex binds the protocol domain string, the sequence of all previous operations, the operation types, and
-their labels into the duplex state, the resulting transcript is uniquely decodable.
+their operation labels into the duplex state, the resulting transcript is uniquely decodable.
 
 An adversary cannot take a valid `Mix` operation from one part of a protocol and present it as a `Seal` operation in
-another, nor can they swap the contents of two operations with different labels. Any deviation from the established
-sequence causes the internal state of the participants to diverge, ensuring that a final authentication check will fail.
+another, nor can they swap the contents of two operations with different operation labels. Any deviation from the
+established sequence causes the internal state of the participants to diverge, ensuring that a final authentication
+check will fail.
 
 ### Operations
 
 #### `Init`
 
-The `Init` operation is the required first operation for a protocol. As its only input is a domain separation string for
+The `Init` operation is the required first operation for a protocol. As its only input is a protocol domain string for
 the entire protocol, it consists of a single metadata frame:
 
 ```text
@@ -696,8 +699,8 @@ The BLAKE3 recommendations for KDF context strings apply equally to Newplex prot
 
 #### `Mix`
 
-The `Mix` operation accepts a label and an arbitrary byte sequence as inputs, and makes the protocol's state dependent
-on both. It can be used for both secret and public data alike. During its data frame, it absorbs the input.
+The `Mix` operation accepts an operation label and an arbitrary byte sequence as inputs, and makes the protocol's state
+dependent on both. It can be used for both secret and public data alike. During its data frame, it absorbs the input.
 
 ```text
 function Mix(label, input):
@@ -730,9 +733,9 @@ function Derive(label, n):
   return prf
 ```
 
-`Derive` absorbs the operation code and label in the metadata frame. In the data frame, it absorbs the output length
-(encoded with LEB128) and permutes the duplex state, ensuring both its pseudorandomness and its cryptographic dependence
-on the output length. Finally, it squeezes `n` bytes from the duplex state.
+`Derive` absorbs the operation code and operation label in the metadata frame. In the data frame, it absorbs the output
+length (encoded with LEB128) and permutes the duplex state, ensuring both its pseudorandomness and its cryptographic
+dependence on the output length. Finally, it squeezes `n` bytes from the duplex state.
 
 ##### Random Oracle
 
@@ -795,9 +798,9 @@ function Unmask(label, ciphertext):
   return plaintext
 ```
 
-`Mask` absorbs the operation code and label in the metadata frame. In the data frame, it first permutes the duplex's
-state to ensure its pseudorandomness. It then calls the [`Encrypt`](#encryptdecrypt) operation, which XORs the plaintext
-with the duplex's state to produce both the ciphertext and the duplex's new state.
+`Mask` absorbs the operation code and operation label in the metadata frame. In the data frame, it first permutes the
+duplex's state to ensure its pseudorandomness. It then calls the [`Encrypt`](#encryptdecrypt) operation, which XORs the
+plaintext with the duplex's state to produce both the ciphertext and the duplex's new state.
 
 `Unmask` is identical except it calls the [`Decrypt`](#encryptdecrypt) duplex operation.
 
@@ -813,6 +816,9 @@ advance, and is suitable for streaming operations.
 > protocol state will diverge, however, which allows for schemes that use `Unmask` to decrypt unvalidated plaintexts but
 > are followed with e.g., a [`Derive`](#derive) call to produce an authentication tag
 > (see [the SIV DAE scheme](#deterministic-authenticated-encryption-siv) for an example).
+>
+> To ensure integrity in streaming contexts, `Mask` must be followed by an operation that authenticates the entire
+> transcript (e.g., `Derive` or `Seal`).
 
 `Mask` inherits the security properties of [`Encrypt`](#encryptdecrypt):
 
@@ -856,8 +862,8 @@ function Open(label, input):
   return plaintext
 ```
 
-`Seal` absorbs the operation code and label in the metadata frame. In the data frame, it absorbs the length of the
-plaintext (as encoded with LEB128) and permutes the duplex's state to ensure its pseudorandomness. It then calls
+`Seal` absorbs the operation code and operation label in the metadata frame. In the data frame, it absorbs the length of
+the plaintext (as encoded with LEB128) and permutes the duplex's state to ensure its pseudorandomness. It then calls
 the [`Encrypt`](#encryptdecrypt) operation, which XORs the plaintext with the duplex's state to produce both the
 ciphertext and the duplex's new state. Next, it permutes the duplex's state again to enforce the dependency on the
 plaintext and squeezes a 16-byte authentication tag from the duplex.
@@ -877,8 +883,8 @@ the [streaming authenticated encryption](#streaming-authenticated-encryption) sc
 
 #### `Fork`
 
-`Fork` accepts a label and two values, left and right, returning a pair of left and right cloned child protocols having
-absorbed their respective values.
+`Fork` accepts an operation label and two values, left and right, returning a pair of left and right cloned child
+protocols having absorbed their respective values.
 
 ```text
 function Fork(label, leftValue, rightValue):
@@ -907,8 +913,8 @@ any scheme in which data flow is non-linear (e.g. [SIV](#deterministic-authentic
 
 #### `Ratchet`
 
-`Ratchet` accepts a label and irreversibly modifies the protocol's state, preventing rollback attacks and establishing
-forward secrecy in the event of a state compromise.
+`Ratchet` accepts an operation label and irreversibly modifies the protocol's state, preventing rollback attacks and
+establishing forward secrecy in the event of a state compromise.
 
 ```text
 function Ratchet(label):
@@ -919,6 +925,10 @@ function Ratchet(label):
   duplex.Absorb(OP_RATCHET | F_DATA)
   duplex.Ratchet()
 ```
+
+> [!NOTE]
+> Ratcheting a protocol permanently reduces its available rate by 32 bytes (to a total of 62 bytes) for all subsequent
+> operations in that session.
 
 As described in the duplex [`Ratchet`](#ratchet) operation, this permutes the state, clears the first 32 bytes of the
 rate, and advances the duplex's rate index by 32.
