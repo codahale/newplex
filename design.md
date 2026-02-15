@@ -368,6 +368,13 @@ To manage the duplex state and the framing logic, the construction maintains the
 The internal state is a buffer of 128 bytes (`b=1024` bits), initialized to all zeros. It is logically divided into
 three segments:
 
+```text
+  0                                                              93  94  95  96            127
+ +--------------------------------------------------------------+---+---+---------------------+
+ |                        Effective Rate                        |Frm|Pad|      Capacity       |
+ +--------------------------------------------------------------+---+---+---------------------+
+```
+
 1. **Effective Rate:** The first 94 bytes (indices `0..93`). This area is used for user input and output.
 2. **Reserved Metadata:** The 95th byte (index `94`) is reserved for framing, and the 96th byte (index `95`) is
    reserved for padding.
@@ -650,6 +657,16 @@ two distinct frames: the metadata frame and the data frame. During the metadata 
 opcode (with the high bit cleared) and a domain separation label with the duplex. This binds the intent of the operation
 to the transcript. During the data frame, it absorbs the modified opcode (with the high bit set) with the duplex before
 executing the primary logic of the operation.
+
+```text
+               +----------- Metadata Frame -----------+ +-------------- Data Frame -------------+
+               |                                      | |                                      |
+        ... ---+-----------+-----------+--------------+-+-----------+-----------+--------------+--- ...
+               |  Frame()  |  Absorb   |    Absorb    | |  Frame()  |  Absorb   |  Operation   |
+               |           |  Opcode   |    Label     | |           |  Opcode   |   Logic      |
+               |           |  (Meta)   |              | |           |  (Data)   |              |
+        ... ---+-----------+-----------+--------------+-+-----------+-----------+--------------+--- ...
+```
 
 | Frame Type | Flag          | Description                        |
 |------------|---------------|------------------------------------|
