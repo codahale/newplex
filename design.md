@@ -90,6 +90,7 @@
     * [Password-Authenticated Key Exchange (PAKE)](#password-authenticated-key-exchange-pake)
     * [Verifiable Random Function (VRF)](#verifiable-random-function-vrf)
     * [Oblivious Pseudorandom Function (OPRF) and Verifiable Pseudorandom Function (VOPRF)](#oblivious-pseudorandom-function-oprf-and-verifiable-pseudorandom-function-voprf)
+  * [Security Summary](#security-summary)
 <!-- TOC -->
 
 ## Introduction
@@ -189,7 +190,9 @@ generic attacks: a probabilistic polynomial-time adversary making `N < 2**128` q
 distinguish the output of the duplex from a random bitstream or force a collision in its internal capacity. In the
 unkeyed model, where the adversary has read access to the full state, the construction is indifferentiable from a random
 oracle. In the keyed model, where the capacity is populated with secret entropy and hidden from the adversary, the
-construction acts as a cryptographically secure pseudorandom generator (PRG) or pseudorandom function (PRF).
+construction acts as a cryptographically secure pseudorandom generator (PRG) or pseudorandom function (PRF). These
+properties hold as long as the underlying permutation Simpira-1024 is a secure Pseudorandom Permutation (PRP) and the
+total number of queries across all protocol instances does not approach the birthday bound of the capacity (`2**128`).
 
 [flat sponge claim]: https://keccak.team/files/CSF-0.1.pdf
 
@@ -376,8 +379,13 @@ The Newplex duplex is instantiated with the following parameters:
 | Padding     | `pad`    | multi-rate padding (`pad10*1`) |
 
 The choice of a 256-bit capacity provides a generic security level of 128 bits. Specifically, the construction offers
-128-bit resistance against collisions (`2**c/2`) and 128-bit security against output indistinguishability (`2**c/2`).
-Resistance against full state recovery is 256 bits (`2**c`).
+128-bit resistance against collisions (`2**(c/2)`) and 128-bit security against output indistinguishability
+(`2**(c/2)`). Resistance against full state recovery is 256 bits (`2**c`).
+
+These bounds are fundamental to the construction. Even if a higher-level component (such as a hash function) requests an
+output length `n` where `2**n > 2**c`, the effective security of the scheme has an upper bound set by the capacity.
+Specifically, resistance to preimage attacks and state recovery attacks will not exceed 256 bits, and resistance to
+collision and distinguishing attacks will not exceed 128 bits.
 
 To satisfy the security requirements of the duplex construction, Newplex uses the `pad10*1` multi-rate padding rule for
 every block. This rule ensures that every sequence of inputs results in a unique sequence of permutation inputs,
@@ -693,7 +701,7 @@ function Ratchet():
   rateIdx = CAPACITY_BYTES
 ```
 
-Ratcheting the duplex reduces its available rate by 32 bytes to a total of 62 bytes.
+Ratcheting the duplex reduces its available rate by 32 bytes for the next block of data.
 
 #### `Clone`
 
@@ -845,10 +853,10 @@ dependence on the output length. Finally, it squeezes `n` bytes from the duplex 
 
 ##### Random Oracle
 
-Assuming the Simpira-1024 permutation is indistinguishable from a random
-permutation, [the duplex is indistinguishable from a random oracle][duplex security]. The inclusion of the output length
-prior to permutation and squeezing allows for `Derive` to be used in cryptographic schemes where a random oracle is
-required.
+Assuming the Simpira-1024 permutation is indistinguishable from a random permutation (a Pseudorandom Permutation, or
+PRP), [the duplex is indistinguishable from a random oracle][duplex security] up to the capacity bound. The inclusion of
+the output length prior to permutation and squeezing allows for `Derive` to be used in cryptographic schemes where a
+random oracle is required.
 
 [duplex security]: https://eprint.iacr.org/2022/1340.pdf
 
@@ -1041,8 +1049,7 @@ function Ratchet(label):
 ```
 
 > [!NOTE]
-> Ratcheting a protocol permanently reduces its available rate by 32 bytes (to a total of 62 bytes) for all subsequent
-> operations in that session.
+> Ratcheting a protocol reduces its available rate by 32 bytes for the next block of data.
 
 As described in the duplex [`Ratchet`](#ratchet) operation, this permutes the state, clears the first 32 bytes of the
 rate, and advances the duplex's rate index by 32.
@@ -1094,15 +1101,18 @@ is assumed to have full read access to the internal state and the sequence of op
 
 The security of this scheme reduces directly to the security of the underlying duplex construction. Since `Init`, `Mix`,
 and `Derive` are strictly sequenced `Absorb` and `Squeeze` operations, the scheme inherits the
-duplex's [indifferentiability from a random oracle](#security-model), provided the Simpira-1024 permutation has no
-structural weaknesses.
+duplex's [indifferentiability from a random oracle](#security-model) up to the 128-bit security bound, provided the
+Simpira-1024 permutation has no structural weaknesses.
 
 In a random oracle model, resistance to preimage attacks requires an effort of `2**(n*8)`, where `n` is the length of
-the digest in bytes. However, due to the birthday bound, resistance to collision attacks requires an effort of
-`2**((n*8)/2)`.
+the digest in bytes. However, in the duplex construction, this is capped by the capacity `c`. For Newplex, preimage
+resistance is `min(2**256, 2**(n*8))`. Due to the birthday bound, resistance to collision attacks requires an effort of
+`min(2**128, 2**((n*8)/2))`.
 
 To align with Newplex's baseline security target of `2**128`, a message digest must be at least 32 bytes (256 bits)
-long. This provides 256-bit preimage resistance and 128-bit collision resistance.
+long. This provides 256-bit preimage resistance and 128-bit collision resistance. Requesting a longer digest (e.g., 64
+bytes) will increase resistance to brute-force preimage attacks up to the 256-bit capacity limit, but will not increase
+collision resistance beyond the 128-bit construction bound.
 
 ### Message Authentication Code (MAC)
 
@@ -1146,11 +1156,14 @@ definition, unpredictable and appears as a random draw from the output space `{0
 as a deterministic function inherently grants it SUF-CMA security; since a specific message can only map to one unique,
 pseudorandom tag `T`, an adversary cannot produce a "new" valid tag for a previously queried message. Consequently, the
 probability of an adversary successfully forging a tag is effectively bounded by the probability of guessing a random
-`n`-bit string, which is `2**(-n)`, plus the negligible advantage of distinguishing the PRF from a random oracle.
+`n`-bit string, which is `2**(-n)`, plus the negligible advantage of distinguishing the PRF from a random oracle (which
+is bounded by `N**2 / 2**256` for `N` queries).
 
-To maintain the framework's baseline security target of `2**128`, the `key` must contain at least 16 bytes (128 bits) of
-cryptographic entropy. A 32-byte (256-bit) key is recommended to provide a comfortable margin against multi-target
-attacks and incurs no additional performance penalty.
+To maintain the framework's baseline security target of `2**128` even in multi-target scenarios, the `key` must contain
+at least 16 bytes (128 bits) of cryptographic entropy. A 32-byte (256-bit) key is strongly recommended; while it does
+not increase the theoretical security bound of the duplex construction (which remains 128-bit due to the birthday bound
+on the capacity), it provides a significantly larger margin against key-search and multi-target attacks with effectively
+no performance penalty.
 
 The `Derive` operation requests a 16-byte (128-bit) tag. Unlike collision resistance in hash functions, MAC
 unforgeability is not constrained by the birthday bound. To forge a tag for a specific message, an attacker must guess
@@ -1284,16 +1297,15 @@ properties ensure that the resulting tag will, with overwhelming probability, fa
 with IND-CPA (provided by the secrecy of the duplex's inner state) implies IND-CCA2, this scheme remains secure even
 against adversaries who can adaptively query the decryption oracle with ciphertexts related to the challenge.
 
-The CMT-4 security of this scheme is rooted in the collision resistance of the underlying permutation and
-the fact that the entire input context--key, nonce, and associated data--is fully absorbed into the duplex state before
-the first ciphertext or tag bits are squeezed. Because the duplex operates as a sequence of permutations on
-a fixed-width state, the resulting ciphertext and tag are deterministic functions of the cumulative input history; thus,
-producing a duplicate `(C, T)` pair from two different `(K, N, AD, M)` tuples would require finding a collision within
-the inner state of the permutation. In a duplex with a sufficiently large capacity `c`, the probability of such a
-collision is bounded by the birthday bound relative to that capacity (roughly `2**(c/2)`). Consequently, as long as the
-capacity is sized appropriately to resist birthday attacks, this scheme acts as a binding commitment to its full
-context, preventing an adversary from finding a single ciphertext that validly decrypts under different keys or
-metadata, thereby satisfying the CMT-4 requirement.
+The CMT-4 security of this scheme is rooted in the collision resistance of the underlying duplex and the fact that the
+entire input context--key, nonce, and associated data--is fully absorbed into the duplex state before the first
+ciphertext or tag bits are squeezed. Because the duplex operates as a sequence of permutations on a fixed-width state,
+the resulting ciphertext and tag are deterministic functions of the cumulative input history; thus, producing a
+duplicate `(C, T)` pair from two different `(K, N, AD, M)` tuples would require finding a collision within the inner
+state of the permutation. In a duplex with a 256-bit capacity, the probability of such a collision is bounded by the
+birthday bound relative to that capacity (`2**128`). Consequently, this scheme acts as a binding commitment to its full
+context up to the 128-bit security level, preventing an adversary from finding a single ciphertext that validly decrypts
+under different keys or metadata, thereby satisfying the CMT-4 requirement.
 
 ### Deterministic Authenticated Encryption (SIV)
 
@@ -1627,10 +1639,13 @@ signer's public key are automatically and irrevocably bound to the challenge sca
 context-confusion and message malleability attacks without requiring standard rigid serialization formats.
 
 The security of this scheme reduces to the discrete logarithm problem and the indifferentiability of the duplex from a
-random oracle. The Fiat-Shamir transform relies on the `Derive` operation's property as a random oracle to produce
-uniformly random challenge scalars that are cryptographically bound to the entire transcript. Because the transcript
-includes the signer's identity, the message, and the commitment point, the resulting signature achieves strong
-existential unforgeability under chosen-message attacks (sUF-CMA).
+random oracle. By using `Fork` to separate the prover and verifier branches, the framework ensures that the prover's
+secret (the private key and hedging data) is cryptographically isolated from the public transcript while still being
+bound to it. The challenge scalar `c` is derived from the unified transcript, satisfying the requirements of the
+Fiat-Shamir transform in the random oracle model. The Fiat-Shamir transform relies on the `Derive` operation's property
+as a random oracle to produce uniformly random challenge scalars that are cryptographically bound to the entire
+transcript. Because the transcript includes the signer's identity, the message, and the commitment point, the resulting
+signature achieves strong existential unforgeability under chosen-message attacks (sUF-CMA).
 
 More importantly, the `Fork` operation cleanly isolates the secret key material. By branching the state into a `prover`,
 the private key `d` can be safely absorbed to deterministically derive `k`. Because the `verifier` branch never sees
@@ -1815,9 +1830,10 @@ An adversary attacking an `StE` scheme can decrypt a signed message sent to them
 allowing them to pose as the original sender. This scheme makes simple replay and re-encryption attacks impossible by
 including both the intended sender and receiver's public keys and their shared secret in the protocol state. The
 initial [HPKE-style](#hybrid-public-key-encryption-hpke) portion of the protocol establishes the session's
-confidentiality,
-while the final portion is the sUF-CMA secure [Schnorr signature scheme](#digital-signature) from the previous section,
-which is unforgeable without the sender's private key even by an insider (the receiver).
+confidentiality, while the final portion is the sUF-CMA secure [Schnorr signature scheme](#digital-signature) from the
+previous section, which is unforgeable without the sender's private key even by an insider (the receiver). As with the
+standard signature scheme, the security of this Schnorr-based proof reduces to the discrete logarithm problem and the
+indifferentiability of the duplex from a random oracle (up to the capacity bound).
 
 ### Mutually Authenticated Handshake
 
@@ -1932,10 +1948,14 @@ Newplex unifies this entire process into a single, continuous flow. To map the i
 protocol initializes the state, mixes in the prover's public key and the message, and uses the `Derive` operation
 to extract 64 bytes of pseudorandom output, which is then mapped to a curve point via `ElementDerive`. This entirely
 replaces the need for a standalone Hash-to-Curve suite, leveraging the indifferentiability of the duplex from a random
-oracle to ensure a uniform distribution of points. The prover multiplies this point by their private key to yield the
-evaluated point, mixes it back into the protocol, and directly derives the requested length of pseudorandom output.
-Because the duplex absorbs every input at every step, the final output is strongly bound to both the message and the
-prover's identity, ensuring uniqueness and collision resistance.
+oracle (up to the capacity bound) to ensure a uniform distribution of points.
+
+The use of `Fork` in the DLEQ proof ensures that the prover's private key is used only within a dedicated branch, while
+the resulting commitment points are mixed back into the verifier's transcript to derive the challenge. This provides a
+clean reduction to the RO-based security of the Fiat-Shamir transform. The prover multiplies this point by their private
+key to yield the evaluated point, mixes it back into the protocol, and directly derives the requested length of
+pseudorandom output. Because the duplex absorbs every input at every step, the final output is strongly bound to both
+the message and the prover's identity, ensuring uniqueness and collision resistance.
 
 To construct the DLEQ proof, Newplex leverages the same `Fork` technique used in the digital signature scheme. The state
 splits into prover and verifier branches. The prover branch safely absorbs the private key and random hedging data to
@@ -1982,4 +2002,13 @@ final challenge scalar using the `Derive` operation as a random oracle. The clie
 reconstructing the composites and the expected challenge from their own state machine. This replaces a brittle
 collection of specialized hashing routines with a unified, continuous cryptographic context that provides both client
 privacy and server verifiability.
+
+## Security Summary
+
+The security of the Newplex framework is fundamentally rooted in the 256-bit capacity of the underlying duplex
+construction, providing a global security target of 128 bits. While higher-level schemes like HPKE or Digital Signatures
+leverage the framework's versatility to build complex protocols, their security reductions are ultimately bounded by the
+collision and distinguishing resistance of the duplex. By ensuring domain separation through strict framing and semantic
+labeling, Newplex provides a robust, context-committing environment where the security of every scheme--from a simple
+hash to a multi-stage VOPRF--is as strong as the underlying Simpira-1024 permutation.
 
