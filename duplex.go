@@ -25,8 +25,9 @@ type duplex struct {
 // entire, unpadded rate. Finally, it permutes the entire state with Simpira-1024 and resets rateIdx and frameIdx.
 func (d *duplex) permute() {
 	d.state[d.rateIdx] ^= byte(d.frameIdx)
-	d.state[d.rateIdx+1] ^= 0x01
-	d.state[unpaddedRate-1] ^= 0x80
+	d.rateIdx++
+	d.state[d.rateIdx] ^= 0x01
+	d.state[padByteIdx] ^= 0x80
 	simpira1024.Permute(&d.state)
 	d.rateIdx = 0
 	d.frameIdx = 0
@@ -37,10 +38,10 @@ func (d *duplex) permute() {
 // Multiple absorb calls are effectively the same thing as a single absorb call with concatenated inputs.
 func (d *duplex) absorb(b []byte) {
 	for len(b) > 0 {
-		remain := min(len(b), rate-d.rateIdx)
+		remain := min(len(b), maxRateIdx-d.rateIdx)
 		subtle.XORBytes(d.state[d.rateIdx:], d.state[d.rateIdx:], b[:remain])
 		d.rateIdx += remain
-		if d.rateIdx == rate {
+		if d.rateIdx == maxRateIdx {
 			d.permute()
 		}
 		b = b[remain:]
@@ -51,7 +52,7 @@ func (d *duplex) absorb(b []byte) {
 func (d *duplex) absorbByte(b byte) {
 	d.state[d.rateIdx] ^= b
 	d.rateIdx++
-	if d.rateIdx == rate {
+	if d.rateIdx == maxRateIdx {
 		d.permute()
 	}
 }
@@ -79,10 +80,10 @@ func (d *duplex) frame() {
 // Multiple squeeze calls are effectively the same thing as a single squeeze call with concatenated outputs.
 func (d *duplex) squeeze(out []byte) {
 	for len(out) > 0 {
-		remain := min(len(out), rate-d.rateIdx)
+		remain := min(len(out), maxRateIdx-d.rateIdx)
 		copy(out[:remain], d.state[d.rateIdx:d.rateIdx+remain])
 		d.rateIdx += remain
-		if d.rateIdx == rate {
+		if d.rateIdx == maxRateIdx {
 			d.permute()
 		}
 		out = out[remain:]
@@ -95,7 +96,7 @@ func (d *duplex) squeeze(out []byte) {
 // Multiple encrypt calls are effectively the same thing as a single encrypt call with concatenated inputs.
 func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 	for len(plaintext) > 0 {
-		remain := min(len(plaintext), rate-d.rateIdx)
+		remain := min(len(plaintext), maxRateIdx-d.rateIdx)
 		k := d.state[d.rateIdx : d.rateIdx+remain]
 
 		// C = K = K ^ P
@@ -103,7 +104,7 @@ func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 		copy(ciphertext[:remain], k)
 
 		d.rateIdx += remain
-		if d.rateIdx == rate {
+		if d.rateIdx == maxRateIdx {
 			d.permute()
 		}
 		plaintext = plaintext[remain:]
@@ -118,7 +119,7 @@ func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 	var tmp [rate]byte
 	for len(ciphertext) > 0 {
-		remain := min(len(ciphertext), rate-d.rateIdx)
+		remain := min(len(ciphertext), maxRateIdx-d.rateIdx)
 		k := d.state[d.rateIdx : d.rateIdx+remain]
 		// Make a copy of this block of ciphertext. If plaintext is the same slice as ciphertext, the decryption will
 		// overwrite the ciphertext, making it impossible to copy it to the state afterward.
@@ -129,7 +130,7 @@ func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 		copy(k, tmp[:remain])
 
 		d.rateIdx += remain
-		if d.rateIdx == rate {
+		if d.rateIdx == maxRateIdx {
 			d.permute()
 		}
 		ciphertext = ciphertext[remain:]
@@ -169,7 +170,7 @@ func (d *duplex) UnmarshalBinary(data []byte) error {
 	if len(data) != len(d.state)+2 {
 		return errors.New("newplex: invalid state length")
 	}
-	if data[0] >= rate || data[1] >= rate {
+	if data[0] >= maxRateIdx || data[1] >= maxRateIdx {
 		return errors.New("newplex: invalid duplex state")
 	}
 	d.rateIdx = int(data[0])
@@ -196,9 +197,11 @@ var (
 )
 
 const (
-	width        = simpira1024.Width      // The width of the permutation in bytes.
-	capacity     = 32                     // The duplex's capacity in bytes.
-	unpaddedRate = width - capacity       // The duplex's rate without padding.
-	padding      = 2                      // The duplex uses two bytes for padding each block.
-	rate         = unpaddedRate - padding // The rate of the duplex with padding.
+	width      = simpira1024.Width // The width of the permutation in bytes.
+	capacity   = 32                // The duplex's capacity in bytes.
+	padding    = 1                 // The duplex uses a dedicated byte for pad10*1 block padding.
+	framing    = 1                 // The duplex uses a reserved byte for framing.
+	maxRateIdx = width - padding - framing - capacity
+	padByteIdx = width - capacity - padding
+	rate       = width - padding - framing - capacity // The rate of the duplex with padding.
 )
