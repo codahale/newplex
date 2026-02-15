@@ -24,7 +24,6 @@
       * [`state`](#state)
       * [`rateIdx`](#rateidx)
       * [`frameIdx`](#frameidx)
-    * [Implementation Note: Bit vs. Byte Padding](#implementation-note-bit-vs-byte-padding)
     * [Data Operations](#data-operations)
       * [`Absorb`](#absorb)
       * [`Squeeze`](#squeeze)
@@ -384,13 +383,12 @@ A byte-index tracking where the current frame began (`0 <= frameIdx < 94`). It i
 is opened, the current `rateIdx` is recorded here, ensuring the boundary is preserved even if the frame spans multiple
 permutation blocks.
 
-### Implementation Note: Bit vs. Byte Padding
-
-While the `pad10*1` scheme is defined in bits, in the context of Newplex's 96-byte rate, it is implemented as follows:
-
-* The first bit of padding (the `1`) is the least-significant bit of the byte at `state[rateIdx]`.
-* The last bit of padding (the final `1`) is the most-significant bit of the byte at `state[95]`.
-* In practice, this means XORing `0x01` at the current position and `0x80` at the end of the rate.
+> [!NOTE]
+> While the `pad10*1` scheme is defined in bits, in the context of Newplex's 96-byte rate, it is implemented as follows:
+>
+> * The first bit of padding (the `1`) is the least-significant bit of the byte at `state[rateIdx]`.
+> * The last bit of padding (the final `1`) is the most-significant bit of the byte at `state[95]`.
+> * In practice, this means XORing `0x01` at the current position and `0x80` at the end of the rate.
 
 ### Data Operations
 
