@@ -362,14 +362,19 @@ The choice of a 256-bit capacity provides a generic security level of 128 bits. 
 Resistance against full state recovery is 256 bits (`2**c`).
 
 To satisfy the security requirements of the duplex construction, Newplex uses the `pad10*1` multi-rate padding rule for
-every block. This rule is used to align input data to the width of the permutation. Given a rate `r` (in bits) and an
-input length `m`, the padding appends a single `1` bit, followed by `k` zero bits, and a final `1` bit, such that
-`m + 1 + k + 1` is a multiple of `r`.
+every block. This rule ensures that every sequence of inputs results in a unique sequence of permutation inputs,
+preventing length-extension and collision attacks.
 
-In the byte-oriented implementation of Newplex (assuming little-endian bit ordering), this requires one byte of the
-rate. To pad the state, a byte `0x01` followed by zero or more `0x00` bytes is appended, finally XORing `0x80` into the
-last byte of the rate (the 96th byte). This ensures the input is always uniquely decodable and that the boundary of
-every block is cryptographically distinct.
+In bit-level terms, `pad10*1` appends a `1` bit, followed by as many `0` bits as necessary, and a final `1` bit at the
+end of the rate. In the byte-oriented implementation of Newplex (assuming little-endian bit ordering within bytes):
+
+1. The first `1` bit corresponds to the least significant bit of a byte, represented by the value `0x01`.
+2. The final `1` bit corresponds to the most significant bit of the last byte of the rate (index 95), represented by the
+   value `0x80`.
+
+This ensures the input is always uniquely decodable and that the boundary of every block is cryptographically distinct.
+Because every block in Newplex is framed and padded, the padding always consumes at least one bit and up to one full
+rate block.
 
 ### Framing
 
@@ -399,9 +404,12 @@ can combine metadata and raw data into a single, efficient process without riski
 
 ### Constants
 
-To ensure clarity in the operation of the duplex, the following constants are defined based on the selected parameters.
-The effective rate is limited to 94 bytes to accommodate the 32-byte capacity while reserving two bytes at the end of
-every 96-byte rate block for mandatory framing and padding metadata.
+Newplex is built on a 1024-bit permutation (`b=1024`) with a 256-bit capacity (`c=256`). This leaves a total rate of 768
+bits (or exactly 96 bytes). To maintain the structural integrity of the duplex and the semantic integrity of the
+protocol, Newplex reserves the final two bytes of this rate for metadata. Consequently, the effective rate available for
+user data is 94 bytes. This design ensures that every permutation block is cryptographically delimited and properly
+padded without reducing the security level below the target 128 bits.
+The following constants are defined based on these parameters:
 
 | Constant       | Value | Description                                                                                               |
 |----------------|-------|-----------------------------------------------------------------------------------------------------------|
@@ -652,9 +660,11 @@ state compromise, an adversary should ideally be unable to recover past inputs o
 to a previous state.
 
 `Ratchet` achieves this by invoking `Permute` and then zeroing out the initial portion of the rate. Advancing the
-`rateIdx` ensures that the next data operation begins after the zeroed-out memory. An attacker in possession of the
-post-ratchet state will be unable to invert the permutation without the missing `c` bits of the rate. This sets parity
-with the security level of a generic state recovery attack at `2**c`.
+`rateIdx` ensures that the next data operation begins after the zeroed-out memory. The 32-byte depth is mathematically
+chosen to match the 256-bit capacity (`c`). An attacker in possession of the post-ratchet state will be unable to invert
+the permutation without the missing `c` bits of the rate. Since recovering these bits requires `2**256` work (matching
+the cost of a full state recovery attack), the ratchet provides robust forward secrecy that aligns with the framework's
+maximum security bound.
 
 ```text
 function Ratchet():
