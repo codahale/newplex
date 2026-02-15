@@ -113,20 +113,16 @@ modern processors at a 128-bit security level.
 Newplex is structured as a stack of four distinct layers, each building on the security and functionality of the one
 below it.
 
-```text
- +-----------------------------------------------------------+
- |                        Schemes                            |
- | (AEAD, Signatures, PAKE, OPRF, Handshakes, Ratchets...)   |
- +-----------------------------------------------------------+
- |                   Protocol Framework                      |
- | (Opcodes, Operation Labels, Metadata & Data Frames)       |
- +-----------------------------------------------------------+
- |                   Duplex Construction                     |
- | (State Management, Framing, Padding, Ratcheting)          |
- +-----------------------------------------------------------+
- |                  Simpira-1024 Permutation                 |
- | (AES hardware acceleration, 1024-bit width)               |
- +-----------------------------------------------------------+
+```mermaid
+graph TD
+    Scheme["<b>Scheme Layer</b><br/>(AEAD, Signatures, PAKE, OPRF, Handshakes, Ratchets...)"]
+    Protocol["<b>Protocol Layer</b><br/>(Opcodes, Operation Labels, Metadata & Data Frames)"]
+    Duplex["<b>Duplex Layer</b><br/>(State Management, Framing, Padding, Ratcheting)"]
+    Permutation["<b>Permutation Layer</b><br/>(Simpira-1024, AES hardware acceleration, 1024-bit width)"]
+
+    Scheme --- Protocol
+    Protocol --- Duplex
+    Duplex --- Permutation
 ```
 
 1. **Permutation Layer ([Simpira-1024](#the-simpira-1024-permutation)):** The foundation of the framework. It provides a
@@ -453,11 +449,13 @@ To manage the duplex state and the framing logic, the construction maintains the
 The internal state is a buffer of 128 bytes (`b=1024` bits), initialized to all zeros. It is logically divided into
 three segments:
 
-```text
-  0                                                              93  94  95  96            127
- +--------------------------------------------------------------+---+---+---------------------+
- |                        Effective Rate                        |Frm|Pad|      Capacity       |
- +--------------------------------------------------------------+---+---+---------------------+
+```mermaid
+packet
+title Duplex State (128 bytes)
++94: "Rate"
++1: "F"
++1: "P"
++32: "Capacity"
 ```
 
 1. **Effective Rate:** The first 94 bytes (indices `0..93`). This area is used for user input and output.
@@ -749,14 +747,17 @@ opcode (with the high bit cleared) and a domain separation label with the duplex
 to the transcript. During the data frame, it absorbs the modified opcode (with the high bit set) with the duplex before
 executing the primary logic of the operation.
 
-```text
-               +----------- Metadata Frame -----------+ +-------------- Data Frame -------------+
-               |                                      | |                                      |
-        ... ---+-----------+-----------+--------------+-+-----------+-----------+--------------+--- ...
-               |  Frame()  |  Absorb   |    Absorb    | |  Frame()  |  Absorb   |  Operation   |
-               |           |  Opcode   |    Label     | |           |  Opcode   |   Logic      |
-               |           |  (Meta)   |              | |           |  (Data)   |              |
-        ... ---+-----------+-----------+--------------+-+-----------+-----------+--------------+--- ...
+```mermaid
+flowchart LR
+    subgraph Metadata ["Metadata Frame"]
+        direction LR
+        M1["Frame()"] --> M2["Absorb Opcode (Meta)"] --> M3["Absorb Label"]
+    end
+    subgraph Data ["Data Frame"]
+        direction LR
+        D1["Frame()"] --> D2["Absorb Opcode (Data)"] --> D3["Operation Logic"]
+    end
+    Metadata --> Data
 ```
 
 | Frame Type | Flag          | Description                        |
@@ -1866,6 +1867,43 @@ are later compromised. Finally, a `Fork` operation cleanly splits the authentica
 and receiving pipes. This establishes bidirectional transport channels securely bound to both the handshake transcript
 and the intended channel use without requiring the explicit derivation, storage, or management of standalone symmetric
 transport keys.
+
+```mermaid
+sequenceDiagram
+    participant I as Initiator (Alice)
+    participant R as Responder (Bea)
+
+    Note left of I: dIE, QIE = ...
+    Note left of I: Mix(QIE)
+    I->>R: QIE
+
+    Note right of R: dRE, QRE = ...
+    Note right of R: Mix(QIE)
+    Note right of R: Mix(QRE)
+    Note right of R: Mix([dRE]QIE)
+    Note right of R: Seal(QRS)
+
+    R->>I: QRE, Seal(QRS)
+
+    Note right of R: Mix([dRS]QIE)
+
+    Note left of I: Mix(QRE)
+    Note left of I: Mix([dIE]QRE)
+    Note left of I: Open(QRS)
+    Note left of I: Mix([dIE]QRS)
+    Note left of I: Seal(QIS)
+
+    I->>R: Seal(QIS)
+    Note right of R: Open(QIS)
+
+    Note left of I: Mix([dIS]QRE)
+    Note right of R: Mix([dRE]QIS)
+
+    Note over I, R: Handshake Complete
+    Note left of I: (send, recv) = Fork(role, initiator, responder)
+    Note right of R: (recv, send) = Fork(role, initiator, responder)
+    Note over I, R: Bidirectional Transport
+```
 
 ### Asynchronous Double Ratchet
 
