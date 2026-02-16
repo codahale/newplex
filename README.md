@@ -82,6 +82,8 @@ Newplex includes many cryptographic schemes implemented as sub-packages:
 * [`newplex/aestream`](aestream): Implements a streaming authenticated encryption scheme.
 * [`newplex/balloon`](balloon): Implements the balloon hashing memory-hard hash function.
 * [`newplex/digest`](digest): Implements `hash.Hash` (both keyed and unkeyed).
+* [`newplex/drsbrg`](drsbrg): Implements the DRSample+BRG data-independent memory-hard hash function for password
+  hashing.
 * [`newplex/handshake`](handshake): Implements a mutually authenticated handshake.
 * [`newplex/hpke`](hpke): Implements a hybrid public-key encryption scheme.
 * [`newplex/oprf`](oprf): Implements an RFC 9497-style Oblivious Pseudorandom Function (OPRF) and Verifiable OPRF
