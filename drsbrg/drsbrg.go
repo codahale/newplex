@@ -16,112 +16,113 @@ import (
 	"github.com/codahale/newplex"
 )
 
-// Hash calculates a memory-hard hash of the given password and salt using the DRSample+BRG construction. It appends n
-// bytes of output to dst and returns the resulting slice.
+// Hash calculates a memory-hard hash of the given password and salt using the DRSample+BRG construction using the given
+// degree and cost parameters. It appends n bytes of output to dst and returns the resulting slice.
 //
 // The total memory usage required is 2**(cost+10). For online operations (i.e., password validation), the cost
 // parameter should be selected so that the total operation takes ~100ms; for offline operations (i.e., password-based
 // encryption), the cost parameter should be selected to fully use all available memory.
-func Hash(domain string, cost uint8, salt, password, dst []byte, n int) []byte {
-	// Allocate the memory array of 2**cost blocks (each holding 1 KiB of Derive output).
-	memory := make([][blockSize]byte, 1<<cost)
-	defer clear(memory)
+//
+// The degree parameter should be 3 unless specific analysis indicates a different value would provide more advantage
+// to defenders.
+func Hash(domain string, degree, cost uint8, salt, password, dst []byte, n int) []byte {
+	// Calculate block count, halfway point, and bit-width for BRG. If halfN = 2^k, the bitWidth we are reversing is k.
+	N, halfN := 1<<cost, 1<<(cost-1) // 2**cost, 1/(2**cost)
+	bitWidth := cost - 1
 
-	// Mix in the common, public parameters: cost, salt.
+	// Allocate the block buffer.
+	blocks := make([][blockSize]byte, N)
+
+	// Hash the parameters in a root protocol, then fork into two branches: compression and drbg.
 	root := newplex.NewProtocol(domain)
-	root.Mix("cost", []byte{cost})
+	root.Mix("degree", binary.AppendUvarint(nil, uint64(degree)))
+	root.Mix("cost", binary.AppendUvarint(nil, uint64(cost)))
+	compression, drbg := root.Fork("role", []byte("compression"), []byte("drbg"))
+
+	// Hash the salt and password in ONLY the root branch and derive a seed block.
+	// Base case: Hash the password and salt to create the first block
 	root.Mix("salt", salt)
+	root.Mix("password", password)
+	root.Derive("seed", blocks[0][:0], blockSize)
 
-	// Fork the root protocol into expander, evaluator, and indexer roles.
-	branches := root.ForkN("role", []byte("expander"), []byte("evaluator"), []byte("indexer"))
-	exp, eval, idx := branches[0], branches[1], branches[2]
-	defer exp.Clear()
+	// Generate the first half of the graph using DRSample.
+	for v := 1; v < halfN; v++ {
+		h := compression.Clone()
 
-	// Only mix the password into the expander branch, ensuring the rest of the algorithm is totally isolated from
-	// secret data.
-	exp.Mix("password", password)
+		// Parent 1: Sequential edge (v-1)
+		h.Mix("prev", blocks[v-1][:])
 
-	// Initialize the first block with the expander.
-	exp.Derive("seed", memory[0][:0], blockSize)
-
-	// Evaluate the graph sequentially with independent evaluator clones.
-	for i := 1; i < len(memory); i++ {
-		eval := eval.Clone()
-
-		// 1. The Sequential Spine
-		eval.Mix("last", memory[i-1][:])
-
-		// 2. The BRG Edge (Sustained Space Complexity)
-		eval.Mix("brg", memory[bitReverseEdge(i)][:])
-
-		// 3. The DRSample Edges (Cumulative Memory Complexity)
-		for k := 1; k <= d; k++ {
-			eval.Mix("drsample", memory[sampleEdge(idx.Clone(), i, k)][:])
+		// Parents 2 through degree: Depth-Robust edges
+		for i := uint8(1); i < degree; i++ {
+			p := getDRSampleParent(drbg.Clone(), v, i)
+			h.Mix("drsample-edge", blocks[p][:])
 		}
 
-		// Derive a new block from the evaluated values: cost, salt, sequential block, BRG block, back-edge blocks.
-		eval.Derive("block", memory[i][:0], blockSize)
+		// Add a new block depending on the previous block and the DRSample-selected blocks.
+		h.Derive("block", blocks[v][:0], blockSize)
 	}
 
-	// Mix in the last block into the expander.
-	exp.Mix("block", memory[len(memory)-1][:])
+	// Generate the first half of the graph using BRG.
+	for v := halfN; v < N; v++ {
+		h := compression.Clone()
 
-	// Finally, expand N bytes of output.
-	return exp.Derive("output", dst, n)
+		// Parent 1: Sequential edge
+		h.Mix("prev", blocks[v-1][:])
+
+		// Parent 2: Bit-Reversal edge pointing to the first half
+		p := int(bits.Reverse64(uint64(v%halfN)) >> (64 - bitWidth))
+		h.Mix("brg-edge", blocks[p][:])
+
+		// Add a new block depending on the previous block and the BRG-selected block.
+		h.Derive("block", blocks[v][:0], blockSize)
+	}
+
+	// Mix the final block into the root protocol and derive an output.
+	root.Mix("block", blocks[N-1][:])
+	return root.Derive("output", dst, n)
 }
 
-// bitReverseEdge computes a target index using localized bit-reversal.
-func bitReverseEdge(i int) int {
-	// Edge case for the first elements.
-	if i == 0 {
+// getDRSampleParent implements the math from Algorithm 3 to find a depth-robust parent.
+func getDRSampleParent(drbg newplex.Protocol, v int, i uint8) int {
+	// Base case: If v is too small to reach back far enough, just return 0.
+	if v < 2 {
 		return 0
 	}
 
-	// Find the largest power of 2 <= i.
-	k := bits.Len(uint(i)) - 1
-	offset := i - 1<<k
+	// 1. Mix in the vertex index and the edge number.
+	var b [binary.MaxVarintLen64]byte
+	drbg.Mix("v", binary.AppendUvarint(b[:0], uint64(v)))
+	drbg.Mix("i", binary.AppendUvarint(b[:0], uint64(i)))
 
-	// Reverse the exactly k bits of the offset.
-	return int(bits.Reverse(uint(offset)) >> (bits.UintSize - k))
-}
+	// 2. Derive two 64-bit integers to use as the pseudorandom values.
+	gPrimeR := binary.LittleEndian.Uint64(drbg.Derive("g-prime", b[:0], 8))
+	rR := binary.LittleEndian.Uint64(drbg.Derive("r", b[:0], 8))
 
-// sampleEdge computes a pseudorandom target index of a depth-robust back-edge using the block and edge indexes.
-func sampleEdge(idx newplex.Protocol, i, k int) int {
-	maxDist := i - 1
-	if maxDist <= 0 {
-		return 0
+	// 3. Calculate g' <- [1, floor(log2(v)) + 1]
+	// The floor of log2(v) is identical to the bit length minus 1.
+	log2v := bits.Len(uint(v)) - 1
+	maxGPrime := uint64(log2v + 1)
+	gPrime := 1 + int(gPrimeR%maxGPrime)
+
+	// 4. Calculate g := min(v, 2^g')
+	// Using bit shift (1 << gPrime) calculates powers of 2 using pure integer math.
+	g := min(v, 1<<gPrime)
+
+	// 5. Calculate r <- [max(floor(g/2), 2), g]
+	minR := max(g/2, 2)
+
+	// Safety check: If our constraints squash the random range, just use minR
+	if minR >= g {
+		return v - minR
 	}
-	numBuckets := bits.Len(uint(maxDist))
 
-	// Generate deterministic pseudo-randomness based on the salt (previously mixed in) and current position.
-	var b [8]byte
-	idx.Mix("i", binary.LittleEndian.AppendUint32(b[:0], uint32(i)))
-	idx.Mix("k", binary.LittleEndian.AppendUint32(b[:0], uint32(k)))
+	rangeR := uint64(g - minR + 1)
+	r := minR + int(rR%rangeR)
 
-	// Extract two separate 64-bit integers to use as uniform randomness.
-	bucketR := binary.LittleEndian.Uint64(idx.Derive("bucket", b[:0], 8))
-	distanceR := binary.LittleEndian.Uint64(idx.Derive("distance", b[:0], 8))
-
-	// Uniformly select a bucket using the logarithmic distribution.
-	bucketIndex := int(bucketR % uint64(numBuckets))
-
-	// Define the distance boundaries for the chosen bucket.
-	minDistance := 1 << bucketIndex
-	maxDistance := min((1<<(bucketIndex+1))-1, maxDist)
-
-	// Uniformly select a specific distance within the bucket.
-	bucketSize := maxDistance - minDistance + 1
-	chosenDistance := minDistance + int(distanceR%uint64(bucketSize))
-
-	return i - chosenDistance
+	// Return the index of the parent vertex.
+	return v - r
 }
 
-const (
-	// The number of DRSample back-edges used. A low degree was selected to reduce CPU cache misses, allowing for
-	// higher total memory usage within a given time.
-	d = 3
-
-	// The size of each block in the memory buffer. 1 KiB was selected to align with common CPU cache sizes while being
-	// more costly to implement for ASIC attackers.
-	blockSize = 1024
-)
+// The size of each block in the memory buffer. 1 KiB was selected to align with common defender CPU cache sizes while
+// being more costly to implement for ASIC attackers.
+const blockSize = 1024
