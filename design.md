@@ -256,31 +256,45 @@ The following notations are used throughout this document:
 
 * Literal byte values are written in hexadecimal notation with a `0x` prefix (e.g., `0x1F`).
 * `[ a, b, ..., n ]` denotes a string of bytes given in hexadecimal. For example `[0xCA, 0xFE]`.
+* `[]` denotes an empty byte string.
 * `|s|` denotes the length of a byte string `s`. For example, `|[0xFF, 0xFF]|` = `2`.
 * `s[i]` denotes the `i`-th element of a byte string `s` with zero-based indexing.
 * `s[n:m]` denotes the selection of bytes from `n` (inclusive) to `m` (exclusive) of a string `s`. The indexing of a
   byte string starts at `0`. For example, for `s` = `[0xA5, 0xC6, 0xD7]`, `s[0:1]` = `[0xA5]` and `s[1:3]` =
   `[0xC6, 0xD7]`. If the index `n` is elided (e.g., `s[:m]`), `n` is equal to `0`, the start of the byte string.
   If the index `m` is elided (e.g., `s[n:]`), `m` is equal to `|s|`.
-* `X || Y` denotes the concatenation of byte string `X` followed by byte string `Y`. For example, `[0xDE] || [0xAD]` is
-  `[0xDE, 0xAD]`.
+* `X || Y` denotes the concatenation of two byte strings or two lists.
+* `X * n` denotes the repetition of byte string `X`, `n` times. For example, `[0x00] * 3` is `[0x00, 0x00, 0x00]`.
+* `X ^ Y` denotes the bitwise XOR of two equal-length byte strings.
 * `for x in y` denotes the iteration through each element `x` in the sequence `y`.
 * `for x in y..z` denotes the iteration through each integer `x` from `y` (inclusive) to `z` (exclusive).
+* `while condition:` denotes a loop that continues as long as the condition is true.
+* `if condition:` denotes a conditional block.
 * `x = y` denotes `x` takes the value `y`.
+* `a = b = c` denotes the simultaneous assignment of values from `c` to `a` and `b`.
 * `x == y` denotes the comparison of `x` and `y`. `1 == 1` is true, `1 == 0` is false.
 * `!x` denotes the logical negation of the boolean value `x`. `!(1 == 1)` is false, `!(1 == 0)` is true.
 * `CT_EQ(x, y)` denotes the comparison of secret values `x` and `y` in constant time. Implementers **must** ensure no
   timing side-channels exist in this operation.
 * `I2OSP` and `OSP2I` are used as defined in [RFC 8017](https://www.rfc-editor.org/rfc/rfc8017#section-4.1).
+* `LEB128(x)` denotes the canonically short LEB128 encoding of integer `x` as a byte string.
 * `"string"` denotes an NFC-normalized UTF-8 byte string with the characters `string`.
+* `function Name(args):` defines a function or method.
+* `return x` denotes the return of value `x` from a function.
+* `// comment` denotes a comment that is ignored by the algorithm.
 
 In the following, `x` and `y` are integers:
 
-* `x+=y` denotes `x` takes the value `x + y` (addition).
-* `x**y` denotes the exponentiation of `x` by `y`.
+* `x + y` denotes addition.
+* `x - y` denotes subtraction.
+* `x * y` denotes multiplication.
+* `x / y` denotes integer division.
+* `x % y` denotes the remainder of integer division.
+* `x += y` denotes `x` takes the value `x + y` (addition).
+* `x ** y` denotes the exponentiation of `x` by `y`.
 * `x | y` denotes the bitwise OR of `x` and `y`.
-* `x^y` denotes the bitwise XOR of `x` and `y` (exclusive-OR).
-* `x^=y` denotes `x` takes the value `x ^ y` (exclusive-OR).
+* `x ^ y` denotes the bitwise XOR of `x` and `y` (exclusive-OR).
+* `x ^= y` denotes `x` takes the value `x ^ y` (exclusive-OR).
 
 ## The Simpira-1024 Permutation
 
@@ -596,7 +610,7 @@ based on how those operations were framed.
 
 ```text
 function Frame():
-  Absorb(frameIdx)
+  Absorb(I2OSP(frameIdx, 1))
   frameIdx = rateIdx
 ```
 
@@ -618,8 +632,7 @@ function Permute():
   state[rateIdx] ^= 0x01      // Apply pad10*1 padding
   state[PAD_BYTE_IDX] ^= 0x80
   Simpira1024(state)          // Permute state and reset indexes
-  rateIdx = 0
-  frameIdx = 0
+  rateIdx = frameIdx = 0
 ```
 
 > [!NOTE]
@@ -803,7 +816,7 @@ the entire protocol, it consists of a single metadata frame:
 ```text
 function Init(domain):
   duplex.Frame()
-  duplex.Absorb(OP_INIT | F_META)
+  duplex.Absorb([OP_INIT | F_META])
   duplex.Absorb(domain)
 ```
 
@@ -823,10 +836,10 @@ dependent on both. It can be used for both secret and public data alike. During 
 ```text
 function Mix(label, input):
   duplex.Frame()
-  duplex.Absorb(OP_MIX | F_META)
+  duplex.Absorb([OP_MIX | F_META])
   duplex.Absorb(label)
   duplex.Frame()
-  duplex.Absorb(OP_MIX | F_DATA)
+  duplex.Absorb([OP_MIX | F_DATA])
   duplex.Absorb(input)
 ```
 
@@ -841,14 +854,13 @@ cryptographically dependent on the entire preceding transcript, the operation la
 ```text
 function Derive(label, n):
   duplex.Frame()
-  duplex.Absorb(OP_DERIVE | F_META)
+  duplex.Absorb([OP_DERIVE | F_META])
   duplex.Absorb(label)
   duplex.Frame()
-  duplex.Absorb(OP_DERIVE | F_DATA)
+  duplex.Absorb([OP_DERIVE | F_DATA])
   duplex.Absorb(LEB128(n))
   duplex.Permute()
-  prf = duplex.Squeeze(n)
-  return prf
+  return duplex.Squeeze(n)
 ```
 
 `Derive` absorbs the operation code and operation label in the metadata frame. In the data frame, it absorbs the output
@@ -897,23 +909,21 @@ the process. Both operations result in a protocol state dependent on the operati
 ```text
 function Mask(label, plaintext):
   duplex.Frame()
-  duplex.Absorb(OP_CRYPT | F_META)
+  duplex.Absorb([OP_CRYPT | F_META])
   duplex.Absorb(label)
   duplex.Frame()
-  duplex.Absorb(OP_CRYPT | F_DATA)
+  duplex.Absorb([OP_CRYPT | F_DATA])
   duplex.Permute()
-  ciphertext = duplex.Encrypt(plaintext)
-  return ciphertext
+  return duplex.Encrypt(plaintext)
 
 function Unmask(label, ciphertext):
   duplex.Frame()
-  duplex.Absorb(OP_CRYPT | F_META)
+  duplex.Absorb([OP_CRYPT | F_META])
   duplex.Absorb(label)
   duplex.Frame()
-  duplex.Absorb(OP_CRYPT | F_DATA)
+  duplex.Absorb([OP_CRYPT | F_DATA])
   duplex.Permute()
-  plaintext = duplex.Decrypt(ciphertext)
-  return plaintext
+  return duplex.Decrypt(ciphertext)
 ```
 
 `Mask` absorbs the operation code and operation label in the metadata frame. In the data frame, it first permutes the
@@ -952,24 +962,24 @@ tag. The `Open` operation verifies the tag, returning an error if the tag is inv
 ```text
 function Seal(label, plaintext):
   duplex.Frame()
-  duplex.Absorb(OP_AUTH_CRYPT | F_META)
+  duplex.Absorb([OP_AUTH_CRYPT | F_META])
   duplex.Absorb(label)
   duplex.Frame()
-  duplex.Absorb(OP_AUTH_CRYPT | F_DATA)
+  duplex.Absorb([OP_AUTH_CRYPT | F_DATA])
   duplex.Absorb(LEB128(|plaintext|))
   duplex.Permute()
   ciphertext = duplex.Encrypt(plaintext)
   duplex.Permute()
   tag = duplex.Squeeze(16)
   return ciphertext || tag
-  
+
 function Open(label, input):
   ciphertext, receivedTag = input[:|input|-16], input[|input|-16:]
   duplex.Frame()
-  duplex.Absorb(OP_AUTH_CRYPT | F_META)
+  duplex.Absorb([OP_AUTH_CRYPT | F_META])
   duplex.Absorb(label)
   duplex.Frame()
-  duplex.Absorb(OP_AUTH_CRYPT | F_DATA)
+  duplex.Absorb([OP_AUTH_CRYPT | F_DATA])
   duplex.Absorb(LEB128(|ciphertext|))
   duplex.Permute()
   plaintext = duplex.Decrypt(ciphertext)
@@ -1018,12 +1028,12 @@ function Fork(label, ...values):
   for value in values:
     branch = duplex.Clone()
     branch.Frame()
-    branch.Absorb(OP_FORK | F_META)
+    branch.Absorb([OP_FORK | F_META])
     branch.Absorb(label)
     branch.Frame()
-    branch.Absorb(OP_FORK | F_DATA)
+    branch.Absorb([OP_FORK | F_DATA])
     branch.Absorb(value)
-    branches.append(branch)
+    branches = branches || [branch]
   return branches
 ```
 
@@ -1039,10 +1049,10 @@ establishing forward secrecy in the event of a state compromise.
 ```text
 function Ratchet(label):
   duplex.Frame()
-  duplex.Absorb(OP_RATCHET | F_META)
+  duplex.Absorb([OP_RATCHET | F_META])
   duplex.Absorb(label)
   duplex.Frame()
-  duplex.Absorb(OP_RATCHET | F_DATA)
+  duplex.Absorb([OP_RATCHET | F_DATA])
   duplex.Ratchet()
 ```
 
@@ -1239,16 +1249,14 @@ function AEADSeal(key, nonce, ad, plaintext):
   protocol.Mix("key", key)                                // Mix the key into the protocol.
   protocol.Mix("nonce", nonce)                            // Mix the nonce into the protocol.
   protocol.Mix("ad", ad)                                  // Mix the associated data into the protocol.
-  ciphertext||tag = protocol.Seal("message", plaintext) // Seal the plaintext.
-  return ciphertext||tag
+  return protocol.Seal("message", plaintext)              // Seal the plaintext and return the result.
 
-function AEADOpen(key, nonce, ad, ciphertext||tag):
+function AEADOpen(key, nonce, ad, ciphertext):
   protocol.Init("com.example.aead")                       // Initialize a protocol with a domain string.
   protocol.Mix("key", key)                                // Mix the key into the protocol.
   protocol.Mix("nonce", nonce)                            // Mix the nonce into the protocol.
   protocol.Mix("ad", ad)                                  // Mix the associated data into the protocol.
-  plaintext = protocol.Open("message", ciphertext||tag) // Open the ciphertext.
-  return plaintext                                        // Return the plaintext or an error.
+  return protocol.Open("message", ciphertext)             // Open the ciphertext.
 ```
 
 #### Cryptographic Properties
@@ -1330,9 +1338,10 @@ function SIVSeal(key, nonce, ad, plaintext):
   tag = a.Derive("tag", 16)                    // Use the auth branch to derive a tag.
   c.Mix("tag", tag)                            // Mix the tag into the conf branch.
   ciphertext = c.Mask("message", plaintext)    // Mask the plaintext with the conf branch.
-  return ciphertext||tag
+  return ciphertext || tag
 
-function SIVOpen(key, nonce, ad, ciphertext||receivedTag):
+function SIVOpen(key, nonce, ad, input):
+  ciphertext, receivedTag = input[:|input|-16], input[|input|-16:]
   protocol.Init("com.example.siv")             // Initialize a protocol with a domain string.
   protocol.Mix("key", key)                     // Mix the key into the protocol.
   protocol.Mix("nonce", nonce)                 // Mix the nonce into the protocol.
@@ -1421,10 +1430,11 @@ plaintext stream as provisional and untrusted until the final, zero-length termi
 verified.
 
 ```text
-function AEStreamSend(key, nonce, pt, ct, blockLen):
+function AEStreamSend(key, nonce, pt, blockLen):
   protocol.Init("com.example.aestream")
   protocol.Mix("key", key)
   protocol.Mix("nonce", nonce)
+  ct = []
   while |pt| > 0:
     block, pt = pt[:blockLen], pt[blockLen:]             // Read a block of plaintext.
     cheader = protocol.Seal("header", I2OSP(|block|, 3)) // Seal the big-endian 3-byte block length header.
@@ -1436,10 +1446,11 @@ function AEStreamSend(key, nonce, pt, ct, blockLen):
   protocol.Ratchet("block")                              // Ratchet the protocol state for forward secrecy.
   return ct
 
-function AEStreamRecv(key, nonce, ct, pt):
+function AEStreamRecv(key, nonce, ct):
   protocol.Init("com.example.aestream")
   protocol.Mix("key", key)
   protocol.Mix("nonce", nonce)
+  pt = []
   while |ct| > 0:
     cheader, ct = ct[:3+16], ct[3+16:]              // Read a sealed header from the ciphertext.
     header = protocol.Open("header", cheader)       // Open the sealed header.
@@ -1545,12 +1556,12 @@ function MemoryHardHash(domain, degree, cost, salt, password, n):
   
   N = 2**cost
   halfN = 2**(cost-1)
-  blocks = Allocate(N * 1024)
+  blocks = [[]] * N
 
   // Initialize the root protocol and mix in the public parameters.
   protocol.Init(domain)
-  protocol.Mix("degree", degree)
-  protocol.Mix("cost", cost)
+  protocol.Mix("degree", LEB128(degree))
+  protocol.Mix("cost", LEB128(cost))
   
   // Fork into two distinct roles: compression and drbg.
   // The compression branch is used to compress parent blocks into new blocks.
