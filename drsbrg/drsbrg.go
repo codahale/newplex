@@ -23,42 +23,48 @@ import (
 // parameter should be selected so that the total operation takes ~100ms; for offline operations (i.e., password-based
 // encryption), the cost parameter should be selected to fully use all available memory.
 func Hash(domain string, cost uint8, salt, password, dst []byte, n int) []byte {
-	// Expand the domain into three, one for each required random oracle.
-	expDomain := domain + ".exp"
-	mixDomain := domain + ".mix"
-	idxDomain := domain + ".idx"
-
 	// Allocate the memory array of 2**cost blocks (each holding 1 KiB of Derive output).
 	memory := make([][blockSize]byte, 1<<cost)
 
-	// Initialize the first block.
-	exp := newplex.NewProtocol(expDomain)
+	// Mix in the common, public parameters: cost, salt.
+	root := newplex.NewProtocol(domain)
+	root.Mix("cost", []byte{cost})
+	root.Mix("salt", salt)
+
+	// Fork the root protocol into expander, evaluator, and indexer roles.
+	branches := root.ForkN("role", []byte("expander"), []byte("evaluator"), []byte("indexer"))
+	exp, eval, idx := branches[0], branches[1], branches[2]
+
+	// Only mix the password into the expander branch, ensuring the rest of the algorithm is totally isolated from
+	// secret data.
 	exp.Mix("password", password)
-	exp.Mix("salt", salt)
-	exp.Mix("cost", []byte{cost})
+
+	// Initialize the first block with the expander.
 	exp.Derive("seed", memory[0][:0], blockSize)
 
-	// Evaluate the graph sequentially.
+	// Evaluate the graph sequentially with independent evaluator clones.
 	for i := 1; i < len(memory); i++ {
-		mix := newplex.NewProtocol(mixDomain)
+		eval := eval.Clone()
 
 		// 1. The Sequential Spine
-		mix.Mix("last", memory[i-1][:])
+		eval.Mix("last", memory[i-1][:])
 
 		// 2. The BRG Edge (Sustained Space Complexity)
-		mix.Mix("brg", memory[bitReverseEdge(i)][:])
+		eval.Mix("brg", memory[bitReverseEdge(i)][:])
 
 		// 3. The DRSample Edges (Cumulative Memory Complexity)
 		for k := 1; k <= d; k++ {
-			mix.Mix("drsample", memory[sampleEdge(idxDomain, salt, i, k)][:])
+			eval.Mix("drsample", memory[sampleEdge(idx.Clone(), i, k)][:])
 		}
 
-		// Hash all aggregated dependencies to create the new block
-		mix.Derive("block", memory[i][:0], blockSize)
+		// Derive a new block from the evaluated values: cost, salt, sequential block, BRG block, back-edge blocks.
+		eval.Derive("block", memory[i][:0], blockSize)
 	}
 
-	// Mix in the last block.
+	// Mix in the last block into the expander.
 	exp.Mix("block", memory[len(memory)-1][:])
+
+	// Finally, expand N bytes of output.
 	return exp.Derive("output", dst, n)
 }
 
@@ -77,24 +83,22 @@ func bitReverseEdge(i int) int {
 	return int(bits.Reverse(uint(offset)) >> (bits.UintSize - k))
 }
 
-// sampleEdge computes a target index of a depth-robust back-edge using a PRNG seeded with the salt and indexes.
-func sampleEdge(idxDomain string, salt []byte, i, k int) int {
+// sampleEdge computes a pseudorandom target index of a depth-robust back-edge using the block and edge indexes.
+func sampleEdge(idx newplex.Protocol, i, k int) int {
 	maxDist := i - 1
 	if maxDist <= 0 {
 		return 0
 	}
 	numBuckets := bits.Len(uint(maxDist))
 
-	// Generate deterministic pseudo-randomness based on the salt and current position.
+	// Generate deterministic pseudo-randomness based on the salt (previously mixed in) and current position.
 	var b [8]byte
-	h := newplex.NewProtocol(idxDomain)
-	h.Mix("salt", salt)
-	h.Mix("i", binary.LittleEndian.AppendUint32(b[:0], uint32(i)))
-	h.Mix("k", binary.LittleEndian.AppendUint32(b[:0], uint32(k)))
+	idx.Mix("i", binary.LittleEndian.AppendUint32(b[:0], uint32(i)))
+	idx.Mix("k", binary.LittleEndian.AppendUint32(b[:0], uint32(k)))
 
 	// Extract two separate 64-bit integers to use as uniform randomness.
-	bucketR := binary.LittleEndian.Uint64(h.Derive("bucket", b[:0], 8))
-	distanceR := binary.LittleEndian.Uint64(h.Derive("distance", b[:0], 8))
+	bucketR := binary.LittleEndian.Uint64(idx.Derive("bucket", b[:0], 8))
+	distanceR := binary.LittleEndian.Uint64(idx.Derive("distance", b[:0], 8))
 
 	// Uniformly select a bucket using the logarithmic distribution.
 	bucketIndex := int(bucketR % uint64(numBuckets))

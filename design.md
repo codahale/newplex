@@ -81,6 +81,13 @@
     * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
       * [Cryptographic Properties](#cryptographic-properties-7)
       * [Security Analysis](#security-analysis-5)
+    * [Memory-Hard Hash Function](#memory-hard-hash-function)
+      * [Graph Routing Operations](#graph-routing-operations)
+      * [Cryptographic Properties](#cryptographic-properties-8)
+      * [Security Analysis](#security-analysis-6)
+    * [Memory-Hard Hash Function](#memory-hard-hash-function-1)
+      * [Cryptographic Properties](#cryptographic-properties-9)
+      * [Security Analysis](#security-analysis-7)
   * [Complex Schemes](#complex-schemes)
     * [Digital Signature](#digital-signature)
     * [Hybrid Public Key Encryption (HPKE)](#hybrid-public-key-encryption-hpke)
@@ -1509,6 +1516,215 @@ an empty string. If the underlying transport connection is severed or an adversa
 ciphertext stream will end before the zero-length block is processed, safely resulting in a decryption error. This
 explicit cryptographic signaling guarantees that a receiver can distinguish between a genuinely completed stream and a
 maliciously truncated one.
+
+### Memory-Hard Hash Function
+
+A memory-hard hash function is designed to be computationally expensive to evaluate, specifically by requiring a
+significant amount of memory. This property defends against brute-force attacks using specialized hardware (ASICs and
+FPGAs) by making the hardware cost proportional to the memory requirement. This is critical for password hashing
+(deriving keys from low-entropy secrets) and proof-of-work schemes.
+
+Newplex implements a data-independent memory-hard function (iMHF) using the [DRSample+BRG] construction. This combines
+the [DRSample] algorithm with the Bit-Reversal Graph from the [Catana] construction. Unlike data-dependent schemes (like
+Scrypt or Argon2d), iMHFs perform memory accesses in a pattern that is completely independent of the secret input. This
+provides absolute resistance to side-channel attacks that could otherwise leak information about the password based on
+cache timing or memory access patterns.
+
+[DRSample+BRG]: https://eprint.iacr.org/2018/944.pdf
+
+[DRSample]: https://eprint.iacr.org/2017/443.pdf
+
+[Catana]: https://eprint.iacr.org/2013/525
+
+The construction builds a Directed Acyclic Graph (DAG) of blocks. To optimize for modern processor architectures while
+maximizing the penalty for ASIC attackers, the block size is fixed at 1KiB to align with common CPU cache lines and the
+graph degree is kept low (`d=3`) to avoid CPU cache misses.
+
+```text
+function MemoryHardHash(domain, cost, salt, password, n):
+  // 1. Setup
+  N = 2**cost
+  memory = Allocate(N * 1024)
+
+  // Mix in the common, public parameters.
+  protocol.Init(domain)
+  protocol.Mix("cost", I2OSP(cost, 1))
+  protocol.Mix("salt", salt)
+  
+  // Fork into three distinct roles.
+  exp, eval, idx = protocol.Fork("role", "expander", "evaluator", "indexer")
+
+  // STRICT ISOLATION: Only the expander branch sees the password.
+  // This structurally guarantees data-independent memory access.
+  exp.Mix("password", password)
+
+  // Initialize the first block with the expander.
+  memory[0] = exp.Derive("seed", 1024)
+
+  // 2. Graph Evaluation
+  for i in 1..N:
+    eval = eval.Clone()
+
+    // The Sequential Spine
+    eval.Mix("last", memory[i-1])
+
+    // The BRG Edge (Sustained Space Complexity)
+    eval.Mix("brg", memory[BitReverseEdge(i)])
+
+    // The DRSample Edges (Cumulative Memory Complexity)
+    for k in 1..3:
+        parent = SampleEdge(idx.Clone(), i, k)
+        eval.Mix("drsample", memory[parent])
+
+    // Derive the content of the current block.
+    memory[i] = eval.Derive("block", 1024)
+
+  // 3. Finalization
+  exp.Mix("block", memory[N-1])
+  return exp.Derive("output", n)
+
+```
+
+#### Graph Routing Operations
+
+The graph uses two helper functions to securely determine the back-edges of the DAG:
+
+* **`BitReverseEdge(i)`**: Computes a target index using localized bit-reversal. It finds the largest power of 2 less
+  than or equal to i (denoted as `2**k`), calculates the offset (`i-2**k`), and reverses the bits of that offset. This
+  mathematically guarantees the edge always points to a previously computed block while enforcing Sustained Space
+  Complexity.
+* **`SampleEdge(idx, i, k)`**: Computes a pseudorandom target index using the `indexer` branch to generate uniform
+  randomness. It uses a logarithmic bucketing distribution: it uniformly selects a bucket based on the distance to `i`,
+  and then uniformly selects a specific distance within that bucket. This satisfies the Depth-Robust graph requirements
+  for Cumulative Memory Complexity.
+
+#### Cryptographic Properties
+
+Memory-hard functions are evaluated on their ability to force an attacker to use a large amount of memory for a specific
+duration (space-time complexity).
+
+* **Cumulative Memory Complexity (CMC):** Ensures that the cost of computing the function is proportional to the product
+  of the memory size and the time. DRSample provides strong CMC guarantees, ensuring that any algorithm attempting to
+  use less than the required space must pay an exponential penalty in time.
+* **Sustained Space Complexity (SSC):** Ensures that the attacker must maintain a significant portion of the memory
+  filled throughout the entire computation. The Catana Bit-Reversal Graph component provides this property, preventing
+  attackers from discarding and cheaply recomputing early blocks.
+* **Data-Independence:** The memory access pattern is determined solely by the `cost` parameter and the `salt`, which
+  are absorbed into the `evaluator` and `indexer` branches. Because the `password` is strictly isolated within the
+  `expander` branch, the memory graph is completely oblivious to the secret data.
+
+#### Security Analysis
+
+The security of the scheme relies on the structural properties of the DRSample+BRG graph and the cryptographic strength
+of the underlying Newplex primitives.
+
+Because the calculation of each block `memory[i]` requires mixing the content of parent blocks using the Newplex
+protocol, the value of every block acts as a cryptographically strong commitment to its history in the graph. The use of
+`Mix` and `Derive` ensures that the evaluator branch acts as a random oracle. Consequently, an adversary cannot compute
+a block without knowing the exact values of all its parents.
+
+To produce the final output, the adversary must effectively compute the value of the last block `memory[N-1]`. Due to
+the depth-robust properties of the graph, this requires computing (and storing) a constant fraction of the entire memory
+graph. If the adversary attempts to use less memory by recomputing blocks on the fly, the number of re-computations
+grows super-linearly, making the attack computationally infeasible compared to the honest execution.
+
+### Memory-Hard Hash Function
+
+A memory-hard hash function is designed to be computationally expensive to evaluate, specifically by requiring a
+significant amount of memory. This property defends against brute-force attacks using specialized hardware (ASICs and
+FPGAs) by making the cost of the hardware proportional to the memory requirement. This is particularly important for
+password hashing (deriving keys from low-entropy secrets) and proof-of-work schemes.
+
+Newplex implements a data-independent memory-hard function (iMHF) using the [DRSample+BRG] construction. Unlike
+data-dependent schemes (like Scrypt or Argon2d), iMHFs perform memory accesses in a pattern that is independent of the
+secret input (the password), thereby preventing side-channel attacks that could leak information about the password
+based on cache timing or memory access patterns.
+
+The construction builds a Directed Acyclic Graph (DAG) of 1 KiB-long blocks. To compute the value of a block `i`, the
+algorithm mixes the values of specific "parent" blocks. The graph structure combines a sequential spine (for basic
+chaining), a Bit-Reversal Graph (BRG) for Sustained Space Complexity (SSC), and Depth-Robust Sample (DRSample) edges for
+Cumulative Memory Complexity (CMC).
+
+[DRSample+BRG]: https://eprint.iacr.org/2018/944.pdf
+
+```text
+function MemoryHardHash(domain, cost, salt, password, n):
+  // 1. Setup
+  N = 2**cost
+  memory = Allocate(N * 1024)
+
+  // 2. Initialization
+  // Initialize the expansion protocol to generate the seed.
+  exp = new Protocol(domain || ".exp")
+  exp.Mix("password", password)
+  exp.Mix("salt", salt)
+  exp.Mix("cost", I2OSP(cost, 1))
+
+  // The first block is derived directly from the password/salt.
+  memory[0] = exp.Derive("seed", 1024)
+
+  // 3. Graph Evaluation
+  for i in 1..N:
+    mix = new Protocol(domain || ".mix")
+
+    // Mix the sequential spine (the previous block).
+    mix.Mix("last", memory[i-1])
+
+    // Mix the BRG edge (SSC).
+    mix.Mix("brg", memory[BitReverse(i)])
+
+    // Mix the DRSample edges (CMC).
+    // d=3 edges are selected using a deterministic, salt-dependent RNG.
+    for k in 1..3:
+        parent = SampleEdge(domain || ".idx", salt, i, k)
+        mix.Mix("drsample", memory[parent])
+
+    // Derive the content of the current block.
+    memory[i] = mix.Derive("block", 1024)
+
+  // 4. Finalization
+  // Mix the final block back into the expansion protocol to produce the output.
+  exp.Mix("block", memory[N-1])
+  return exp.Derive("output", n)
+```
+
+#### Cryptographic Properties
+
+Memory-hard functions are evaluated on their ability to force an attacker to use a large amount of memory for a specific
+duration (space-time complexity).
+
+* **Cumulative Memory Complexity (CMC):** Ensures that the cost of computing the function is proportional to the product
+  of the memory size and the time. DRSample provides strong CMC guarantees, ensuring that any algorithm that uses less
+  than the required space must pay a significant penalty in time.
+* **Sustained Space Complexity (SSC):** Ensures that the attacker must maintain a significant portion of the memory
+  filled throughout the entire computation. The Bit-Reversal Graph component provides this property.
+* **Data-Independence:** The memory access pattern is determined solely by the algorithm parameters and the salt, not
+  the sensitive password. This provides resistance to cache-timing and side-channel attacks.
+
+#### Security Analysis
+
+The security of the scheme relies on the structural properties of the DRSample+BRG graph and the cryptographic bounds of
+the underlying Newplex duplex construction.
+
+Because the calculation of each block `memory[i]` requires mixing the 1KiB content of its parent blocks, the operation
+relies on the duplex's indifferentiability from a random oracle. As established in
+the [core security model](#security-model), a Newplex duplex with a 256-bit capacity over the Simpira-1024 permutation
+behaves as a random oracle up to `2**128` queries. Consequently, the probability of an internal state collision
+occurring during the evaluation of two different graph paths is strictly bounded at `2**-128`. This guarantees that
+every derived block acts as an unforgeable, cryptographically strong commitment to its exact history and parent values.
+
+Because the duplex prevents state collisions, an adversary cannot mathematically shortcut the block derivation; they
+cannot compute a block without evaluating the permutation over the exact values of all its parents. Due to the
+depth-robust properties of the DRSample+BRG graph, computing the final block `memory[N-1]` requires storing a constant
+fraction of the entire memory array. If an adversary attempts a time-memory trade-off by dynamically recomputing dropped
+blocks to save hardware space, the collision resistance of the `Mix` and `Derive` operations ensures they must manually
+push every recovered parent block through the duplex permutation again. This forces the number of required
+re-computations to grow super-linearly, mathematically enforcing the cumulative memory complexity penalty.
+
+Finally, because the secret `password` is completely isolated within the `expander` branch, the final output is
+inextricably bound to the password without ever leaking it into the memory access patterns. The resulting hash inherits
+the full 128-bit generic security level of the duplex construction against collision, preimage, and distinguishing
+attacks, while physically bounding brute-force attempts to the hardware cost of the `2**cost` memory array.
 
 ## Complex Schemes
 
