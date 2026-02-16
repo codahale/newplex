@@ -16,6 +16,12 @@ import (
 	"github.com/codahale/newplex"
 )
 
+// RecommendedDegree is the recommended degree parameter. Use this unless specific analysis indicates a different value
+// would provide more advantage to defenders. Too low of a degree results in a block dependency graph which is not
+// complex enough to deter ASIC-enabled attackers; too high of a degree results in a block dependency graph which is so
+// complex that performance on defender processors suffers and increases an attacker's advantage.
+const RecommendedDegree = 3
+
 // Hash calculates a memory-hard hash of the given password and salt using the DRSample+BRG construction using the given
 // degree and cost parameters. It appends n bytes of output to dst and returns the resulting slice.
 //
@@ -23,10 +29,7 @@ import (
 // parameter should be selected so that the total operation takes ~100ms; for offline operations (i.e., password-based
 // encryption), the cost parameter should be selected to fully use all available memory.
 //
-// The degree parameter should be 3 unless specific analysis indicates a different value would provide more advantage
-// to defenders. Too low of a degree results in a block dependency graph which is not complex enough to deter
-// ASIC-enabled attackers; too high of a degree results in a block dependency graph which is so complex that performance
-// on defender processors suffers and increases an attacker's advantage.
+// Callers should use RecommendedDegree unless they have specific reasons to do otherwise.
 func Hash(domain string, degree, cost uint8, salt, password, dst []byte, n int) []byte {
 	// Calculate block count, halfway point, and bit-width for BRG. If halfN = 2^k, the bitWidth we are reversing is k.
 	N, halfN := 1<<cost, 1<<(cost-1) // 2**cost, 1/(2**cost)

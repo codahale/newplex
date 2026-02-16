@@ -9,8 +9,8 @@ import (
 )
 
 func ExampleHash() {
+	const degree = drsbrg.RecommendedDegree
 	domain := "example passwords"
-	degree := uint8(3)
 	cost := uint8(10)
 	password := []byte("C'est moi, le Mario")
 	salt := []byte("a yellow submarine")
@@ -22,8 +22,8 @@ func ExampleHash() {
 }
 
 func TestHash(t *testing.T) {
+	const degree = drsbrg.RecommendedDegree
 	domain := "example passwords"
-	degree := uint8(3)
 	cost := uint8(10)
 	password := []byte("C'est moi, le Mario")
 	salt := []byte("a yellow submarine")
