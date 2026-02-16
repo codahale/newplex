@@ -210,31 +210,28 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	return ret, nil
 }
 
+// ForkN returns N copies of the receiver, with each branch having absorbed the branch-specific value.
+func (p *Protocol) ForkN(label string, values ...[]byte) []Protocol {
+	p.checkState()
+	branches := make([]Protocol, len(values))
+	for i := range branches {
+		clone := p.Clone()
+		clone.duplex.frame()
+		clone.duplex.absorbByte(opFork)
+		clone.duplex.absorb([]byte(label))
+		clone.duplex.frame()
+		clone.duplex.absorbByte(opFork | 0x80)
+		clone.duplex.absorb(values[i])
+		branches[i] = clone
+	}
+	return branches
+}
+
 // Fork returns two copies of the receiver, with the left side having absorbed the left value and the right side having
 // absorbed the right.
 func (p *Protocol) Fork(label string, leftValue, rightValue []byte) (left, right Protocol) {
-	p.checkState()
-
-	// Make two copies.
-	left, right = *p, *p
-
-	// Perform the fork operation on the left branch with the left value.
-	left.duplex.frame()
-	left.duplex.absorbByte(opFork)
-	left.duplex.absorb([]byte(label))
-	left.duplex.frame()
-	left.duplex.absorbByte(opFork | 0x80)
-	left.duplex.absorb(leftValue)
-
-	// Perform the fork operation on the right branch with the right value.
-	right.duplex.frame()
-	right.duplex.absorbByte(opFork)
-	right.duplex.absorb([]byte(label))
-	right.duplex.frame()
-	right.duplex.absorbByte(opFork | 0x80)
-	right.duplex.absorb(rightValue)
-
-	return left, right
+	branches := p.ForkN(label, leftValue, rightValue)
+	return branches[0], branches[1]
 }
 
 // Ratchet irreversibly modifies the protocol's state, preventing rollback and establishing forward secrecy.

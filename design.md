@@ -119,7 +119,6 @@ graph TD
     Protocol["<b>Protocol Layer</b><br/>(Opcodes, Operation Labels, Metadata & Data Frames)"]
     Duplex["<b>Duplex Layer</b><br/>(State Management, Framing, Padding, Ratcheting)"]
     Permutation["<b>Permutation Layer</b><br/>(Simpira-1024, AES hardware acceleration, 1024-bit width)"]
-
     Scheme --- Protocol
     Protocol --- Duplex
     Duplex --- Permutation
@@ -1006,28 +1005,22 @@ the [streaming authenticated encryption](#streaming-authenticated-encryption) sc
 
 #### `Fork`
 
-`Fork` accepts an operation label and two values, left and right, returning a pair of left and right cloned child
-protocols having absorbed their respective values.
+`Fork` accepts a label and a variable number of branch values, returning a tuple (or array) of independent, cloned child
+protocols that have each absorbed their respective branch value.
 
 ```text
-function Fork(label, leftValue, rightValue):
-  left, right = duplex.Clone(), duplex.Clone()
-  
-  left.Frame()
-  left.Absorb(OP_FORK | F_META)
-  left.Absorb(label)
-  left.Frame()
-  left.Absorb(OP_FORK | F_DATA)
-  left.Absorb(leftValue)
-  
-  right.Frame()
-  right.Absorb(OP_FORK | F_META)
-  right.Absorb(label)
-  right.Frame()
-  right.Absorb(OP_FORK | F_DATA)
-  right.Absorb(rightValue)
-
-  return (left, right)
+function Fork(label, ...values):
+  branches = []
+  for value in values:
+    branch = duplex.Clone()
+    branch.Frame()
+    branch.Absorb(OP_FORK | F_META)
+    branch.Absorb(label)
+    branch.Frame()
+    branch.Absorb(OP_FORK | F_DATA)
+    branch.Absorb(value)
+    branches.append(branch)
+  return branches
 ```
 
 The ability to create two divergent branches is useful
