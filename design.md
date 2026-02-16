@@ -2081,33 +2081,25 @@ transport keys.
 sequenceDiagram
     participant I as Initiator (Alice)
     participant R as Responder (Bea)
-
     Note left of I: dIE, QIE = ...
     Note left of I: Mix(QIE)
-    I->>R: QIE
-
+    I ->> R: QIE
     Note right of R: dRE, QRE = ...
     Note right of R: Mix(QIE)
     Note right of R: Mix(QRE)
     Note right of R: Mix([dRE]QIE)
     Note right of R: Seal(QRS)
-
-    R->>I: QRE, Seal(QRS)
-
+    R ->> I: QRE, Seal(QRS)
     Note right of R: Mix([dRS]QIE)
-
     Note left of I: Mix(QRE)
     Note left of I: Mix([dIE]QRE)
     Note left of I: Open(QRS)
     Note left of I: Mix([dIE]QRS)
     Note left of I: Seal(QIS)
-
-    I->>R: Seal(QIS)
+    I ->> R: Seal(QIS)
     Note right of R: Open(QIS)
-
     Note left of I: Mix([dIS]QRE)
     Note right of R: Mix([dRE]QIS)
-
     Note over I, R: Handshake Complete
     Note left of I: (send, recv) = Fork(role, initiator, responder)
     Note right of R: (recv, send) = Fork(role, initiator, responder)
