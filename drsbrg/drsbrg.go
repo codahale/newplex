@@ -112,14 +112,7 @@ func getDRSampleParent(drbg newplex.Protocol, v int, i uint8) int {
 
 	// 5. Calculate r <- [max(floor(g/2), 2), g]
 	minR := max(g/2, 2)
-
-	// Safety check: If our constraints squash the random range, just use minR
-	if minR >= g {
-		return v - minR
-	}
-
-	rangeR := uint64(g - minR + 1)
-	r := minR + int(rR%rangeR)
+	r := minR + int(rR%uint64(g-minR+1))
 
 	// Return the index of the parent vertex.
 	return v - r
