@@ -25,6 +25,7 @@ import (
 func Hash(domain string, cost uint8, salt, password, dst []byte, n int) []byte {
 	// Allocate the memory array of 2**cost blocks (each holding 1 KiB of Derive output).
 	memory := make([][blockSize]byte, 1<<cost)
+	defer clear(memory)
 
 	// Mix in the common, public parameters: cost, salt.
 	root := newplex.NewProtocol(domain)
@@ -34,6 +35,7 @@ func Hash(domain string, cost uint8, salt, password, dst []byte, n int) []byte {
 	// Fork the root protocol into expander, evaluator, and indexer roles.
 	branches := root.ForkN("role", []byte("expander"), []byte("evaluator"), []byte("indexer"))
 	exp, eval, idx := branches[0], branches[1], branches[2]
+	defer exp.Clear()
 
 	// Only mix the password into the expander branch, ensuring the rest of the algorithm is totally isolated from
 	// secret data.
