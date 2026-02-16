@@ -2,10 +2,24 @@ package drsbrg_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/codahale/newplex/drsbrg"
 )
+
+func ExampleHash() {
+	domain := "example passwords"
+	degree := uint8(3)
+	cost := uint8(10)
+	password := []byte("C'est moi, le Mario")
+	salt := []byte("a yellow submarine")
+	n := 32
+	hash := drsbrg.Hash(domain, degree, cost, salt, password, nil, n)
+	fmt.Printf("hash = %x\n", hash)
+	// Output:
+	// hash = cc5b6f361c4977429eaabd6ebc39f875f20fec104265200321ed92955d0f8bfe
+}
 
 func TestHash(t *testing.T) {
 	domain := "example passwords"
