@@ -24,7 +24,9 @@ import (
 // encryption), the cost parameter should be selected to fully use all available memory.
 //
 // The degree parameter should be 3 unless specific analysis indicates a different value would provide more advantage
-// to defenders.
+// to defenders. Too low of a degree results in a block dependency graph which is not complex enough to deter
+// ASIC-enabled attackers; too high of a degree results in a block dependency graph which is so complex that performance
+// on defender processors suffers and increases an attacker's advantage.
 func Hash(domain string, degree, cost uint8, salt, password, dst []byte, n int) []byte {
 	// Calculate block count, halfway point, and bit-width for BRG. If halfN = 2^k, the bitWidth we are reversing is k.
 	N, halfN := 1<<cost, 1<<(cost-1) // 2**cost, 1/(2**cost)
