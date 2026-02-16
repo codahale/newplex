@@ -33,14 +33,16 @@ func Hash(domain string, degree, cost uint8, salt, password, dst []byte, n int) 
 	// Allocate the block buffer.
 	blocks := make([][blockSize]byte, N)
 
-	// Hash the parameters in a root protocol, then fork into two branches: compression and drbg.
+	// Hash the parameters in a root protocol, then fork into two branches: compression and DRBG. The root protocol is
+	// used to mix in all parameters, including the salt, password, and final block, and used for the final derivation.
+	// The compression protocol is used when building the graph to compress the parent blocks into a new block. The DRBG
+	// protocol is used to pseudorandomly select parent blocks in DRSample based on the degree and cost of the graph.
 	root := newplex.NewProtocol(domain)
 	root.Mix("degree", binary.AppendUvarint(nil, uint64(degree)))
 	root.Mix("cost", binary.AppendUvarint(nil, uint64(cost)))
 	compression, drbg := root.Fork("role", []byte("compression"), []byte("drbg"))
 
-	// Hash the salt and password in ONLY the root branch and derive a seed block.
-	// Base case: Hash the password and salt to create the first block
+	// Hash the salt and password in ONLY the root branch and derive an initial seed block.
 	root.Mix("salt", salt)
 	root.Mix("password", password)
 	root.Derive("seed", blocks[0][:0], blockSize)
@@ -49,7 +51,7 @@ func Hash(domain string, degree, cost uint8, salt, password, dst []byte, n int) 
 	for v := 1; v < halfN; v++ {
 		h := compression.Clone()
 
-		// Parent 1: Sequential edge (v-1)
+		// Parent 1: Sequential edge
 		h.Mix("prev", blocks[v-1][:])
 
 		// Parents 2 through degree: Depth-Robust edges
@@ -62,14 +64,14 @@ func Hash(domain string, degree, cost uint8, salt, password, dst []byte, n int) 
 		h.Derive("block", blocks[v][:0], blockSize)
 	}
 
-	// Generate the first half of the graph using BRG.
+	// Generate the second half of the graph using BRG.
 	for v := halfN; v < N; v++ {
 		h := compression.Clone()
 
 		// Parent 1: Sequential edge
 		h.Mix("prev", blocks[v-1][:])
 
-		// Parent 2: Bit-Reversal edge pointing to the first half
+		// Parent 2: Bit-Reversal edge pointing to the first half of the graph.
 		p := int(bits.Reverse64(uint64(v%halfN)) >> (64 - bitWidth))
 		h.Mix("brg-edge", blocks[p][:])
 
