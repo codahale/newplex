@@ -1,11 +1,85 @@
 package pake_test
 
 import (
+	"errors"
 	"fmt"
+	"testing"
 
 	"github.com/codahale/newplex/internal/testdata"
 	"github.com/codahale/newplex/pake"
+	"github.com/gtank/ristretto255"
 )
+
+func TestPake(t *testing.T) {
+	drbg := testdata.New("newplex pake")
+	r1 := drbg.Data(64)
+	r2 := drbg.Data(64)
+
+	t.Run("successful exchange", func(t *testing.T) {
+		finish, initiate := pake.Initiate("example", []byte("a"), []byte("b"), []byte("s"), []byte("p"), r1)
+		pResponder, response, err := pake.Respond("example", []byte("a"), []byte("b"), []byte("s"), []byte("p"), r2, initiate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pInitiator, err := finish(response)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got, want := pInitiator.String(), pResponder.String(); got != want {
+			t.Errorf("initiator = %s, responder = %s", got, want)
+		}
+	})
+
+	t.Run("wrong password", func(t *testing.T) {
+		finish, initiate := pake.Initiate("example", []byte("a"), []byte("b"), []byte("s"), []byte("p1"), r1)
+		pResponder, response, err := pake.Respond("example", []byte("a"), []byte("b"), []byte("s"), []byte("p2"), r2, initiate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pInitiator, err := finish(response)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got, want := pInitiator.String(), pResponder.String(); got == want {
+			t.Error("different passwords should lead to different states")
+		}
+	})
+
+	t.Run("wrong domain", func(t *testing.T) {
+		finish, initiate := pake.Initiate("example1", []byte("a"), []byte("b"), []byte("s"), []byte("p"), r1)
+		pResponder, response, err := pake.Respond("example2", []byte("a"), []byte("b"), []byte("s"), []byte("p"), r2, initiate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pInitiator, err := finish(response)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got, want := pInitiator.String(), pResponder.String(); got == want {
+			t.Error("different domains should lead to different states")
+		}
+	})
+
+	t.Run("invalid responder message", func(t *testing.T) {
+		finish, _ := pake.Initiate("example", []byte("a"), []byte("b"), []byte("s"), []byte("p"), r1)
+
+		_, err := finish(make([]byte, 31)) // invalid length
+		if !errors.Is(err, pake.ErrInvalidHandshake) {
+			t.Errorf("expected ErrInvalidHandshake, got %v", err)
+		}
+	})
+
+	t.Run("identity element", func(t *testing.T) {
+		finish, _ := pake.Initiate("example", []byte("a"), []byte("b"), []byte("s"), []byte("p"), r1)
+		_, err := finish(ristretto255.NewIdentityElement().Bytes())
+		if !errors.Is(err, pake.ErrInvalidHandshake) {
+			t.Errorf("expected ErrInvalidHandshake, got %v", err)
+		}
+	})
+}
 
 func Example() {
 	drbg := testdata.New("newplex pake")
