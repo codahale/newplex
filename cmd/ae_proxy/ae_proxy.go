@@ -68,25 +68,30 @@ func main() {
 
 			finish, request, err := handshake.Initiate("newplex.ae_proxy", dIS, rand.Reader)
 			if err != nil {
-				panic(err)
+				log.Error("error initiating handshake", "err", err)
+				return
 			}
 			_, err = client.Write(request)
 			if err != nil {
-				panic(err)
+				log.Error("error writing handshake request", "err", err)
+				return
 			}
 			response := make([]byte, handshake.ResponseSize)
 			_, err = io.ReadFull(client, response)
 			if err != nil {
-				panic(err)
+				log.Error("error reading handshake response", "err", err)
+				return
 			}
 			send, recv, qRS, confirmation, err := finish(response)
 			if err != nil {
-				panic(err)
+				log.Error("error finishing handshake", "err", err)
+				return
 			}
 			log.Info("handshake established", "pk", hex.EncodeToString(qRS.Bytes()))
 			_, err = client.Write(confirmation)
 			if err != nil {
-				panic(err)
+				log.Error("error writing handshake confirmation", "err", err)
+				return
 			}
 
 			r := aestream.NewReader(recv, client, aestream.MaxBlockSize)
@@ -99,20 +104,25 @@ func main() {
 				}
 			}()
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancelCause(context.Background())
 			go func() {
 				if _, err := io.Copy(w, conn); err != nil && !errors.Is(err, net.ErrClosed) {
-					log.Error("error reading from client", "err", err)
+					cancel(err)
+				} else {
+					cancel(nil)
 				}
-				cancel()
 			}()
 			go func() {
 				if _, err := io.Copy(conn, r); err != nil && !errors.Is(err, net.ErrClosed) {
-					log.Error("error writing to server", "err", err)
+					cancel(err)
+				} else {
+					cancel(nil)
 				}
-				cancel()
 			}()
 			<-ctx.Done()
+			if err := context.Cause(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				log.Error("connection error", "err", err)
+			}
 		}()
 	}
 }

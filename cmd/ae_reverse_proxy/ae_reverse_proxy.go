@@ -105,20 +105,25 @@ func main() {
 				_ = client.Close()
 			}()
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancelCause(context.Background())
 			go func() {
 				if _, err := io.Copy(client, r); err != nil && !errors.Is(err, net.ErrClosed) {
-					log.Error("error reading from client", "err", err)
+					cancel(err)
+				} else {
+					cancel(nil)
 				}
-				cancel()
 			}()
 			go func() {
 				if _, err := io.Copy(w, client); err != nil && !errors.Is(err, net.ErrClosed) {
-					log.Error("error writing to server", "err", err)
+					cancel(err)
+				} else {
+					cancel(nil)
 				}
-				cancel()
 			}()
 			<-ctx.Done()
+			if err := context.Cause(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				log.Error("connection error", "err", err)
+			}
 		}()
 	}
 }
