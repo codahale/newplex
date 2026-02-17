@@ -108,6 +108,36 @@ func TestProtocol_Fork(t *testing.T) {
 	})
 }
 
+func TestProtocol_ForkN(t *testing.T) {
+	p := newplex.NewProtocol("fork-n")
+
+	t.Run("divergence", func(t *testing.T) {
+		forks := p.ForkN("side", []byte("a"), []byte("b"), []byte("c"))
+
+		if got, want := len(forks), 3; got != want {
+			t.Errorf("len(forks) = %d, want %d", got, want)
+		}
+
+		for i := range forks {
+			for j := range forks {
+				if i == j {
+					continue
+				}
+				if got, want := forks[i].Equal(&forks[j]), 0; got != want {
+					t.Errorf("forks[%d] == forks[%d]", i, j)
+				}
+			}
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		forks := p.ForkN("empty")
+		if len(forks) != 0 {
+			t.Errorf("len(forks) = %d, want 0", len(forks))
+		}
+	})
+}
+
 func TestProtocol_Ratchet(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("a thing", []byte("another thing"))
