@@ -189,10 +189,10 @@ type skippedKey struct {
 }
 
 func newSK(q *ristretto255.Element, n uint32) skippedKey {
-	var sk skippedKey
-	copy(sk.pub[:], q.Bytes())
-	sk.n = n
-	return sk
+	return skippedKey{
+		pub: [32]byte(q.Bytes()),
+		n:   n,
+	}
 }
 
 const headerSize = 32 + 4 + 4
