@@ -114,3 +114,19 @@ func TestVerify(t *testing.T) {
 		}
 	})
 }
+
+func FuzzVerify(f *testing.F) {
+	drbg := testdata.New("newplex vrf fuzz")
+	_, q := drbg.KeyPair()
+
+	for range 10 {
+		f.Add(drbg.Data(vrf.ProofSize), drbg.Data(32))
+	}
+
+	f.Fuzz(func(t *testing.T, proof, message []byte) {
+		valid, prf := vrf.Verify("fuzz", q, message, proof, 32)
+		if valid {
+			t.Errorf("Verify(message=%x, proof=%x) = (true, prf=%x), want = false", message, proof, prf)
+		}
+	})
+}

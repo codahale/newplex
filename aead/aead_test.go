@@ -7,6 +7,7 @@ import (
 
 	"github.com/codahale/newplex"
 	"github.com/codahale/newplex/aead"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func TestAEAD_New(t *testing.T) {
@@ -144,6 +145,25 @@ func TestAEAD_Open(t *testing.T) {
 	t.Run("truncated ciphertext", func(t *testing.T) {
 		if _, err := c.Open(nil, nonce, ciphertext[:len(ciphertext)-1], ad); err == nil {
 			t.Error("should have failed")
+		}
+	})
+}
+
+func FuzzAEAD(f *testing.F) {
+	drbg := testdata.New("newplex aead fuzz")
+	for range 10 {
+		f.Add(drbg.Data(32), drbg.Data(16), drbg.Data(48), drbg.Data(16))
+	}
+
+	f.Fuzz(func(t *testing.T, key, nonce, ciphertext, ad []byte) {
+		if len(nonce) < 16 {
+			t.Skip()
+		}
+
+		c := aead.New("fuzz", key, len(nonce))
+		v, err := c.Open(nil, nonce, ciphertext, ad)
+		if err == nil {
+			t.Errorf("Open(key=%x, nonce=%x, ciphertext=%x, ad=%x) = plaintext=%x, want = err", key, nonce, ciphertext, ad, v)
 		}
 	})
 }

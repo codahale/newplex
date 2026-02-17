@@ -209,3 +209,22 @@ func TestState_ReceiveMessage(t *testing.T) {
 		}
 	})
 }
+
+func FuzzReceiveMessage(f *testing.F) {
+	drbg := testdata.New("newplex adratchet fuzz")
+	dA, _ := drbg.KeyPair()
+	_, qB := drbg.KeyPair()
+	p := newplex.NewProtocol("fuzz")
+	alice := adratchet.NewInitiator(&p, dA, qB)
+
+	for range 10 {
+		f.Add(drbg.Data(128))
+	}
+
+	f.Fuzz(func(t *testing.T, ciphertext []byte) {
+		v, err := alice.ReceiveMessage(ciphertext)
+		if err == nil {
+			t.Errorf("ReceiveMessage(ciphertext=%x) = plaintext=%x, want = err", ciphertext, v)
+		}
+	})
+}

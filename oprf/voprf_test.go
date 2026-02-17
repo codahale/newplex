@@ -126,3 +126,45 @@ func TestVerifiableBlindEvaluate(t *testing.T) {
 		}
 	})
 }
+
+func FuzzVOPRF(f *testing.F) {
+	drbg := testdata.New("newplex voprf fuzz")
+	_, q := drbg.KeyPair()
+
+	for range 10 {
+		blind, _ := ristretto255.NewScalar().SetUniformBytes(drbg.Data(64))
+		evaluated, _ := ristretto255.NewIdentityElement().SetUniformBytes(drbg.Data(64))
+		blinded, _ := ristretto255.NewIdentityElement().SetUniformBytes(drbg.Data(64))
+		c, _ := ristretto255.NewScalar().SetUniformBytes(drbg.Data(64))
+		s, _ := ristretto255.NewScalar().SetUniformBytes(drbg.Data(64))
+		f.Add(blind.Bytes(), drbg.Data(32), evaluated.Bytes(), blinded.Bytes(), c.Bytes(), s.Bytes())
+	}
+
+	f.Fuzz(func(t *testing.T, blindB, input, evaluatedB, blindedB, cB, sB []byte) {
+		blind := ristretto255.NewScalar()
+		if _, err := blind.SetCanonicalBytes(blindB); err != nil {
+			t.Skip()
+		}
+		evaluated := ristretto255.NewIdentityElement()
+		if _, err := evaluated.SetCanonicalBytes(evaluatedB); err != nil {
+			t.Skip()
+		}
+		blinded := ristretto255.NewIdentityElement()
+		if _, err := blinded.SetCanonicalBytes(blindedB); err != nil {
+			t.Skip()
+		}
+		c := ristretto255.NewScalar()
+		if _, err := c.SetCanonicalBytes(cB); err != nil {
+			t.Skip()
+		}
+		s := ristretto255.NewScalar()
+		if _, err := s.SetCanonicalBytes(sB); err != nil {
+			t.Skip()
+		}
+
+		v, err := oprf.VerifiableFinalize("fuzz", input, blind, q, evaluated, blinded, c, s, 16)
+		if err == nil {
+			t.Errorf("VerifiableFinalize(input=%x, blind=%x, evaluated=%x, blinded=%x, c=%x, s=%x) = prf=%x, want = err", input, blind.Bytes(), evaluated.Bytes(), blinded.Bytes(), c.Bytes(), s.Bytes(), v)
+		}
+	})
+}

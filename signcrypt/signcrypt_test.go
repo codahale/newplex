@@ -98,6 +98,11 @@ func BenchmarkOpen(b *testing.B) {
 }
 
 func FuzzOpen(f *testing.F) {
+	drbg := testdata.New("newplex signcrypt fuzz")
+	for range 10 {
+		f.Add(drbg.Data(128))
+	}
+
 	r, dS, qS, dR, qR, _, _ := setup()
 	ciphertext := signcrypt.Seal("signcrypt", dS, qR, r, []byte("this is a message"))
 
@@ -124,7 +129,7 @@ func FuzzOpen(f *testing.F) {
 
 		plaintext, err := signcrypt.Open("signcrypt", dR, qS, modifiedCiphertext)
 		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
-			t.Errorf("decrypted invalid ciphertext: %x/%x/%v", ciphertext, plaintext, err)
+			t.Errorf("Open(ciphertext=%x) = (plaintext=%x, err=%v), want = ErrInvalidCiphertext", modifiedCiphertext, plaintext, err)
 		}
 	})
 }

@@ -97,7 +97,7 @@ func FuzzAEAD(f *testing.F) {
 		c[int(idx)%len(c)] ^= mask
 
 		if got, _, err := decrypt(key, nonce, c); err == nil {
-			t.Errorf("decrypt(key, nonce, c) = %v, want = nil", got)
+			t.Errorf("decrypt(key=%x, nonce=%x, ciphertext=%x) = plaintext=%x, want = err", key, nonce, c, got)
 		}
 	})
 }

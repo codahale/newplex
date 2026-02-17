@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/codahale/newplex"
+	"github.com/codahale/newplex/internal/testdata"
 	"github.com/codahale/newplex/siv"
 )
 
@@ -144,6 +145,25 @@ func TestSIV_Open(t *testing.T) {
 	t.Run("truncated ciphertext", func(t *testing.T) {
 		if _, err := c.Open(nil, nonce, ciphertext[:len(ciphertext)-1], ad); err == nil {
 			t.Error("should have failed")
+		}
+	})
+}
+
+func FuzzSIV(f *testing.F) {
+	drbg := testdata.New("newplex siv fuzz")
+	for range 10 {
+		f.Add(drbg.Data(32), drbg.Data(16), drbg.Data(48), drbg.Data(16))
+	}
+
+	f.Fuzz(func(t *testing.T, key, nonce, ciphertext, ad []byte) {
+		if len(nonce) < 16 {
+			return
+		}
+
+		c := siv.New("fuzz", key, len(nonce))
+		v, err := c.Open(nil, nonce, ciphertext, ad)
+		if err == nil {
+			t.Errorf("Open(key=%x, nonce=%x, ciphertext=%x, ad=%x) = plaintext=%x, want = err", key, nonce, ciphertext, ad, v)
 		}
 	})
 }

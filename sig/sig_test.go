@@ -1,6 +1,7 @@
 package sig_test
 
 import (
+	"bytes"
 	"errors"
 	"slices"
 	"strings"
@@ -154,6 +155,26 @@ func TestVerify(t *testing.T) {
 
 		if valid {
 			t.Errorf("should not have been valid")
+		}
+	})
+}
+
+func FuzzVerify(f *testing.F) {
+	drbg := testdata.New("newplex sig fuzz")
+	_, q := drbg.KeyPair()
+
+	for range 10 {
+		f.Add(drbg.Data(sig.Size), drbg.Data(32))
+	}
+
+	f.Fuzz(func(t *testing.T, signature, message []byte) {
+		valid, err := sig.Verify("fuzz", q, signature, bytes.NewReader(message))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if valid {
+			t.Errorf("Verify(signature=%x, message=%x) = true, want = false", signature, message)
 		}
 	})
 }

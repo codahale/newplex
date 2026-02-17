@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/codahale/newplex"
+	"github.com/codahale/newplex/internal/testdata"
 )
 
 func TestNewProtocol(t *testing.T) {
@@ -399,8 +400,12 @@ func TestProtocol_Open(t *testing.T) {
 }
 
 func FuzzProtocol_Open(f *testing.F) {
+	drbg := testdata.New("newplex protocol open fuzz")
+	for range 10 {
+		f.Add(drbg.Data(32), 4, byte(7))
+	}
+
 	// Ensure that any bit on any byte in the ciphertext, if changed, will fail to open.
-	f.Add([]byte("a message"), 4, byte(7))
 	f.Fuzz(func(t *testing.T, plaintext []byte, idx int, mask byte) {
 		if idx < 0 || idx >= len(plaintext)+newplex.TagSize || mask == 0 {
 			t.Skip()
@@ -413,7 +418,7 @@ func FuzzProtocol_Open(f *testing.F) {
 		p = newplex.NewProtocol("fuzz-open")
 		recovered, err := p.Open("message", nil, ciphertext)
 		if err == nil {
-			t.Fatalf("Open(Seal(%x)[%d] ^ %d) = %x", plaintext, idx, mask, recovered)
+			t.Errorf("Open(ciphertext=%x) = plaintext=%x, want = err", ciphertext, recovered)
 		}
 	})
 }

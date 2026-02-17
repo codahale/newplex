@@ -410,3 +410,19 @@ var lengths = []struct {
 	{"16KiB", 16 * 1024},
 	{"1MiB", 1024 * 1024},
 }
+
+func FuzzReader(f *testing.F) {
+	drbg := testdata.New("newplex aestream fuzz")
+	for range 10 {
+		f.Add(drbg.Data(1024))
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		p := newplex.NewProtocol("fuzz")
+		r := aestream.NewReader(&p, bytes.NewReader(data), 4096)
+		v, err := io.ReadAll(r)
+		if err == nil {
+			t.Errorf("ReadAll(data=%x) = plaintext=%x, want = err", data, v)
+		}
+	})
+}

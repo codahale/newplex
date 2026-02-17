@@ -76,7 +76,11 @@ func TestOpen(t *testing.T) {
 }
 
 func FuzzOpen(f *testing.F) {
-	drbg := testdata.New("newplex hpke")
+	drbg := testdata.New("newplex hpke fuzz")
+	for range 10 {
+		f.Add(drbg.Data(128))
+	}
+
 	dR, qR := drbg.KeyPair()
 	dS, qS := drbg.KeyPair()
 	r := drbg.Data(64)
@@ -102,7 +106,7 @@ func FuzzOpen(f *testing.F) {
 
 		plaintext, err := hpke.Open("hpke", dR, qS, ct)
 		if err == nil {
-			t.Errorf("Open = %x, want = ErrInvalidCiphertext", plaintext)
+			t.Errorf("Open(ciphertext=%x) = plaintext=%x, want = err", ct, plaintext)
 		}
 	})
 }
