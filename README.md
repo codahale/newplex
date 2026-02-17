@@ -85,6 +85,7 @@ Newplex includes many cryptographic schemes implemented as sub-packages:
   hashing.
 * [`newplex/handshake`](handshake): Implements a mutually authenticated handshake.
 * [`newplex/hpke`](hpke): Implements a hybrid public-key encryption scheme.
+* [`newplex/mhf`](mhf): Implements the EGSample data-dependent memory-hard hash function for password hashing.
 * [`newplex/oprf`](oprf): Implements an RFC 9497-style Oblivious Pseudorandom Function (OPRF) and Verifiable OPRF
   (VOPRF).
 * [`newplex/pake`](pake): Implements a CPace-style password-authenticated key exchange (PAKE).
