@@ -1530,38 +1530,47 @@ maliciously truncated one.
 A memory-hard hash function is designed to be computationally expensive to evaluate, specifically by requiring a
 significant amount of memory. This property defends against brute-force attacks using specialized hardware (ASICs and
 FPGAs) by making the hardware cost proportional to the memory requirement. This is critical for password hashing
-(deriving keys from low-entropy secrets) and proof-of-work schemes.
+(deriving keys from low-entropy secrets) and password-based encryption.
 
-Newplex implements a data-independent memory-hard function (iMHF) using the [DRSample+BRG] construction. This combines
-the [DRSample] algorithm with the Bit-Reversal Graph from the [Catana] construction. Unlike data-dependent schemes (like
-Scrypt or Argon2d), iMHFs perform memory accesses in a pattern that is completely independent of the secret input. This
-provides absolute resistance to side-channel attacks that could otherwise leak information about the password based on
-cache timing or memory access patterns.
+Newplex implements a data-dependent memory-hard function (dMHF) using the [EGSample] construction. EGSample is a
+two-tier graph construction that provides high memory hardness while remaining performant on general-purpose CPUs.
+Unlike purely data-independent schemes (iMHFs), dMHFs use the secret input to determine some of the memory access
+patterns. This provides significantly stronger resistance against ASIC-enabled attackers, who can otherwise exploit
+the fixed access patterns of iMHFs to reduce their memory requirements.
 
-[DRSample+BRG]: https://eprint.iacr.org/2018/944.pdf
+[EGSample]: https://arxiv.org/pdf/2508.06795
+
+The construction builds a Directed Acyclic Graph (DAG) of blocks, where each block's value depends on its parents in
+the graph. To optimize for modern processor architectures while maximizing the penalty for ASIC attackers, the block
+size is fixed at 1KiB to align with common CPU cache lines.
+
+The graph evaluation is divided into windows of size `w = 2**window`. Within each window, the graph uses a combination
+of sequential and depth-robust edges (Tier 1). Between windows, the graph uses data-dependent "Grate" edges (Tier 2).
+
+* **Tier 1: Data-Independent Intra-Window Edges.** These edges are determined by the `degree` and `cost` parameters.
+  They include a sequential edge from the previous block and several depth-robust edges calculated using the [DRSample]
+  algorithm. These edges are localized within the current window, ensuring that the most frequent memory accesses stay
+  within the processor's L3 cache if the `window` parameter is chosen correctly.
+* **Tier 2: Data-Dependent Grate Inter-Window Edges.** For each block (except in the first window), an intermediate
+  state is used as a query to select a "Grate" parent from any of the preceding windows. This data-dependent selection
+  makes the graph unpredictable to an attacker, forcing them to store the actual block values rather than just the graph
+  structure.
 
 [DRSample]: https://eprint.iacr.org/2017/443.pdf
 
-[Catana]: https://eprint.iacr.org/2013/525
-
-The construction builds a Directed Acyclic Graph (DAG) of blocks. To optimize for modern processor architectures while
-maximizing the penalty for ASIC attackers, the block size is fixed at 1KiB to align with common CPU cache lines. The
-graph degree is typically kept low (`d=3`); too low a graph degree increases the advantage for attackers, but too high
-a degree reduces performance for defenders via increased cache misses and thereby also increases the advantage for
-attackers.
-
 ```text
-function MemoryHardHash(domain, degree, cost, salt, password, n):
+function MemoryHardHash(domain, degree, cost, window, salt, password, n):
   // 1. Setup
   
   N = 2**cost
-  halfN = 2**(cost-1)
-  blocks = [[]] * N
+  w = 2**window
+  blocks = [[0x00] * 1024] * N
 
   // Initialize the root protocol and mix in the public parameters.
   protocol.Init(domain)
   protocol.Mix("degree", LEB128(degree))
   protocol.Mix("cost", LEB128(cost))
+  protocol.Mix("window", LEB128(window))
   
   // Fork into two distinct roles: compression and drbg.
   // The compression branch is used to compress parent blocks into new blocks.
@@ -1577,33 +1586,44 @@ function MemoryHardHash(domain, degree, cost, salt, password, n):
 
   // 2. Graph Evaluation
   
-  // First half: DRSample (Cumulative Memory Complexity)
-  for v in 1..halfN-1:
+  for v in 1..N-1:
     h = compression.Clone()
+
+    // Calculate window-relative indices.
+    windowIndex = v / w
+    windowStart = windowIndex * w
+    relativeV = v - windowStart
+
+    // --- Tier 1: Data-Independent Intra-Window Edges
 
     // Sequential edge
     h.Mix("prev", blocks[v-1])
 
     // Depth-Robust edges (degree - 1 edges)
     for i in 1..degree-1:
-        parent = getDRSampleParent(drbg.Clone(), v, i)
-        h.Mix("drsample-edge", blocks[parent])
+        // Pass relativeV to get an intra-window parent offset.
+        pRel = getDRSampleParent(drbg.Clone(), relativeV, i)
+        pAbs = windowStart + pRel
+        h.Mix("drsample-edge", blocks[pAbs])
 
-    // Derive the content of the current block.
-    blocks[v] = h.Derive("block", 1024)
+    // Calculate intermediate state (sigma-prime).
+    sigmaPrime = h.Derive("sigma-prime", 1024)
 
-  // Second half: Bit-Reversal Graph (Sustained Space Complexity)
-  for v in halfN..N-1:
+    // --- Tier 2: Data-Dependent Grate Inter-Window Edges
+
+    if windowIndex == 0:
+        blocks[v] = sigmaPrime
+        continue
+
+    // The intermediate state acts as the query for the data-dependent edge.
     h = compression.Clone()
+    h.Mix("sigma-prime", sigmaPrime)
 
-    // Sequential edge
-    h.Mix("prev", blocks[v-1])
+    // Extract entropy from sigmaPrime to select a parent from preceding windows.
+    u = OSP2I(sigmaPrime[:8], 8) % windowStart
+    h.Mix("grate-parent", blocks[u])
 
-    // Bit-Reversal edge (points to the first half)
-    p = BitReverse(v % halfN, bits=cost-1)
-    h.Mix("brg-edge", blocks[p])
-
-    // Derive the content of the current block.
+    // Finalize the block state.
     blocks[v] = h.Derive("block", 1024)
 
   // 3. Finalization
@@ -1613,14 +1633,11 @@ function MemoryHardHash(domain, degree, cost, salt, password, n):
 
 #### Graph Routing Operations
 
-The graph uses two helper functions to determine the back-edges of the DAG:
+The graph uses a helper function to determine the depth-robust back-edges within each window:
 
-* **`BitReverse(offset, bits)`**: Computes the bit-reversal of the given `offset` using the specified number of `bits`. 
-  In the second half of the graph evaluation, this ensures the back-edge always points to a block in the first half, 
-  enforcing Sustained Space Complexity.
-* **`getDRSampleParent(drbg, v, i)`**: Computes a pseudorandom target index for a depth-robust edge. It uses the `drbg` 
-  branch to generate uniform randomness and implements Algorithm 3 from the [DRSample] paper, which uses a 
-  logarithmic bucketing distribution to select a parent `p < v`. This satisfies the requirements for Cumulative Memory 
+* **`getDRSampleParent(drbg, v, i)`**: Computes a pseudorandom target index for a depth-robust edge. It uses the `drbg`
+  branch to generate uniform randomness and implements Algorithm 3 from the [DRSample] paper, which uses a
+  logarithmic bucketing distribution to select a parent `p < v`. This satisfies the requirements for Cumulative Memory
   Complexity. It encodes `v` and `i` using LEB128, mixes them into the `drbg` protocol clone, and derives two 64-bit
   unsigned integers for the pseudorandom selection of `g'` and `r`.
 
@@ -1630,29 +1647,39 @@ Memory-hard functions are evaluated on their ability to force an attacker to use
 duration (space-time complexity).
 
 * **Cumulative Memory Complexity (CMC):** Ensures that the cost of computing the function is proportional to the product
-  of the memory size and the time. DRSample provides strong CMC guarantees, ensuring that any algorithm attempting to
-  use less than the required space must pay an exponential penalty in time.
-* **Sustained Space Complexity (SSC):** Ensures that the attacker must maintain a significant portion of the memory
-  filled throughout the entire computation. The Catana Bit-Reversal Graph component provides this property, preventing
-  attackers from discarding and cheaply recomputing early blocks.
-* **Data-Independence:** The memory access pattern is determined solely by the `cost` and `degree` parameters, 
-  which are absorbed into the `compression` and `drbg` branches. Because the `password` and `salt` are strictly isolated 
-  within the `root` branch, the memory graph is completely oblivious to the secret data.
+  of the memory size and the time. EGSample combines the strong CMC guarantees of DRSample with the unpredictable
+  accesses of a dMHF, ensuring that any algorithm attempting to use less than the required space must pay an
+  exponential penalty in time.
+* **Data-Dependency:** The Tier 2 "Grate" edges are determined by the intermediate block values, which in turn depend on
+  the `password` and `salt`. This data-dependency prevents "peeling" attacks where an attacker pre-computes the graph
+  structure to optimize memory usage.
+* **Side-Channel Mitigation:** By localizing the Tier 1 edges within a window and recommending a `window` size that fits
+  within the L3 cache, EGSample minimizes the side-channel leakage typical of dMHFs. While Tier 2 edges are
+  inter-window, the high-frequency Tier 1 accesses remain protected.
 
 #### Security Analysis
 
-The security of the scheme relies on the structural properties of the DRSample+BRG graph and the cryptographic strength
+The security of the scheme relies on the structural properties of the EGSample graph and the cryptographic strength
 of the underlying Newplex primitives.
 
-Because the calculation of each block `block[v]` requires mixing the content of parent blocks using the Newplex
+Because the calculation of each block `blocks[v]` requires mixing the content of parent blocks using the Newplex
 protocol, the value of every block acts as a cryptographically strong commitment to its history in the graph. The use of
-`Mix` and `Derive` ensures that the compression branch acts as a random oracle. Consequently, an adversary cannot compute
-a block without knowing the exact values of all its parents.
+`Mix` and `Derive` ensures that the compression branch acts as a random oracle. Consequently, an adversary cannot
+compute a block without knowing the exact values of all its parents.
 
-To produce the final output, the adversary must effectively compute the value of the last block `memory[N-1]`. Due to
-the depth-robust properties of the graph, this requires computing (and storing) a constant fraction of the entire memory
-graph. If the adversary attempts to use less memory by recomputing blocks on the fly, the number of re-computations
-grows super-linearly, making the attack computationally infeasible compared to the honest execution.
+To produce the final output, the adversary must effectively compute the value of the last block `blocks[N-1]`. Due to
+the depth-robust and data-dependent properties of the graph, this requires computing (and storing) a constant fraction
+of the entire memory graph. If the adversary attempts to use less memory by recomputing blocks on the fly, the number of
+re-computations grows super-linearly, making the attack computationally infeasible compared to the honest execution.
+
+> [!NOTE]
+> The potential for side-channel leakage, where a co-located adversary observes memory access patterns, only affects the
+> cumulative memory complexity of the dependency graph, not the secret of the inputs. Given a perfect side channel, the
+> complexity of this > construction goes from `Omega(N**(2.5-epsilon))` (where `N` is `2**cost)` to `Omega(w**2)` (where
+> `w` is the `window` > parameter).
+>
+> Even given a perfect side-channel, an attacker will not be able to gain information about the data being hashed (e.g.,
+> the password), as the duplex's preimage resistance precludes that. For Newplex, preimage resistance is `min(2**256)`.
 
 ## Complex Schemes
 
