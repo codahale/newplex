@@ -16,7 +16,7 @@ import (
 // complex that performance on defender processors suffers and increases an attacker's advantage.
 const RecommendedDegree = 3
 
-// Hash calculates a memory-hard hash of the given password and salt using the EGSample construction using the given
+// Hash calculates a memory-hard hash of the given password and salt using the EGSample construction with the given
 // degree, cost, and window parameters. It appends n bytes of output to dst and returns the resulting slice.
 //
 // The total memory usage required is 2**(cost+10). The window parameter must be less than the cost parameter.
