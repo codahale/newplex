@@ -81,8 +81,6 @@ Newplex includes many cryptographic schemes implemented as sub-packages:
 * [`newplex/aead`](aead): Implements `cipher.AEAD` with support for additional data.
 * [`newplex/aestream`](aestream): Implements a streaming authenticated encryption scheme.
 * [`newplex/digest`](digest): Implements `hash.Hash` (both keyed and unkeyed).
-* [`newplex/drsbrg`](drsbrg): Implements the DRSample+BRG data-independent memory-hard hash function for password
-  hashing.
 * [`newplex/handshake`](handshake): Implements a mutually authenticated handshake.
 * [`newplex/hpke`](hpke): Implements a hybrid public-key encryption scheme.
 * [`newplex/mhf`](mhf): Implements the EGSample data-dependent memory-hard hash function for password hashing.
