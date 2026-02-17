@@ -1,6 +1,7 @@
 package oprf_test
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -48,6 +49,50 @@ func Example_voprf() {
 }
 
 func TestVerifiableFinalize(t *testing.T) {
+	drbg := testdata.New("newplex voprf")
+	d, q := drbg.KeyPair()
+	input := []byte("this is a sensitive input")
+
+	blind, blindedElement, err := oprf.Blind("example", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evaluatedElement, c, s, err := oprf.VerifiableBlindEvaluate("example", d, blindedElement)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("valid proof", func(t *testing.T) {
+		_, err := oprf.VerifiableFinalize("example", input, blind, q, evaluatedElement, blindedElement, c, s, 16)
+		if err != nil {
+			t.Errorf("VerifiableFinalize failed: %v", err)
+		}
+	})
+
+	t.Run("wrong domain", func(t *testing.T) {
+		_, err := oprf.VerifiableFinalize("wrong domain", input, blind, q, evaluatedElement, blindedElement, c, s, 16)
+		if err == nil {
+			t.Error("should have failed with wrong domain")
+		}
+	})
+
+	t.Run("wrong c", func(t *testing.T) {
+		badC, _ := ristretto255.NewScalar().SetUniformBytes(bytes.Repeat([]byte{1}, 64))
+		_, err := oprf.VerifiableFinalize("example", input, blind, q, evaluatedElement, blindedElement, badC, s, 16)
+		if err == nil {
+			t.Error("should have failed with wrong c")
+		}
+	})
+
+	t.Run("wrong s", func(t *testing.T) {
+		badS, _ := ristretto255.NewScalar().SetUniformBytes(bytes.Repeat([]byte{2}, 64))
+		_, err := oprf.VerifiableFinalize("example", input, blind, q, evaluatedElement, blindedElement, c, badS, 16)
+		if err == nil {
+			t.Error("should have failed with wrong s")
+		}
+	})
+
 	t.Run("identity points", func(t *testing.T) {
 		input := []byte("this is a sensitive input")
 		blind := ristretto255.NewScalar()
