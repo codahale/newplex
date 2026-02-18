@@ -94,7 +94,10 @@
     * [Password-Authenticated Key Exchange (PAKE)](#password-authenticated-key-exchange-pake)
     * [Verifiable Random Function (VRF)](#verifiable-random-function-vrf)
     * [Oblivious Pseudorandom Function (OPRF) and Verifiable Pseudorandom Function (VOPRF)](#oblivious-pseudorandom-function-oprf-and-verifiable-pseudorandom-function-voprf)
-  * [Security Summary](#security-summary)
+  * [Summary](#summary)
+    * [Duplex Security Bounds](#duplex-security-bounds)
+    * [Reduction From Schemes To The Duplex](#reduction-from-schemes-to-the-duplex)
+    * [Simplification Through Unification](#simplification-through-unification)
 <!-- TOC -->
 
 ## Introduction
@@ -103,6 +106,14 @@ Newplex is a cryptographic framework that provides a unified interface for unkey
 built on a duplex construction using the [Simpira-1024] permutation. Inspired by [STROBE], [Noise Protocol],
 and [Xoodyak], Newplex is optimized for 64-bit architectures (x86-64 and ARM64) to provide 10+ Gb/second performance on
 modern processors at a 128-bit security level.
+
+The framework is guided by two central design principles. First, by replacing the traditional suite of separate hash
+functions, MACs, stream ciphers, and KDFs with a single duplex construction, Newplex drastically simplifies the design
+and implementation of cryptographic schemes--from basic AEAD to complex multi-party protocols like OPRFs and handshakes.
+Second, the security of every scheme built on Newplex reduces to the well-studied properties of the underlying duplex
+(indifferentiability from a random oracle, pseudorandom function security, and collision resistance), all bounded by the
+256-bit capacity (`2**128` against generic attacks). This tight reduction means that a single, focused security analysis
+of the duplex and permutation layers provides assurance for the entire framework.
 
 [Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
 
@@ -135,7 +146,8 @@ graph TD
    state, logically partitioning it into a 768-bit rate and a 256-bit capacity. It handles data absorption, pseudorandom
    squeezing, and internal framing boundaries.
 3. **Protocol Layer ([The Protocol Framework](#the-protocol-framework)):** The semantic enforcement layer. It wraps
-   duplex operations in a strict grammar of opcodes and labels, ensuring unique transcript decodability and providing.
+   duplex operations in a strict grammar of opcodes and labels, ensuring unique transcript decodability and providing
+   full context commitment (CMT-4).
 4. **Scheme Layer ([Basic](#basic-schemes) & [Complex](#complex-schemes) Schemes):** The application layer. It composes
    protocol operations into interoperable cryptographic tools, ranging from simple hash functions and MACs to complex
    multi-party protocols like OPRFs and Double Ratchets.
@@ -1005,10 +1017,6 @@ the [streaming authenticated encryption](#streaming-authenticated-encryption) sc
 
 ##### Cryptographic Properties
 
-* `Seal` and `Open` provide IND-CCA2 security if one of the protocol's inputs includes a probabilistic value, like a
-  nonce.
-* The derived tag is dependent on every prior operation and its inputs, making `Seal` strongly context-committing.
-
 * `Seal` and `Open` provide indistinguishability under adaptive chosen-ciphertext attack (IND-CCA2), ensuring both
   confidentiality and integrity, provided the protocol state is probabilistic (e.g., includes a nonce).
 * Because the authentication tag is derived from the duplex state after every preceding operation (including the domain
@@ -1070,9 +1078,15 @@ traditional, single-purpose cryptographic primitives--including standalone hash 
 (MACs), stream ciphers, and AEADs.
 
 The schemes detailed in this section demonstrate how to combine Newplex's operations to construct standard, high-level
-cryptographic protocols. Crucially, these basic schemes are self-contained; they require no cryptographic algorithms or
+cryptographic primitives. Crucially, these basic schemes are self-contained; they require no cryptographic algorithms or
 primitives other than the Newplex framework. By relying solely on the stateful duplex engine and the structure of the
 protocol operations, designers and implementers can achieve clear, secure, and auditable cryptographic schemes.
+
+Each scheme's security analysis follows a common structure: it identifies the relevant duplex model (unkeyed or keyed),
+maps the scheme's operations to established duplex properties (random oracle indifferentiability, PRF security, or
+collision resistance), and derives concrete bounds from the 256-bit capacity. This uniform approach demonstrates that
+the security of every basic scheme reduces directly to the security of the duplex construction, with no additional
+assumptions beyond the ideal-permutation model for Simpira-1024.
 
 ### Message Digest
 
@@ -1231,8 +1245,9 @@ produces a ciphertext that is also indistinguishable from random noise, thereby 
 adversary. This security extends to IND-CPA provided that a unique nonce or initialization vector is used for every
 encryption query. By inputting the unique nonce into the PRF, the sender ensures that each keystream is independent and
 fresh; even an adversary with oracle access cannot predict the keystream for a new challenge because they cannot
-distinguish the PRF's output from a fresh random draw. Thus, the advantage of any adversary in these games is strictly
-bounded by the PRF's own security margin against distinguishing attacks.
+distinguish the PRF's output from a fresh random draw. The advantage of any adversary in these games is bounded by the
+PRF distinguishing advantage of the duplex, which is at most `N**2 / 2**256` for `N` total queries to the permutation,
+yielding 128-bit security up to the birthday bound of the capacity.
 
 ### Authenticated Encryption with Associated Data (AEAD)
 
@@ -1502,7 +1517,8 @@ Validity.
 
 Like the standard AEAD scheme, the streaming authenticated encryption scheme is evaluated in the keyed duplex model. The
 adversary is assumed to not have access to the duplex's state but can observe the ciphertext stream, manipulate the
-network transport, and interact with the endpoints.
+network transport, and interact with the endpoints. The security of the scheme reduces to the PRF and collision
+resistance properties of the duplex construction, bounded by the 256-bit capacity.
 
 The continuous, stateful nature of the duplex natively fulfills the requirements of OAE1. Because the protocol is
 initialized with a secret key and a unique nonce, it establishes a secure context capable of processing data in a single
@@ -1707,7 +1723,8 @@ infeasible compared to the honest execution.
 > data-independent, so it leaks nothing about the password.
 >
 > Even given a perfect side-channel, an attacker will not be able to gain information about the data being hashed (e.g.,
-> the password), as the duplex's preimage resistance precludes that. For Newplex, preimage resistance is `min(2**256)`.
+> the password), as the duplex's preimage resistance precludes that. For Newplex, preimage resistance is `2**256`
+> (bounded by the capacity).
 >
 > However, a side-channel that reveals the Phase 2 memory access pattern effectively reduces the dMHF to an iMHF.
 > Once an attacker knows which back-pointers were chosen, the graph structure is fully determined and no longer depends
@@ -2235,12 +2252,51 @@ reconstructing the composites and the expected challenge from their own state ma
 collection of specialized hashing routines with a unified, continuous cryptographic context that provides both client
 privacy and server verifiability.
 
-## Security Summary
+## Summary
 
-The security of the Newplex framework is fundamentally rooted in the 256-bit capacity of the underlying duplex
-construction, providing a global security target of 128 bits. While higher-level schemes like HPKE or Digital Signatures
-leverage the framework's versatility to build complex protocols, their security reductions are ultimately bounded by the
-collision and distinguishing resistance of the duplex. By ensuring domain separation through strict framing and semantic
-labeling, Newplex provides a robust, context-committing environment where the security of every scheme--from a simple
-hash to a multi-stage VOPRF--is as strong as the underlying Simpira-1024 permutation.
+The security of the Newplex framework rests on two pillars: the well-studied properties of the duplex construction and
+the assumption that the Simpira-1024 permutation is indistinguishable from an ideal permutation.
+
+### Duplex Security Bounds
+
+Instantiated with a 256-bit capacity, the duplex provides the following generic bounds against an adversary making at
+most `N` queries to the permutation:
+
+| Property                          | Bound                     | Applicable Model |
+|-----------------------------------|---------------------------|------------------|
+| State recovery                    | `2**256`                  | All              |
+| Collision resistance              | `2**128` (birthday bound) | Unkeyed          |
+| Random oracle indifferentiability | `N**2 / 2**256`           | Unkeyed          |
+| PRF distinguishing advantage      | `N**2 / 2**256`           | Keyed            |
+| PRG indistinguishability          | `N**2 / 2**256`           | Keyed            |
+
+These bounds are the ceiling for every scheme in the framework. No scheme can exceed the collision resistance of
+`2**128` or the state-recovery resistance of `2**256`, regardless of its output length or key size.
+
+### Reduction From Schemes To The Duplex
+
+The protocol layer's strict framing and semantic labeling ensure that each scheme's transcript is uniquely decodable and
+fully context-committing (CMT-4). Because the framing and metadata preclude ambiguity between operations, any successful
+attack against a scheme implies a collision or distinguishing attack against the duplex construction itself.
+
+Concretely:
+
+* **Unkeyed schemes** (e.g., Message Digest) inherit the duplex's indifferentiability from a random oracle, providing
+  collision resistance up to `min(2**128, 2**((n*8)/2))` and preimage resistance up to `min(2**256, 2**(n*8))` for an
+  `n`-byte output.
+* **Keyed schemes** (e.g., MAC, Stream Cipher, AEAD, Streaming AE) inherit the duplex's PRF security. Unforgeability,
+  IND-CPA, and IND-CCA2 are bounded by the PRF distinguishing advantage plus the probability of guessing the tag or
+  keystream, yielding 128-bit security for 16-byte tags and keys with at least 128 bits of entropy.
+* **Composite schemes** (e.g., SIV, Signatures, HPKE, Signcryption, Handshakes, PAKE, VRF, OPRF) combine duplex
+  reductions with standard cryptographic assumptions (e.g., the discrete logarithm problem, the SIV composition theorem,
+  or the Fiat-Shamir transform in the random oracle model). In each case, the symmetric component of the security proof
+  reduces to the duplex bounds above.
+
+### Simplification Through Unification
+
+By collapsing separate hash functions, MACs, KDFs, stream ciphers, and AEADs into a single duplex construction, Newplex
+eliminates the API boundaries and state-synchronization overhead that traditionally complicate multi-primitive designs.
+This unification directly benefits security analysis: rather than reasoning about the composition of independent
+algorithms, a designer need only verify that the scheme correctly sequences protocol operations--the duplex provides the
+rest.
 
