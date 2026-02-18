@@ -1066,7 +1066,7 @@ rate, and advances the duplex's rate index by 32.
 
 The operations defined in the Newplex [protocol](#the-protocol-framework) provide a complete toolkit for symmetric
 cryptography. Because Newplex is designed to be fundamentally flexible, it can seamlessly replace a wide variety of
-traditional, single-purpose cryptographic primitives—including standalone hash functions, message authentication codes
+traditional, single-purpose cryptographic primitives--including standalone hash functions, message authentication codes
 (MACs), stream ciphers, and AEADs.
 
 The schemes detailed in this section demonstrate how to combine Newplex's operations to construct standard, high-level
@@ -1512,8 +1512,8 @@ chain provides stateful decryption and block IND-CCA2 security, immediately dete
 duplicate, or drop intermediate blocks.
 
 Furthermore, the construction addresses the stricter boundary-hiding and fragmentation resistance goals of OAE2. By
-using a two-step sealing process for each chunk—independently sealing the 3-byte length header before sealing the block
-itself—the scheme strongly authenticates the chunk boundaries. If an adversary attempts to shift block boundaries or
+using a two-step sealing process for each chunk--independently sealing the 3-byte length header before sealing the block
+itself--the scheme strongly authenticates the chunk boundaries. If an adversary attempts to shift block boundaries or
 manipulate the framing, the decryption oracle will fail to authenticate the length header and halt before attempting to
 process the modified chunk. This limits the leakage of length information and prevents the adversary from gaining an
 advantage through maliciously fragmented ciphertexts.
@@ -1532,154 +1532,192 @@ significant amount of memory. This property defends against brute-force attacks 
 FPGAs) by making the hardware cost proportional to the memory requirement. This is critical for password hashing
 (deriving keys from low-entropy secrets) and password-based encryption.
 
-Newplex implements a data-dependent memory-hard function (dMHF) using the [EGSample] construction. EGSample is a
-two-tier graph construction that provides high memory hardness while remaining performant on general-purpose CPUs.
-Unlike purely data-independent schemes (iMHFs), dMHFs use the secret input to determine some of the memory access
-patterns. This provides significantly stronger resistance against ASIC-enabled attackers, who can otherwise exploit
-the fixed access patterns of iMHFs to reduce their memory requirements.
+Newplex implements a data-dependent memory-hard function (dMHF) using the [DEGSample] construction from Blocki & Holman
+(2025). DEGSample combines an indegree-reduced static graph (DRSample ∪ Grates) with a data-dependent dynamic challenge
+chain, providing optimal sustained space trade-offs. Unlike purely data-independent schemes (iMHFs), dMHFs use the
+secret input to determine some of the memory access patterns. This provides significantly stronger resistance against
+ASIC-enabled attackers, who can otherwise exploit the fixed access patterns of iMHFs to reduce their memory
+requirements.
+
+[DEGSample]: https://arxiv.org/pdf/2508.06795
+
+The construction builds a Directed Acyclic Graph (DAG) of `5N` blocks (where `N = 2**cost`), where each block's value
+depends on its parents in the graph. To optimize for modern processor architectures while maximizing the penalty for
+ASIC attackers, the block size is fixed at 1KiB to align with common CPU cache lines. The total memory required is
+`5 * 2**(cost+10)` bytes.
+
+The DAG is divided into two phases:
+
+* **Phase 1: Static Graph (`3N` nodes).** The first `3N` nodes form an indegree-reduced [EGSample] graph (the union of
+  [DRSample] and [Grates]). Each original node in the `N`-node EGSample graph has up to 3 parents (chain, DRSample
+  random, Grates grid). Indegree reduction expands each original node into 3 sub-nodes `{3v, 3v+1, 3v+2}`, each
+  receiving at most one external parent edge and one internal chain edge. This ensures every sub-node has indegree at
+  most 2. Parent selection for DRSample edges uses a data-independent protocol branch, making this phase's graph
+  structure independent of the password.
+
+* **Phase 2: Dynamic Challenge Chain (`2N` nodes).** The remaining `2N` nodes form a sequential challenge chain. Each
+  node depends on the immediately preceding node (chain edge) and a data-dependent back-pointer into the static part.
+  The back-pointer target is derived from the previous node's label: a pre-label is computed, and its value selects the
+  last sub-node of a random original node (`3 * (preLabel mod N) + 2`). This data-dependent selection makes the graph
+  unpredictable to an attacker, forcing them to store the actual block values rather than just the graph structure.
 
 [EGSample]: https://arxiv.org/pdf/2508.06795
 
-The construction builds a Directed Acyclic Graph (DAG) of blocks, where each block's value depends on its parents in
-the graph. To optimize for modern processor architectures while maximizing the penalty for ASIC attackers, the block
-size is fixed at 1KiB to align with common CPU cache lines.
-
-The graph evaluation is divided into windows of size `w = 2**window`. Within each window, the graph uses a combination
-of sequential and depth-robust edges (Tier 1). Between windows, the graph uses data-dependent "Grate" edges (Tier 2).
-
-* **Tier 1: Data-Independent Intra-Window Edges.** These edges are determined by the `degree` and `cost` parameters.
-  They include a sequential edge from the previous block and several depth-robust edges calculated using the [DRSample]
-  algorithm. These edges are localized within the current window, ensuring that the most frequent memory accesses stay
-  within the processor's L3 cache if the `window` parameter is chosen correctly.
-* **Tier 2: Data-Dependent Grate Inter-Window Edges.** For each block (except in the first window), an intermediate
-  state is used as a query to select a "Grate" parent from any of the preceding windows. This data-dependent selection
-  makes the graph unpredictable to an attacker, forcing them to store the actual block values rather than just the graph
-  structure.
-
 [DRSample]: https://eprint.iacr.org/2017/443.pdf
 
+[Grates]: https://arxiv.org/pdf/2508.06795
+
 ```text
-function MemoryHardHash(domain, degree, cost, window, salt, password, n):
+function MemoryHardHash(domain, cost, salt, password, n):
   // 1. Setup
-  
   N = 2**cost
-  w = 2**window
-  blocks = [[0x00] * 1024] * N
+  totalNodes = 5 * N
+  staticNodes = 3 * N
+  gratesCols = numGratesCols(N)
+  blocks = [[0x00] * 1024] * totalNodes
 
   // Initialize the root protocol and mix in the public parameters.
-  protocol.Init(domain)
-  protocol.Mix("degree", LEB128(degree))
-  protocol.Mix("cost", LEB128(cost))
-  protocol.Mix("window", LEB128(window))
-  
-  // Fork into two distinct roles: compression and drbg.
-  // The compression branch is used to compress parent blocks into new blocks.
-  // The drbg branch is used to select pseudorandom parents for DRSample edges.
-  compression, drbg = protocol.Fork("role", "compression", "drbg")
+  root.Init(domain)
+  root.Mix("cost", [cost])
+  root.Mix("salt", salt)
 
-  // Mix in the salt and password into the root protocol.
-  protocol.Mix("salt", salt)
-  protocol.Mix("password", password)
+  // Fork into data-independent and data-dependent branches.
+  id, dd = root.Fork("data", "independent", "dependent")
 
-  // Initialize the first block.
-  blocks[0] = protocol.Derive("seed", 1024)
+  // Mix the password into the data-dependent branch.
+  dd.Mix("password", password)
 
-  // 2. Graph Evaluation
-  
-  for v in 1..N-1:
-    h = compression.Clone()
+  // 2. Phase 1: Static Graph (3N nodes of indegree-reduced EGSample)
 
-    // Calculate window-relative indices.
-    windowIndex = v / w
-    windowStart = windowIndex * w
-    relativeV = v - windowStart
+  // Source node.
+  blocks[0] = dd.Derive("source", 1024)
 
-    // --- Tier 1: Data-Independent Intra-Window Edges
+  for v in 1..staticNodes-1:
+    p1, p2 = staticParents(id.Clone(), gratesCols, v)
+    h = dd.Clone()
+    if p1 >= 0:
+      h.Mix("required", blocks[p1])
+    if p2 >= 0:
+      h.Mix("optional", blocks[p2])
+    blocks[v] = h.Derive("static", 1024)
 
-    // Sequential edge
-    h.Mix("prev", blocks[v-1])
+  // 3. Phase 2: Dynamic Challenge Chain (2N nodes)
 
-    // Depth-Robust edges (degree - 1 edges)
-    for i in 1..degree-1:
-        // Pass relativeV to get an intra-window parent offset.
-        pRel = getDRSampleParent(drbg.Clone(), relativeV, i)
-        pAbs = windowStart + pRel
-        h.Mix("drsample-edge", blocks[pAbs])
+  for v in staticNodes..totalNodes-1:
+    prev = v - 1
 
-    // Calculate intermediate state (sigma-prime).
-    sigmaPrime = h.Derive("sigma-prime", 1024)
+    h = dd.Clone()
+    h.Mix("prev", blocks[prev])
 
-    // --- Tier 2: Data-Dependent Grate Inter-Window Edges
+    // Step 1: Compute pre-label to discover dynamic back-edge.
+    preLabel = h.Derive("pre-label", 8)
 
-    if windowIndex == 0:
-        blocks[v] = sigmaPrime
-        continue
+    // Step 2: Derive the back-pointer into the static part.
+    r = LE64(preLabel) % N
+    target = 3 * r + 2   // last sub-node of original node r
 
-    // The intermediate state acts as the query for the data-dependent edge.
-    h = compression.Clone()
-    h.Mix("sigma-prime", sigmaPrime)
+    // Step 3: Compute final dynamic label.
+    h.Mix("back-pointer", blocks[target])
+    blocks[v] = h.Derive("dynamic", 1024)
 
-    // Extract entropy from sigmaPrime to select a parent from preceding windows.
-    u = OSP2I(sigmaPrime[:8], 8) % windowStart
-    h.Mix("grate-parent", blocks[u])
-
-    // Finalize the block state.
-    blocks[v] = h.Derive("block", 1024)
-
-  // 3. Finalization
-  protocol.Mix("block", blocks[N-1])
-  return protocol.Derive("output", n)
+  // 4. Finalization
+  dd.Mix("final", blocks[totalNodes-1])
+  return dd.Derive("output", n)
 ```
 
 #### Graph Routing Operations
 
-The graph uses a helper function to determine the depth-robust back-edges within each window:
+The static graph uses helper functions to determine parents for each sub-node:
 
-* **`getDRSampleParent(drbg, v, i)`**: Computes a pseudorandom target index for a depth-robust edge. It uses the `drbg`
-  branch to generate uniform randomness and implements Algorithm 3 from the [DRSample] paper, which uses a
-  logarithmic bucketing distribution to select a parent `p < v`. This satisfies the requirements for Cumulative Memory
-  Complexity. It encodes `v` and `i` using LEB128, mixes them into the `drbg` protocol clone, and derives two 64-bit
-  unsigned integers for the pseudorandom selection of `g'` and `r`.
+* **`staticParents(id, gratesCols, v)`**: Returns the parent indices `(p1, p2)` for sub-node `v` in the
+  indegree-reduced static graph. Each original node `v/3` has up to 3 parents: a chain edge (`v-1`, for `v >= 1`),
+  a DRSample random edge (`drsParent(v)`, for `v >= 2`), and a Grates grid edge (`gratesParent(v)`, for `v >= cols`).
+  Indegree reduction maps these onto 3 sub-nodes:
+  * Sub-node `3v`: one external parent → last sub-node of parent[0]
+  * Sub-node `3v+1`: internal chain from `3v`, plus external parent → last sub-node of parent[1]
+  * Sub-node `3v+2`: internal chain from `3v+1`, plus external parent → last sub-node of parent[2]
+
+  The "last sub-node" of original node `u` is `3u+2`. If a parent slot is unused, the sub-node gets only its internal
+  chain edge.
+
+* **`drsParent(id, v)`**: Computes the DRSample random parent for original node `v` using the data-independent protocol
+  branch. It uses geometric buckets: a level `j` is drawn uniformly from `{1, …, ⌊log₂(v-1)⌋+1}`, and the parent is
+  selected uniformly from `[v - 2^j, v - 2^(j-1))`. Randomness is derived deterministically by mixing the node index
+  into the protocol state and deriving two 64-bit values for the level and offset.
+
+* **`gratesParent(v, cols)`**: Returns the Grates grid parent for original node `v`. The Grates graph arranges `N` nodes
+  as a grid with `rows = ⌈N^ε⌉` and `cols = N / rows` (where `ε = 0.2`). Nodes in rows > 0 have a cross-edge from the
+  same column one row up (`v - cols`). Row 0 nodes have no Grates parent.
+
+* **`numGratesCols(N)`**: Returns the number of columns in the Grates grid, approximately `N^(1-ε)`.
 
 #### Cryptographic Properties
 
-Memory-hard functions are evaluated on their ability to force an attacker to use a large amount of memory for a specific
-duration (space-time complexity).
+Memory-hard functions are evaluated on two complementary metrics that measure how effectively they force an attacker to
+commit memory over time.
 
-* **Cumulative Memory Complexity (CMC):** Ensures that the cost of computing the function is proportional to the product
-  of the memory size and the time. EGSample combines the strong CMC guarantees of DRSample with the unpredictable
-  accesses of a dMHF, ensuring that any algorithm attempting to use less than the required space must pay an
-  exponential penalty in time.
-* **Data-Dependency:** The Tier 2 "Grate" edges are determined by the intermediate block values, which in turn depend on
-  the `password` and `salt`. This data-dependency prevents "peeling" attacks where an attacker pre-computes the graph
-  structure to optimize memory usage.
-* **Side-Channel Mitigation:** By localizing the Tier 1 edges within a window and recommending a `window` size that fits
-  within the L3 cache, EGSample minimizes the side-channel leakage typical of dMHFs. While Tier 2 edges are
-  inter-window, the high-frequency Tier 1 accesses remain protected.
+* **Cumulative Memory Cost (CMC):** CMC measures the *area under the memory-usage curve* over the entire execution: the
+  sum, over all time steps, of the number of blocks the algorithm must keep in memory. A high CMC means that even an
+  attacker willing to recompute discarded blocks cannot avoid paying a large total memory × time cost. CMC is the
+  primary metric for password hashing because it directly determines the amortized cost of brute-force search on
+  parallel hardware: an attacker with a fixed silicon budget (memory × cores) can try fewer passwords per second when
+  CMC is high.
+
+* **Sustained Space Complexity (SSC):** SSC measures the *minimum memory an algorithm must hold simultaneously* during a
+  sustained fraction of its execution. Formally, a graph has `(s, t)`-sustained space complexity if any legal
+  black-pebbling strategy must keep at least `s` pebbles on the graph for at least `t` consecutive steps. High SSC
+  prevents "dip-and-recover" strategies where an attacker briefly frees memory and recomputes, because the graph forces
+  a large working set to persist over a long window.
+
+* **SSC/CMC Trade-offs:** The two metrics capture different attacker strategies and are not interchangeable. A graph can
+  have high CMC but modest SSC if it allows brief periods of low memory usage between expensive phases (the total area
+  is large, but the sustained floor is moderate). Conversely, a graph can have high SSC but comparatively lower CMC if
+  the sustained memory requirement is large but the total execution time is short. DEGSample is specifically designed to
+  be strong on *both* axes: the depth-robust static graph (DRSample ∪ Grates) provides high SSC by forcing a large
+  working set across a long span of the computation, while the data-dependent challenge chain in Phase 2 raises CMC by
+  creating unpredictable back-pointers that prevent an attacker from scheduling efficient batch recomputations.
+
+* **Data-Dependency:** The Phase 2 challenge-chain back-pointers are determined by intermediate block labels, which
+  depend on the `password` and `salt`. This data-dependency prevents "peeling" attacks where an attacker pre-computes
+  the graph structure to optimize memory usage.
+
+* **Side-Channel Mitigation:** The static graph structure (Phase 1) is entirely data-independent--its edges depend only
+  on the public `cost` parameter--so Phase 1 memory access patterns leak no information about the password. Only the
+  Phase 2 back-pointers are data-dependent.
 
 #### Security Analysis
 
-The security of the scheme relies on the structural properties of the EGSample graph and the cryptographic strength
+The security of the scheme relies on the structural properties of the DEGSample graph and the cryptographic strength
 of the underlying Newplex primitives.
 
 Because the calculation of each block `blocks[v]` requires mixing the content of parent blocks using the Newplex
 protocol, the value of every block acts as a cryptographically strong commitment to its history in the graph. The use of
-`Mix` and `Derive` ensures that the compression branch acts as a random oracle. Consequently, an adversary cannot
-compute a block without knowing the exact values of all its parents.
+`Mix` and `Derive` ensures that the protocol acts as a random oracle. Consequently, an adversary cannot compute a block
+without knowing the exact values of all its parents.
 
-To produce the final output, the adversary must effectively compute the value of the last block `blocks[N-1]`. Due to
-the depth-robust and data-dependent properties of the graph, this requires computing (and storing) a constant fraction
-of the entire memory graph. If the adversary attempts to use less memory by recomputing blocks on the fly, the number of
-re-computations grows super-linearly, making the attack computationally infeasible compared to the honest execution.
+To produce the final output, the adversary must effectively compute the value of the last block
+`blocks[totalNodes-1]`. Due to the depth-robust and data-dependent properties of the graph, this requires computing
+(and storing) a constant fraction of the entire memory graph. If the adversary attempts to use less memory by
+recomputing blocks on the fly, the number of re-computations grows super-linearly, making the attack computationally
+infeasible compared to the honest execution.
 
 > [!NOTE]
 > The potential for side-channel leakage, where a co-located adversary observes memory access patterns, only affects the
-> cumulative memory complexity of the dependency graph, not the secret of the inputs. Given a perfect side channel, the
-> complexity of this > construction goes from `Omega(N**(2.5-epsilon))` (where `N` is `2**cost)` to `Omega(w**2)` (where
-> `w` is the `window` > parameter).
+> Phase 2 challenge-chain back-pointers, not the secret inputs themselves. The Phase 1 static graph is fully
+> data-independent, so it leaks nothing about the password.
 >
 > Even given a perfect side-channel, an attacker will not be able to gain information about the data being hashed (e.g.,
 > the password), as the duplex's preimage resistance precludes that. For Newplex, preimage resistance is `min(2**256)`.
+>
+> However, a side-channel that reveals the Phase 2 memory access pattern effectively reduces the dMHF to an iMHF.
+> Once an attacker knows which back-pointers were chosen, the graph structure is fully determined and no longer depends
+> on the secret input--exactly the situation of a data-independent MHF. This matters primarily for CMC: iMHFs are
+> subject to tight upper bounds on cumulative memory cost (Alwen & Blocki, 2016, show that any iMHF on `N` nodes has
+> CMC at most `O(N² log log N / log N)`), whereas dMHFs can achieve `Ω(N²)` CMC because the attacker cannot
+> pre-compute an optimal pebbling strategy without knowing the graph. Consequently, a perfect side-channel degrades
+> DEGSample's CMC from its optimal `Ω(N²)` dMHF bound down to the sub-quadratic iMHF bound. SSC, by contrast, is a
+> graph-theoretic property that does not depend on whether the attacker knows the edge structure in advance, so the
+> depth-robust guarantees of the static graph survive side-channel exposure intact.
 
 ## Complex Schemes
 
@@ -1730,8 +1768,8 @@ the holder of a specific private key and has not been altered.
 
 This scheme implements a Schnorr signature over the Ristretto255 group. Schnorr signatures are originally defined as an
 interactive zero-knowledge proof: a prover generates a random commitment, a verifier replies with a random challenge,
-and the prover answers with a mathematical proof. To make this non-interactive—so a signature can be attached to a
-message and verified later—this scheme uses the Fiat-Shamir transform.
+and the prover answers with a mathematical proof. To make this non-interactive--so a signature can be attached to a
+message and verified later--this scheme uses the Fiat-Shamir transform.
 
 Instead of interacting with a live verifier, the signer uses the Newplex duplex state as an ideal random oracle. The
 state absorbs the signer's public identity and the message, then derives the challenge directly from the cryptographic
