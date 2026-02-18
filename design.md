@@ -1371,6 +1371,12 @@ function SIVOpen(key, nonce, ad, input):
   return plaintext                             // Otherwise, return the plaintext.
 ```
 
+> [!WARNING]
+> `SIVOpen` decrypts the ciphertext **before** verifying its authenticity. Implementations of this scheme should treat
+> the unverified plaintext as hazmat and take care to return it to the caller only after it has been successfully
+> verified. If the caller has passed in a buffer to be used for the plaintext, it must be zeroed before `SIVOpen`
+> returns.
+
 #### Cryptographic Properties
 
 The security of a DAE or MRAE scheme is formally evaluated using an "all-in-one" distinguishing game.
