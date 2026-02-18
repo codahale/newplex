@@ -7,4 +7,4 @@ require (
 	github.com/trailofbits/go-fuzz-utils v0.0.0-20250830184917-b61e672bc9ed
 )
 
-require filippo.io/edwards25519 v1.1.0 // indirect
+require filippo.io/edwards25519 v1.2.0 // indirect
