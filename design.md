@@ -610,7 +610,7 @@ based on how those operations were framed.
 
 ```text
 function Frame():
-  Absorb(I2OSP(frameIdx, 1))
+  Absorb(I2OSP(frameIdx, 1)) // 0 <= frameIdx <= MAX_RATE_IDX, always a single byte
   frameIdx = rateIdx
 ```
 
