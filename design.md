@@ -6,7 +6,7 @@
   * [Architecture at a Glance](#architecture-at-a-glance)
     * [Comparison with Related Frameworks](#comparison-with-related-frameworks)
     * [Design Goals](#design-goals)
-    * [Security Model](#security-model)
+    * [Security Assumptions](#security-assumptions)
       * [Safety in Implementation](#safety-in-implementation)
     * [Data Types and Conventions](#data-types-and-conventions)
         * [Data Types](#data-types)
@@ -94,8 +94,10 @@
     * [Password-Authenticated Key Exchange (PAKE)](#password-authenticated-key-exchange-pake)
     * [Verifiable Random Function (VRF)](#verifiable-random-function-vrf)
     * [Oblivious Pseudorandom Function (OPRF) and Verifiable Pseudorandom Function (VOPRF)](#oblivious-pseudorandom-function-oprf-and-verifiable-pseudorandom-function-voprf)
-  * [Summary](#summary)
+  * [Security Analysis](#security-analysis-7)
+    * [Assumptions](#assumptions)
     * [Duplex Security Bounds](#duplex-security-bounds)
+    * [Protocol Framework Security](#protocol-framework-security)
     * [Reduction From Schemes To The Duplex](#reduction-from-schemes-to-the-duplex)
     * [Multi-User Security](#multi-user-security)
     * [Simplification Through Unification](#simplification-through-unification)
@@ -190,36 +192,21 @@ framework aims for a throughput target of 10+ Gb/s on modern CPUs. This performa
 universal cryptographic layer for high-bandwidth network protocols, removing the traditional trade-off between security
 and speed.
 
-### Security Model
+### Security Assumptions
 
-The security analysis of Newplex can be divided into two layers: the generic cryptographic properties of the underlying
-duplex construction and the semantic security provided by the protocol framework.
+The security of Newplex rests on two foundational assumptions. First, the analysis assumes that the Simpira-1024
+permutation behaves as an ideal permutation and exhibits no structural distinguishers with a complexity below `2**128`.
+Second, based on the [flat sponge claim], a capacity of 256 bits (`c=256`) provides a generic security level of 128 bits
+against all generic attacks. In the unkeyed model, where the adversary has read access to the full state, the
+construction is indifferentiable from a random oracle. In the keyed model, where the capacity is populated with secret
+entropy and hidden from the adversary, the construction acts as a cryptographically secure pseudorandom generator (PRG)
+or pseudorandom function (PRF). Finally, the security model assumes a constant-time implementation of Simpira-1024 to
+prevent side-channel leakage.
 
-The duplex construction is instantiated with the Simpira-1024 permutation. The analysis assumes that Simpira-1024
-behaves as an ideal permutation and exhibits no structural distinguishers with a complexity below `2**128`. Based on
-the [flat sponge claim][], a capacity of 256 bits (`c=256`) provides a generic security level of 128 bits against all
-generic attacks: a probabilistic polynomial-time adversary making `N < 2**128` queries to the permutation cannot
-distinguish the output of the duplex from a random bitstream or force a collision in its internal capacity. In the
-unkeyed model, where the adversary has read access to the full state, the construction is indifferentiable from a random
-oracle. In the keyed model, where the capacity is populated with secret entropy and hidden from the adversary, the
-construction acts as a cryptographically secure pseudorandom generator (PRG) or pseudorandom function (PRF). These
-properties hold as long as the underlying permutation Simpira-1024 is a secure Pseudorandom Permutation (PRP) and the
-total number of queries across all protocol instances does not approach the birthday bound of the capacity (`2**128`).
+A full security analysis, including concrete bounds, reduction arguments, and multi-user security, follows in
+[§Security Analysis](#security-analysis).
 
 [flat sponge claim]: https://keccak.team/files/CSF-0.1.pdf
-
-The security of the protocol framework relies on the injectivity of the operation framing and metadata. Each protocol
-operation absorbs a unique frame index into the duplex state to ensure that distinct sequences of variable-length inputs
-result in distinct sequences of inputs to the underlying permutation. In addition, protocol operation types are
-disambiguated with distinct operation codes, and all operations require domain separation labels. Because the framing
-and metadata preclude ambiguity between operations and enforce domain separation at the state level, any successful
-attack against the protocol implies a collision or distinguishing attack against the duplex construction or permutation
-itself. Furthermore, this construction ensures the protocol is full context committing (CMT-4): every bit of squeezed
-output is cryptographically bound to the entire history of the session, including all metadata and secret material.
-
-Finally, the security model assumes a constant-time implementation of Simpira-1024. A lookup table-based implementation
-of the AES round function could leak secret data via side channels. The use of AES hardware instructions largely
-mitigates this concern on common architectures.
 
 #### Safety in Implementation
 
@@ -1124,7 +1111,7 @@ is assumed to have full read access to the internal state and the sequence of op
 
 The security of this scheme reduces directly to the security of the underlying duplex construction. Since `Init`, `Mix`,
 and `Derive` are strictly sequenced `Absorb` and `Squeeze` operations, the scheme inherits the
-duplex's [indifferentiability from a random oracle](#security-model) up to the 128-bit security bound, provided the
+duplex's [indifferentiability from a random oracle](#assumptions) up to the 128-bit security bound, provided the
 Simpira-1024 permutation has no structural weaknesses.
 
 In a random oracle model, resistance to preimage attacks requires an effort of `2**(n*8)`, where `n` is the length of
@@ -1170,7 +1157,7 @@ Chosen-Message Attacks (EUF-CMA) and Strong Existential Unforgeability under Cho
 Unlike the Message Digest scheme, the MAC scheme is evaluated in the keyed duplex model. The adversary is assumed to not
 have access to the duplex's state but is limited to choosing inputs and seeing outputs.
 
-[As previously mentioned](#security-model), in the keyed model the duplex construction acts as a secure pseudorandom
+[As previously mentioned](#assumptions), in the keyed model the duplex construction acts as a secure pseudorandom
 function (PRF) as a result of the unexposed capacity portion of its state. A secure PRF natively satisfies the
 requirements for both EUF-CMA and SUF-CMA because its output is computationally indistinguishable from a truly random
 string to any polynomial-time adversary. In the EUF-CMA model, an attacker who queries a PRF-based MAC for various
@@ -1238,7 +1225,7 @@ Eavesdropping (IND-EAV) and Indistinguishability under Chosen-Plaintext Attack (
 Like the MAC scheme, the stream cipher scheme is evaluated in the keyed duplex model. The adversary is assumed
 to not have access to the duplex's state but is limited to choosing inputs and seeing outputs.
 
-[As previously mentioned](#security-model), in the keyed model the duplex construction acts as a secure pseudorandom
+[As previously mentioned](#assumptions), in the keyed model the duplex construction acts as a secure pseudorandom
 function (PRF) as a result of the unexposed capacity portion of its state. A secure PRF combined with the XOR operation
 achieves IND-EAV and IND-CPA security by effectively approximating a One-Time Pad. For IND-EAV, the PRF's output is
 computationally indistinguishable from a truly random string (a Random Oracle). XORing the plaintext with this keystream
@@ -1403,7 +1390,7 @@ oracle to reuse nonces across multiple chosen plaintexts.
 
 Like the AEAD scheme, the SIV scheme is evaluated in the keyed duplex model. The adversary is assumed to not have access
 to the duplex's state but is limited to choosing inputs and seeing
-outputs. [As established in the security model](#security-model), the duplex is a cryptographically secure Pseudorandom
+outputs. [As established in the security analysis](#assumptions), the duplex is a cryptographically secure Pseudorandom
 Function (PRF). The mixing of the `nonce` and `ad` binds this PRF to the specific message context.
 
 The security of the scheme then reduces directly to the [Synthetic Initialization Vector (SIV)][SIV] composition
@@ -2259,10 +2246,27 @@ reconstructing the composites and the expected challenge from their own state ma
 collection of specialized hashing routines with a unified, continuous cryptographic context that provides both client
 privacy and server verifiability.
 
-## Summary
+## Security Analysis
+
+This section consolidates the security argument for the Newplex framework. It restates the foundational assumptions
+(now with the reader fully equipped to appreciate them), provides concrete bounds, and establishes the reductions from
+individual schemes to the duplex construction.
+
+### Assumptions
 
 The security of the Newplex framework rests on two pillars: the well-studied properties of the duplex construction and
 the assumption that the Simpira-1024 permutation is indistinguishable from an ideal permutation.
+
+The duplex construction is instantiated with the Simpira-1024 permutation. The analysis assumes that Simpira-1024
+behaves as an ideal permutation and exhibits no structural distinguishers with a complexity below `2**128`. Based on
+the [flat sponge claim], a capacity of 256 bits (`c=256`) provides a generic security level of 128 bits against all
+generic attacks: a probabilistic polynomial-time adversary making `N < 2**128` queries to the permutation cannot
+distinguish the output of the duplex from a random bitstream or force a collision in its internal capacity. In the
+unkeyed model, where the adversary has read access to the full state, the construction is indifferentiable from a random
+oracle. In the keyed model, where the capacity is populated with secret entropy and hidden from the adversary, the
+construction acts as a cryptographically secure pseudorandom generator (PRG) or pseudorandom function (PRF). These
+properties hold as long as the underlying permutation Simpira-1024 is a secure Pseudorandom Permutation (PRP) and the
+total number of queries across all protocol instances does not approach the birthday bound of the capacity (`2**128`).
 
 ### Duplex Security Bounds
 
@@ -2280,11 +2284,21 @@ most `N` queries to the permutation:
 These bounds are the ceiling for every scheme in the framework. No scheme can exceed the collision resistance of
 `2**128` or the state-recovery resistance of `2**256`, regardless of its output length or key size.
 
+### Protocol Framework Security
+
+The security of the protocol framework relies on the injectivity of the operation framing and metadata. Each protocol
+operation absorbs a unique frame index into the duplex state to ensure that distinct sequences of variable-length inputs
+result in distinct sequences of inputs to the underlying permutation. In addition, protocol operation types are
+disambiguated with distinct operation codes, and all operations require domain separation labels. Because the framing
+and metadata preclude ambiguity between operations and enforce domain separation at the state level, any successful
+attack against the protocol implies a collision or distinguishing attack against the duplex construction or permutation
+itself. Furthermore, this construction ensures the protocol is full context committing (CMT-4): every bit of squeezed
+output is cryptographically bound to the entire history of the session, including all metadata and secret material.
+
 ### Reduction From Schemes To The Duplex
 
-The protocol layer's strict framing and semantic labeling ensure that each scheme's transcript is uniquely decodable and
-fully context-committing (CMT-4). Because the framing and metadata preclude ambiguity between operations, any successful
-attack against a scheme implies a collision or distinguishing attack against the duplex construction itself.
+Because the protocol layer's strict framing and semantic labeling ensure that each scheme's transcript is uniquely
+decodable and fully context-committing (CMT-4), the security of every scheme reduces to the duplex bounds above.
 
 Concretely:
 
