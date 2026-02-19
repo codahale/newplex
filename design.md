@@ -94,6 +94,7 @@
     * [Password-Authenticated Key Exchange (PAKE)](#password-authenticated-key-exchange-pake)
     * [Verifiable Random Function (VRF)](#verifiable-random-function-vrf)
     * [Oblivious Pseudorandom Function (OPRF) and Verifiable Pseudorandom Function (VOPRF)](#oblivious-pseudorandom-function-oprf-and-verifiable-pseudorandom-function-voprf)
+    * [FROST Threshold Signature](#frost-threshold-signature)
   * [Security Analysis](#security-analysis-7)
     * [Assumptions](#assumptions)
     * [Duplex Security Bounds](#duplex-security-bounds)
@@ -2245,6 +2246,82 @@ final challenge scalar using the `Derive` operation as a random oracle. The clie
 reconstructing the composites and the expected challenge from their own state machine. This replaces a brittle
 collection of specialized hashing routines with a unified, continuous cryptographic context that provides both client
 privacy and server verifiability.
+
+### FROST Threshold Signature
+
+A threshold signature scheme allows a group of `n` participants to collectively sign a message such that any subset of
+at least `t` participants can produce a valid signature, but no subset smaller than `t` can. FROST (Flexible
+Round-Optimized Schnorr Threshold) is a two-round threshold Schnorr signature protocol. In the first round, each
+participant generates a pair of ephemeral nonce commitments and broadcasts them. In the second round, each participant
+computes a signature share using their secret key share, their nonces, and binding factors derived from the full set of
+commitments. These shares are then aggregated into a standard Schnorr signature that is indistinguishable from a
+single-signer signature.
+
+Standard FROST implementations require three separate hash function instantiations with distinct domain separation tags:
+one for nonce generation, one for the Fiat-Shamir challenge, and one for the per-participant binding factors that
+prevent rogue-key attacks. Managing these disjoint hash contexts and ensuring their domain separation tags do not collide
+is a persistent source of implementation complexity.
+
+Newplex collapses this entirely. The binding factors, the challenge, and the nonce generation all derive from the same
+continuously evolving duplex state. The binding factor computation absorbs the group key, the message, and every
+participant's commitment into a single protocol instance, then sequentially derives each participant's binding factor
+via `Mix` and `Derive`. Because the commitments are absorbed in a canonical order (sorted by identifier), the total
+ordering ensures each binding factor depends on the full set of commitments without requiring per-participant state
+cloning.
+
+```text
+function ComputeBindingFactors(domain, groupKey, message, commitments):
+  protocol.Init(domain)
+  protocol.Mix("frost-binding", ElementEncode(groupKey))
+  protocol.Mix("message", message)
+
+  // Absorb all commitments in sorted order.
+  for (id, hiding, binding) in commitments:
+    protocol.Mix("identifier", I2OSP(id, 2))
+    protocol.Mix("hiding", hiding)
+    protocol.Mix("binding", binding)
+
+  // Derive binding factors sequentially from the same state.
+  factors = {}
+  for (id, _, _) in commitments:
+    protocol.Mix("binding-participant", I2OSP(id, 2))
+    factors[id] = ScalarReduce(protocol.Derive("binding-factor", 64))
+  return factors
+```
+
+The challenge derivation reuses the identical Newplex transcript structure as the single-signer digital signature
+scheme: `Mix("signer", ...)`, `Mix("message", ...)`, `Fork("role", "prover", "verifier")`,
+`Mix("commitment", ...)`, `Derive("challenge", 64)`. This means FROST signatures are standard Schnorr signatures,
+directly verifiable by the single-signer `Verify` function with no protocol-level distinction between single-signer and
+threshold signatures.
+
+```text
+function Sign(signingShare, identifier, domain, nonce, message, commitments):
+  bindingFactors = ComputeBindingFactors(domain, groupKey, message, commitments)
+  groupCommitment = Σ(D_i + [rho_i]E_i) for each participant i
+  challenge = ComputeChallenge(domain, groupKey, message, groupCommitment)
+  lambda = LagrangeCoefficient(identifier, participantIDs)
+
+  // Produce the signature share.
+  z = nonce.hiding + (nonce.binding * bindingFactors[identifier]) + (lambda * signingShare * challenge)
+  return ScalarEncode(z)
+
+function Aggregate(domain, groupKey, message, commitments, sigShares):
+  // Recompute group commitment and sum shares.
+  bindingFactors = ComputeBindingFactors(domain, groupKey, message, commitments)
+  groupCommitment = Σ(D_i + [rho_i]E_i) for each participant i
+  z = Σ z_i
+  return ElementEncode(groupCommitment) || ScalarEncode(z)
+```
+
+Nonce generation uses the same hedged deterministic approach as the single-signer scheme: the signer's secret share and
+caller-provided randomness are mixed into a fresh protocol instance, and the hiding and binding nonces are derived via
+sequential `Derive` operations. This protects against both nonce reuse (the derivation is deterministic given the same
+inputs) and weak randomness (the secret share provides a high-entropy seed even if the random data is compromised).
+
+Individual signature shares can be verified before aggregation using each participant's verifying share (the public key
+corresponding to their secret share), enabling identification of misbehaving signers without revealing any secret
+material.
 
 ## Security Analysis
 
