@@ -130,9 +130,8 @@ func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 		remain := min(len(plaintext), maxRateIdx-d.rateIdx)
 		k := d.state[d.rateIdx : d.rateIdx+remain]
 
-		// C = K = K ^ P
-		subtle.XORBytes(k, k, plaintext[:remain])
-		copy(ciphertext[:remain], k)
+		// C = K = K ^ P (single pass: write state and ciphertext simultaneously)
+		encryptBlock(ciphertext[:remain], k, plaintext[:remain])
 
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
