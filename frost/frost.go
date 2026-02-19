@@ -13,11 +13,12 @@ import (
 	"slices"
 
 	"github.com/codahale/newplex"
+	"github.com/codahale/newplex/sig"
 	"github.com/gtank/ristretto255"
 )
 
 // SignatureSize is the size of a FROST signature in bytes (same as a standard Schnorr signature).
-const SignatureSize = 64
+const SignatureSize = sig.Size
 
 // ShareSize is the size of a signature share in bytes.
 const ShareSize = 32
@@ -211,29 +212,8 @@ func Aggregate(domain string, groupKey *ristretto255.Element, message []byte, co
 // Verify checks a FROST signature against the group public key and message. FROST signatures are standard Schnorr
 // signatures, so this function is compatible with signatures produced by [sig.Sign] and verifiable by [sig.Verify].
 func Verify(domain string, groupKey *ristretto255.Element, message, signature []byte) bool {
-	if len(signature) != SignatureSize {
-		return false
-	}
-
-	receivedR := signature[:32]
-
-	p := newplex.NewProtocol(domain)
-	p.Mix("signer", groupKey.Bytes())
-	p.Mix("message", message)
-	_, verifier := p.Fork("role", []byte("prover"), []byte("verifier"))
-	verifier.Mix("commitment", receivedR)
-	c, _ := ristretto255.NewScalar().SetUniformBytes(verifier.Derive("challenge", nil, 64))
-
-	s, _ := ristretto255.NewScalar().SetCanonicalBytes(signature[32:])
-	if s == nil {
-		return false
-	}
-
-	// [s]G - [c]Q = R
-	negC := ristretto255.NewScalar().Negate(c)
-	expectedR := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(negC, groupKey, s)
-
-	return bytes.Equal(receivedR, expectedR.Bytes())
+	valid, _ := sig.Verify(domain, groupKey, signature, bytes.NewReader(message))
+	return valid
 }
 
 // VerifyShare checks an individual signature share against the signer's verifying share. This can be used to identify
