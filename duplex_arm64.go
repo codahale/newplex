@@ -1,4 +1,4 @@
-//go:build amd64 && !purego
+//go:build arm64 && !purego
 
 package newplex
 
@@ -6,18 +6,14 @@ package newplex
 //
 //	for i := range len(state) { state[i] ^= src[i]; dst[i] = state[i] }
 //
-// This eliminates the store-forwarding stall that occurs when subtle.XORBytes
-// (AVX2 256-bit stores) is followed by copy/memmove (different-width loads) on
-// Intel micro-architectures.
-//
 //go:noescape
+//goland:noinspection GoUnusedParameter
 func encryptBlock(dst, state, src []byte)
 
 // absorbBlock XORs src into state in place: state[i] ^= src[i].
-// It bypasses subtle.XORBytes to avoid the alignment-based scalar fallback
-// that fires for 94-byte (= rate) blocks on AMD64.
 //
 //go:noescape
+//goland:noinspection GoUnusedParameter
 func absorbBlock(state, src []byte)
 
 // decryptBlock recovers plaintext and updates the keystream state in a single
@@ -25,4 +21,5 @@ func absorbBlock(state, src []byte)
 // Correct even when plaintext and ciphertext alias the same memory.
 //
 //go:noescape
+//goland:noinspection GoUnusedParameter
 func decryptBlock(plaintext, state, ciphertext []byte)

@@ -45,7 +45,7 @@ func (d *duplex) absorb(b []byte) {
 				dst[i] ^= b[i]
 			}
 		} else {
-			subtle.XORBytes(dst, dst, b[:remain])
+			absorbBlock(dst, b[:remain])
 		}
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
@@ -147,17 +147,22 @@ func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 //
 // Multiple decrypt calls are effectively the same thing as a single decrypt call with concatenated inputs.
 func (d *duplex) decrypt(plaintext, ciphertext []byte) {
-	var tmp [rate]byte
 	for len(ciphertext) > 0 {
 		remain := min(len(ciphertext), maxRateIdx-d.rateIdx)
 		k := d.state[d.rateIdx : d.rateIdx+remain]
-		// Make a copy of this block of ciphertext. If plaintext is the same slice as ciphertext, the decryption will
-		// overwrite the ciphertext, making it impossible to copy it to the state afterward.
-		copy(tmp[:remain], ciphertext[:remain])
 
 		// P = C ^ K; K = C
-		subtle.XORBytes(plaintext[:remain], k, ciphertext[:remain])
-		copy(k, tmp[:remain])
+		// decryptBlock reads ciphertext[i] before writing plaintext[i], so it
+		// is correct even when plaintext and ciphertext are the same slice.
+		if remain <= 16 {
+			for i := range remain {
+				c := ciphertext[i]
+				plaintext[i] = k[i] ^ c
+				k[i] = c
+			}
+		} else {
+			decryptBlock(plaintext[:remain], k, ciphertext[:remain])
+		}
 
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
@@ -233,5 +238,4 @@ const (
 	framing    = 1                 // The duplex uses a reserved byte for framing.
 	maxRateIdx = width - padding - framing - capacity
 	padByteIdx = width - capacity - padding
-	rate       = width - padding - framing - capacity // The rate of the duplex with padding.
 )
