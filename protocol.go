@@ -45,8 +45,7 @@ type Protocol struct {
 //
 // The domain separation string should be unique to the application and specific protocol. It should not contain dynamic
 // data like timestamps or user IDs. A good format is "application-name.protocol-name".
-func NewProtocol(domain string) Protocol {
-	var p Protocol
+func NewProtocol(domain string) (p Protocol) {
 	p.duplex.frame()
 	p.duplex.absorbByte(opInit)
 	p.duplex.absorbString(domain)
