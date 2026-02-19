@@ -14,3 +14,4 @@ gcloud compute ssh newplex --zone=us-central1-a --command "echo 'export PATH=\"\
 gcloud compute ssh newplex --zone=us-central1-a --command "echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
 gcloud compute ssh newplex --zone=us-central1-a --command 'git clone https://github.com/codahale/newplex'
 gcloud compute ssh newplex --zone=us-central1-a --command 'curl -fsSL https://claude.ai/install.sh | bash'
+gcloud compute ssh newplex --zone=us-central1-a --command 'go install golang.org/x/perf/cmd/benchstat@latest'
