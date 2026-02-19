@@ -42,6 +42,7 @@ var (
 
 // A Signer holds the secret key material for a single FROST participant.
 type Signer struct {
+	domain         string
 	identifier     uint16
 	signingShare   *ristretto255.Scalar
 	verifyingShare *ristretto255.Element
@@ -83,18 +84,19 @@ type Commitment struct {
 //
 // Identifiers are 1-based: signers[i] has identifier i+1. The threshold must be at least 2 and at most maxSigners.
 // rand must contain at least 64 bytes of uniform randomness.
-func KeyGen(maxSigners, threshold int, rand []byte) (*ristretto255.Element, []Signer, []*ristretto255.Element, error) {
+func KeyGen(domain string, maxSigners, threshold int, rand []byte) (*ristretto255.Element, []Signer, []*ristretto255.Element, error) {
 	if threshold < 2 || maxSigners < threshold || len(rand) < 64 {
 		return nil, nil, nil, ErrInvalidParameters
 	}
 
 	// Derive polynomial coefficients deterministically from the seed.
-	p := newplex.NewProtocol("frost.keygen")
-	p.Mix("seed", rand)
+	p := newplex.NewProtocol(domain)
+	keygen, _ := p.Fork("process", []byte("keygen"), []byte("commitment"))
+	keygen.Mix("seed", rand)
 
 	coeffs := make([]*ristretto255.Scalar, threshold)
 	for i := range threshold {
-		coeffs[i], _ = ristretto255.NewScalar().SetUniformBytes(p.Derive("coefficient", nil, 64))
+		coeffs[i], _ = ristretto255.NewScalar().SetUniformBytes(keygen.Derive("coefficient", nil, 64))
 	}
 
 	// The group public key is [a_0]G where a_0 is the secret.
@@ -108,6 +110,7 @@ func KeyGen(maxSigners, threshold int, rand []byte) (*ristretto255.Element, []Si
 		share := evalPolynomial(coeffs, id)
 		vs := ristretto255.NewIdentityElement().ScalarBaseMult(share)
 		signers[i] = Signer{
+			domain:         domain,
 			identifier:     id,
 			signingShare:   share,
 			verifyingShare: vs,
@@ -123,12 +126,13 @@ func KeyGen(maxSigners, threshold int, rand []byte) (*ristretto255.Element, []Si
 // least 64 bytes of random data; the nonces are derived deterministically from the signer's share and the random data,
 // providing hedged nonce generation that protects against both nonce reuse and weak randomness.
 func (s *Signer) Commit(rand []byte) (Nonce, Commitment) {
-	p := newplex.NewProtocol("frost.commit")
-	p.Mix("signing-share", s.signingShare.Bytes())
-	p.Mix("rand", rand)
+	x := newplex.NewProtocol(s.domain)
+	_, c := x.Fork("process", []byte("keygen"), []byte("commitment"))
+	c.Mix("signing-share", s.signingShare.Bytes())
+	c.Mix("rand", rand)
 
-	hiding, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("hiding-nonce", nil, 64))
-	binding, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("binding-nonce", nil, 64))
+	hiding, _ := ristretto255.NewScalar().SetUniformBytes(c.Derive("hiding-nonce", nil, 64))
+	binding, _ := ristretto255.NewScalar().SetUniformBytes(c.Derive("binding-nonce", nil, 64))
 
 	return Nonce{hiding: hiding, binding: binding}, Commitment{
 		Identifier: s.identifier,
