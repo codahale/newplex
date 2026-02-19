@@ -49,7 +49,7 @@ func NewProtocol(domain string) Protocol {
 	var p Protocol
 	p.duplex.frame()
 	p.duplex.absorbByte(opInit)
-	p.duplex.absorb([]byte(domain))
+	p.duplex.absorbString(domain)
 	return p
 }
 
@@ -66,7 +66,7 @@ func (p *Protocol) Mix(label string, input []byte) {
 	p.checkState()
 	p.duplex.frame()
 	p.duplex.absorbByte(opMix)
-	p.duplex.absorb([]byte(label))
+	p.duplex.absorbString(label)
 	p.duplex.frame()
 	p.duplex.absorbByte(opMix | 0x80)
 	p.duplex.absorb(input)
@@ -84,7 +84,7 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 
 	p.duplex.frame()
 	p.duplex.absorbByte(opDerive)
-	p.duplex.absorb([]byte(label))
+	p.duplex.absorbString(label)
 	p.duplex.frame()
 	p.duplex.absorbByte(opDerive | 0x80)
 	p.duplex.absorbLEB128(uint64(n))
@@ -112,7 +112,7 @@ func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
 	p.duplex.frame()
 	p.duplex.absorbByte(opCrypt)
-	p.duplex.absorb([]byte(label))
+	p.duplex.absorbString(label)
 	p.duplex.frame()
 	p.duplex.absorbByte(opCrypt | 0x80)
 	p.duplex.permute()
@@ -134,7 +134,7 @@ func (p *Protocol) Unmask(label string, dst, ciphertext []byte) []byte {
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
 	p.duplex.frame()
 	p.duplex.absorbByte(opCrypt)
-	p.duplex.absorb([]byte(label))
+	p.duplex.absorbString(label)
 	p.duplex.frame()
 	p.duplex.absorbByte(opCrypt | 0x80)
 	p.duplex.permute()
@@ -158,7 +158,7 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 
 	p.duplex.frame()
 	p.duplex.absorbByte(opAuthCrypt)
-	p.duplex.absorb([]byte(label))
+	p.duplex.absorbString(label)
 	p.duplex.frame()
 	p.duplex.absorbByte(opAuthCrypt | 0x80)
 	p.duplex.absorbLEB128(uint64(len(plaintext)))
@@ -194,7 +194,7 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 
 	p.duplex.frame()
 	p.duplex.absorbByte(opAuthCrypt)
-	p.duplex.absorb([]byte(label))
+	p.duplex.absorbString(label)
 	p.duplex.frame()
 	p.duplex.absorbByte(opAuthCrypt | 0x80)
 	p.duplex.absorbLEB128(uint64(len(plaintext)))
@@ -218,7 +218,7 @@ func (p *Protocol) ForkN(label string, values ...[]byte) []Protocol {
 		clone := p.Clone()
 		clone.duplex.frame()
 		clone.duplex.absorbByte(opFork)
-		clone.duplex.absorb([]byte(label))
+		clone.duplex.absorbString(label)
 		clone.duplex.frame()
 		clone.duplex.absorbByte(opFork | 0x80)
 		clone.duplex.absorb(values[i])
@@ -239,7 +239,7 @@ func (p *Protocol) Ratchet(label string) {
 	p.checkState()
 	p.duplex.frame()
 	p.duplex.absorbByte(opRatchet)
-	p.duplex.absorb([]byte(label))
+	p.duplex.absorbString(label)
 	p.duplex.frame()
 	p.duplex.absorbByte(opRatchet | 0x80)
 	p.duplex.ratchet()

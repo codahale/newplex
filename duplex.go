@@ -39,12 +39,36 @@ func (d *duplex) permute() {
 func (d *duplex) absorb(b []byte) {
 	for len(b) > 0 {
 		remain := min(len(b), maxRateIdx-d.rateIdx)
-		subtle.XORBytes(d.state[d.rateIdx:], d.state[d.rateIdx:], b[:remain])
+		dst := d.state[d.rateIdx : d.rateIdx+remain]
+		if remain <= 16 {
+			for i := range remain {
+				dst[i] ^= b[i]
+			}
+		} else {
+			subtle.XORBytes(dst, dst, b[:remain])
+		}
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
 			d.permute()
 		}
 		b = b[remain:]
+	}
+}
+
+// absorbString updates the duplex's state with the given string, running the permutation as the rate is exhausted.
+// It avoids the []byte conversion overhead of absorb for string labels.
+func (d *duplex) absorbString(s string) {
+	for len(s) > 0 {
+		remain := min(len(s), maxRateIdx-d.rateIdx)
+		dst := d.state[d.rateIdx : d.rateIdx+remain]
+		for i := range remain {
+			dst[i] ^= s[i]
+		}
+		d.rateIdx += remain
+		if d.rateIdx == maxRateIdx {
+			d.permute()
+		}
+		s = s[remain:]
 	}
 }
 
@@ -81,7 +105,14 @@ func (d *duplex) frame() {
 func (d *duplex) squeeze(out []byte) {
 	for len(out) > 0 {
 		remain := min(len(out), maxRateIdx-d.rateIdx)
-		copy(out[:remain], d.state[d.rateIdx:d.rateIdx+remain])
+		src := d.state[d.rateIdx : d.rateIdx+remain]
+		if remain <= 16 {
+			for i := range remain {
+				out[i] = src[i]
+			}
+		} else {
+			copy(out[:remain], src)
+		}
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
 			d.permute()
