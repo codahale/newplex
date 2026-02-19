@@ -1,4 +1,4 @@
-package newplex
+package duplex
 
 import (
 	"crypto/subtle"
@@ -8,22 +8,22 @@ import (
 	"github.com/codahale/newplex/internal/simpira1024"
 )
 
-// A duplex is a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-1024 permutation, has a
-// width of 1024 bits, a capacity of 256 bits, 16 bits of padding, and a rate of 752 bits. This offers 128 bits of
-// security for collision resistance, 256 bits of security for state recovery, and 128 bits of security for
-// birthday-bound indistinguishability.
+// A State is the state of a cryptographic duplex, sans padding or framing schemes. It uses the Simpira-1024
+// permutation, has a width of 1024 bits, a capacity of 256 bits, 8 bits of framing, 8 bits of padding, and a rate of
+// 752 bits. This offers 128 bits of security for collision resistance, 256 bits of security for state recovery, and 128
+// bits of security for birthday-bound indistinguishability.
 //
 // In addition to using SHA-3's pad10*1 scheme for each block of permutation input, it also uses a STROBE-like framing
 // mechanism for domain separation of sets of operations.
-type duplex struct {
+type State struct {
 	state             [width]byte
 	rateIdx, frameIdx int
 }
 
-// permute applies a frame-oriented padding scheme to the state by absorbing the frame index into the rate or
+// Permute applies a Frame-oriented padding scheme to the state by absorbing the Frame index into the rate or
 // potentially overflowing into the first of two padding bytes, then applies SHA-3's pad10*1 padding scheme to the
 // entire, unpadded rate. Finally, it permutes the entire state with Simpira-1024 and resets rateIdx and frameIdx.
-func (d *duplex) permute() {
+func (d *State) Permute() {
 	d.state[d.rateIdx] ^= byte(d.frameIdx)
 	d.rateIdx++
 	d.state[d.rateIdx] ^= 0x01
@@ -33,10 +33,10 @@ func (d *duplex) permute() {
 	d.frameIdx = 0
 }
 
-// absorb updates the duplex's state with the given data, running the permutation as the rate is exhausted.
+// Absorb updates the duplex's state with the given data, running the permutation as the rate is exhausted.
 //
-// Multiple absorb calls are effectively the same thing as a single absorb call with concatenated inputs.
-func (d *duplex) absorb(b []byte) {
+// Multiple Absorb calls are effectively the same thing as a single Absorb call with concatenated inputs.
+func (d *State) Absorb(b []byte) {
 	for len(b) > 0 {
 		remain := min(len(b), maxRateIdx-d.rateIdx)
 		dst := d.state[d.rateIdx : d.rateIdx+remain]
@@ -49,15 +49,15 @@ func (d *duplex) absorb(b []byte) {
 		}
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
-			d.permute()
+			d.Permute()
 		}
 		b = b[remain:]
 	}
 }
 
-// absorbString updates the duplex's state with the given string, running the permutation as the rate is exhausted.
-// It avoids the []byte conversion overhead of absorb for string labels.
-func (d *duplex) absorbString(s string) {
+// AbsorbString updates the duplex's state with the given string, running the permutation as the rate is exhausted.
+// It avoids the []byte conversion overhead of Absorb for string labels.
+func (d *State) AbsorbString(s string) {
 	for len(s) > 0 {
 		remain := min(len(s), maxRateIdx-d.rateIdx)
 		dst := d.state[d.rateIdx : d.rateIdx+remain]
@@ -66,43 +66,43 @@ func (d *duplex) absorbString(s string) {
 		}
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
-			d.permute()
+			d.Permute()
 		}
 		s = s[remain:]
 	}
 }
 
-// absorbByte absorbs a single byte.
-func (d *duplex) absorbByte(b byte) {
+// AbsorbByte absorbs a single byte.
+func (d *State) AbsorbByte(b byte) {
 	d.state[d.rateIdx] ^= b
 	d.rateIdx++
 	if d.rateIdx == maxRateIdx {
-		d.permute()
+		d.Permute()
 	}
 }
 
-// absorbLEB128 absorbs the LEB128 form of the given value.
-func (d *duplex) absorbLEB128(x uint64) {
+// AbsorbLEB128 absorbs the LEB128 form of the given value.
+func (d *State) AbsorbLEB128(x uint64) {
 	for x >= 0x80 {
-		d.absorbByte(byte(x) | 0x80)
+		d.AbsorbByte(byte(x) | 0x80)
 		x >>= 7
 	}
-	d.absorbByte(byte(x))
+	d.AbsorbByte(byte(x))
 }
 
-// frame absorbs the current frame index and updates the frame index to be the current rate index.
-func (d *duplex) frame() {
+// Frame absorbs the current frame index and updates the frame index to be the current rate index.
+func (d *State) Frame() {
 	// Absorb the previous frame index.
-	d.absorbByte(byte(d.frameIdx))
+	d.AbsorbByte(byte(d.frameIdx))
 	// Record the current frame index.
 	d.frameIdx = d.rateIdx
 }
 
-// squeeze fills the given slice with data from the duplex's state, running the permutation as the state becomes
+// Squeeze fills the given slice with data from the duplex's state, running the permutation as the state becomes
 // exhausted.
 //
-// Multiple squeeze calls are effectively the same thing as a single squeeze call with concatenated outputs.
-func (d *duplex) squeeze(out []byte) {
+// Multiple Squeeze calls are effectively the same thing as a single Squeeze call with concatenated outputs.
+func (d *State) Squeeze(out []byte) {
 	for len(out) > 0 {
 		remain := min(len(out), maxRateIdx-d.rateIdx)
 		src := d.state[d.rateIdx : d.rateIdx+remain]
@@ -115,17 +115,17 @@ func (d *duplex) squeeze(out []byte) {
 		}
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
-			d.permute()
+			d.Permute()
 		}
 		out = out[remain:]
 	}
 }
 
-// encrypt XORs the given plaintext slice with the duplex's state, copies the result to the given ciphertext slice, and
+// Encrypt XORs the given plaintext slice with the duplex's state, copies the result to the given ciphertext slice, and
 // updates the duplex's state with the ciphertext.
 //
-// Multiple encrypt calls are effectively the same thing as a single encrypt call with concatenated inputs.
-func (d *duplex) encrypt(ciphertext, plaintext []byte) {
+// Multiple Encrypt calls are effectively the same thing as a single Encrypt call with concatenated inputs.
+func (d *State) Encrypt(ciphertext, plaintext []byte) {
 	for len(plaintext) > 0 {
 		remain := min(len(plaintext), maxRateIdx-d.rateIdx)
 		k := d.state[d.rateIdx : d.rateIdx+remain]
@@ -135,18 +135,18 @@ func (d *duplex) encrypt(ciphertext, plaintext []byte) {
 
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
-			d.permute()
+			d.Permute()
 		}
 		plaintext = plaintext[remain:]
 		ciphertext = ciphertext[remain:]
 	}
 }
 
-// decrypt XORs the given ciphertext slice with the duplex's state, copies the result to the given plaintext slice, and
+// Decrypt XORs the given ciphertext slice with the duplex's state, copies the result to the given plaintext slice, and
 // updates the duplex's state with the ciphertext.
 //
-// Multiple decrypt calls are effectively the same thing as a single decrypt call with concatenated inputs.
-func (d *duplex) decrypt(plaintext, ciphertext []byte) {
+// Multiple Decrypt calls are effectively the same thing as a single Decrypt call with concatenated inputs.
+func (d *State) Decrypt(plaintext, ciphertext []byte) {
 	for len(ciphertext) > 0 {
 		remain := min(len(ciphertext), maxRateIdx-d.rateIdx)
 		k := d.state[d.rateIdx : d.rateIdx+remain]
@@ -166,17 +166,17 @@ func (d *duplex) decrypt(plaintext, ciphertext []byte) {
 
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
-			d.permute()
+			d.Permute()
 		}
 		ciphertext = ciphertext[remain:]
 		plaintext = plaintext[remain:]
 	}
 }
 
-// ratchet applies the Simpira-1024 permutation if needed, then zeros out 256 bits of the rate, preventing rollback.
-func (d *duplex) ratchet() {
+// Ratchet applies the Simpira-1024 permutation if needed, then zeros out 256 bits of the rate, preventing rollback.
+func (d *State) Ratchet() {
 	if d.rateIdx > 0 {
-		d.permute()
+		d.Permute()
 	}
 	// Zero out a portion of the rate equal to the size of the capacity and advance past it. This ensures the security
 	// margin for state recovery (i.e., the size of the capacity) applies to rollback attacks as well.
@@ -185,15 +185,15 @@ func (d *duplex) ratchet() {
 	d.rateIdx = ratchetSize
 }
 
-// equal returns 1 if d and d2 are equal, and 0 otherwise.
-func (d *duplex) equal(d2 *duplex) int {
+// Equal returns 1 if d and d2 are equal, and 0 otherwise.
+func (d *State) Equal(d2 *State) int {
 	return subtle.ConstantTimeCompare(d.state[:], d2.state[:]) &
 		subtle.ConstantTimeEq(int32(d.rateIdx), int32(d2.rateIdx)) &
 		subtle.ConstantTimeEq(int32(d.frameIdx), int32(d2.frameIdx))
 }
 
-// clear zeros out the duplex's state.
-func (d *duplex) clear() {
+// Clear zeros out the duplex's state.
+func (d *State) Clear() {
 	clear(d.state[:])
 	d.rateIdx = 0
 	d.frameIdx = 0
@@ -201,7 +201,7 @@ func (d *duplex) clear() {
 
 // UnmarshalBinary restores the duplex's state from the given binary representation. It implements
 // encoding.BinaryUnmarshaler.
-func (d *duplex) UnmarshalBinary(data []byte) error {
+func (d *State) UnmarshalBinary(data []byte) error {
 	if len(data) != len(d.state)+2 {
 		return errors.New("newplex: invalid state length")
 	}
@@ -216,19 +216,19 @@ func (d *duplex) UnmarshalBinary(data []byte) error {
 
 // AppendBinary appends the binary representation of the duplex's state to the given slice. It implements
 // encoding.BinaryAppender.
-func (d *duplex) AppendBinary(b []byte) ([]byte, error) {
+func (d *State) AppendBinary(b []byte) ([]byte, error) {
 	return append(append(b, byte(d.rateIdx), byte(d.frameIdx)), d.state[:]...), nil
 }
 
 // MarshalBinary returns the binary representation of the duplex's state. It implements encoding.BinaryMarshaler.
-func (d *duplex) MarshalBinary() (data []byte, err error) {
+func (d *State) MarshalBinary() (data []byte, err error) {
 	return d.AppendBinary(make([]byte, 0, 2+len(d.state)))
 }
 
 var (
-	_ encoding.BinaryAppender    = (*duplex)(nil)
-	_ encoding.BinaryMarshaler   = (*duplex)(nil)
-	_ encoding.BinaryUnmarshaler = (*duplex)(nil)
+	_ encoding.BinaryAppender    = (*State)(nil)
+	_ encoding.BinaryMarshaler   = (*State)(nil)
+	_ encoding.BinaryUnmarshaler = (*State)(nil)
 )
 
 const (

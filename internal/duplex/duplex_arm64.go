@@ -1,6 +1,6 @@
 //go:build arm64 && !purego
 
-package newplex
+package duplex
 
 // encryptBlock performs a single-pass combined XOR and copy:
 //

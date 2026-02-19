@@ -1,6 +1,6 @@
 //go:build (!amd64 && !arm64) || purego
 
-package newplex
+package duplex
 
 import "crypto/subtle"
 
