@@ -292,14 +292,14 @@ func computeBindingFactors(domain string, groupKey *ristretto255.Element, messag
 		if len(c.Hiding) != 32 || len(c.Binding) != 32 {
 			return nil, ErrInvalidCommitment
 		}
-		p.Mix("identifier", binary.LittleEndian.AppendUint16(nil, c.Identifier))
+		p.Mix("identifier", binary.BigEndian.AppendUint16(nil, c.Identifier))
 		p.Mix("hiding", c.Hiding)
 		p.Mix("binding", c.Binding)
 	}
 
 	factors := make(map[uint16]*ristretto255.Scalar, len(commitments))
 	for _, c := range commitments {
-		p.Mix("binding-participant", binary.LittleEndian.AppendUint16(nil, c.Identifier))
+		p.Mix("binding-participant", binary.BigEndian.AppendUint16(nil, c.Identifier))
 		rho, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("binding-factor", nil, 64))
 		factors[c.Identifier] = rho
 	}
