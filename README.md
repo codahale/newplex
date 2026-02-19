@@ -107,38 +107,38 @@ goos: linux
 goarch: amd64
 pkg: github.com/codahale/newplex
 cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
-BenchmarkHashScheme/16B                 10554235               113.5 ns/op       140.94 MB/s           0 B/op          0 allocs/op
-BenchmarkHashScheme/32B                 10530486               112.3 ns/op       284.85 MB/s           0 B/op          0 allocs/op
-BenchmarkHashScheme/64B                 10594501               112.5 ns/op       568.80 MB/s           0 B/op          0 allocs/op
-BenchmarkHashScheme/128B                 7222648               165.2 ns/op       774.86 MB/s           0 B/op          0 allocs/op
-BenchmarkHashScheme/256B                 4608260               260.6 ns/op       982.44 MB/s           0 B/op          0 allocs/op
-BenchmarkHashScheme/1KiB                 1830760               656.4 ns/op      1560.01 MB/s           0 B/op          0 allocs/op
-BenchmarkHashScheme/16KiB                 139580              8431 ns/op        1943.39 MB/s           0 B/op          0 allocs/op
-BenchmarkHashScheme/1MiB                    2212            537377 ns/op        1951.29 MB/s           0 B/op          0 allocs/op
-BenchmarkPRFScheme/16B                  10302806               117.0 ns/op       136.75 MB/s           0 B/op          0 allocs/op
-BenchmarkPRFScheme/32B                  10319643               117.5 ns/op       272.27 MB/s           0 B/op          0 allocs/op
-BenchmarkPRFScheme/64B                  10389806               116.7 ns/op       548.35 MB/s           0 B/op          0 allocs/op
-BenchmarkPRFScheme/128B                  7057303               167.1 ns/op       766.03 MB/s           0 B/op          0 allocs/op
-BenchmarkPRFScheme/256B                  5569346               217.6 ns/op      1176.42 MB/s           0 B/op          0 allocs/op
-BenchmarkPRFScheme/1KiB                  1974172               609.8 ns/op      1679.35 MB/s           0 B/op          0 allocs/op
-BenchmarkPRFScheme/16KiB                  139544              8682 ns/op        1887.22 MB/s           0 B/op          0 allocs/op
-BenchmarkPRFScheme/1MiB                     2151            554635 ns/op        1890.57 MB/s           0 B/op          0 allocs/op
-BenchmarkStreamScheme/16B                8625686               137.1 ns/op       116.70 MB/s           0 B/op          0 allocs/op
-BenchmarkStreamScheme/32B                8799950               137.3 ns/op       233.08 MB/s           0 B/op          0 allocs/op
-BenchmarkStreamScheme/64B                8776183               137.2 ns/op       466.40 MB/s           0 B/op          0 allocs/op
-BenchmarkStreamScheme/128B               6099103               198.2 ns/op       645.74 MB/s           0 B/op          0 allocs/op
-BenchmarkStreamScheme/256B               4699260               255.8 ns/op      1000.90 MB/s           0 B/op          0 allocs/op
-BenchmarkStreamScheme/1KiB               1656283               723.4 ns/op      1415.46 MB/s           0 B/op          0 allocs/op
-BenchmarkStreamScheme/16KiB               120487              9974 ns/op        1642.71 MB/s           0 B/op          0 allocs/op
-BenchmarkStreamScheme/1MiB                  1878            630572 ns/op        1662.90 MB/s           0 B/op          0 allocs/op
-BenchmarkAEADScheme/16B                  4369694               273.0 ns/op       117.23 MB/s           0 B/op          0 allocs/op
-BenchmarkAEADScheme/32B                  4355893               273.9 ns/op       175.25 MB/s           0 B/op          0 allocs/op
-BenchmarkAEADScheme/64B                  4335715               272.4 ns/op       293.69 MB/s           0 B/op          0 allocs/op
-BenchmarkAEADScheme/128B                 3545064               337.4 ns/op       426.83 MB/s           0 B/op          0 allocs/op
-BenchmarkAEADScheme/256B                 3020806               397.0 ns/op       685.06 MB/s           0 B/op          0 allocs/op
-BenchmarkAEADScheme/1KiB                 1385412               863.1 ns/op      1205.01 MB/s           0 B/op          0 allocs/op
-BenchmarkAEADScheme/16KiB                 118933             10178 ns/op        1611.35 MB/s           0 B/op          0 allocs/op
-BenchmarkAEADScheme/1MiB                    1868            634817 ns/op        1651.80 MB/s           0 B/op          0 allocs/op
+BenchmarkHashScheme/16B                 12040262               100.3 ns/op       159.59 MB/s           0 B/op          0 allocs/op
+BenchmarkHashScheme/32B                 12383924                97.94 ns/op      326.72 MB/s           0 B/op          0 allocs/op
+BenchmarkHashScheme/64B                 12391802                96.91 ns/op      660.43 MB/s           0 B/op          0 allocs/op
+BenchmarkHashScheme/128B                 8559896               143.5 ns/op       892.19 MB/s           0 B/op          0 allocs/op
+BenchmarkHashScheme/256B                 5004840               236.5 ns/op      1082.58 MB/s           0 B/op          0 allocs/op
+BenchmarkHashScheme/1KiB                 1935332               620.4 ns/op      1650.50 MB/s           0 B/op          0 allocs/op
+BenchmarkHashScheme/16KiB                 142461              8313 ns/op        1970.96 MB/s           0 B/op          0 allocs/op
+BenchmarkHashScheme/1MiB                    2323            521616 ns/op        2010.24 MB/s           0 B/op          0 allocs/op
+BenchmarkPRFScheme/16B                  12368185                97.01 ns/op      164.93 MB/s           0 B/op          0 allocs/op
+BenchmarkPRFScheme/32B                  11872790                99.43 ns/op      321.82 MB/s           0 B/op          0 allocs/op
+BenchmarkPRFScheme/64B                  12190263                98.16 ns/op      652.01 MB/s           0 B/op          0 allocs/op
+BenchmarkPRFScheme/128B                  7932213               149.6 ns/op       855.64 MB/s           0 B/op          0 allocs/op
+BenchmarkPRFScheme/256B                  5986339               200.7 ns/op      1275.61 MB/s           0 B/op          0 allocs/op
+BenchmarkPRFScheme/1KiB                  1988391               607.1 ns/op      1686.61 MB/s           0 B/op          0 allocs/op
+BenchmarkPRFScheme/16KiB                  137037              8758 ns/op        1870.68 MB/s           0 B/op          0 allocs/op
+BenchmarkPRFScheme/1MiB                     2091            560482 ns/op        1870.85 MB/s           0 B/op          0 allocs/op
+BenchmarkStreamScheme/16B                9501328               124.3 ns/op       128.76 MB/s           0 B/op          0 allocs/op
+BenchmarkStreamScheme/32B                9802387               123.3 ns/op       259.56 MB/s           0 B/op          0 allocs/op
+BenchmarkStreamScheme/64B               10008786               121.7 ns/op       525.88 MB/s           0 B/op          0 allocs/op
+BenchmarkStreamScheme/128B               6941865               172.2 ns/op       743.39 MB/s           0 B/op          0 allocs/op
+BenchmarkStreamScheme/256B               5363806               221.7 ns/op      1154.50 MB/s           0 B/op          0 allocs/op
+BenchmarkStreamScheme/1KiB               1879706               641.2 ns/op      1596.93 MB/s           0 B/op          0 allocs/op
+BenchmarkStreamScheme/16KiB               129224              9273 ns/op        1766.90 MB/s           0 B/op          0 allocs/op
+BenchmarkStreamScheme/1MiB                  2012            584774 ns/op        1793.13 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/16B                  5032033               242.6 ns/op       131.91 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/32B                  4939018               241.1 ns/op       199.07 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/64B                  4890608               244.1 ns/op       327.70 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/128B                 4093395               295.3 ns/op       487.67 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/256B                 3391336               356.6 ns/op       762.71 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/1KiB                 1559380               772.3 ns/op      1346.67 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/16KiB                 127945              9371 ns/op        1750.11 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/1MiB                    2013            583608 ns/op        1796.74 MB/s           0 B/op          0 allocs/op
 ```
 
 ### ARM64
@@ -148,38 +148,38 @@ goos: darwin
 goarch: arm64                                                                                                                                                                                                                                                            
 pkg: github.com/codahale/newplex                                                                                                                                                                                                                                         
 cpu: Apple M4 Pro                                                                                                                                                                                                                                                        
-BenchmarkHashScheme/16B                 16814496                71.16 ns/op      224.84 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkHashScheme/32B                 17018922                69.76 ns/op      458.69 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkHashScheme/64B                 16943547                70.24 ns/op      911.19 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkHashScheme/128B                11145199               106.8 ns/op      1198.96 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkHashScheme/256B                 7020832               170.9 ns/op      1497.66 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkHashScheme/1KiB                 2614765               458.2 ns/op      2234.65 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkHashScheme/16KiB                 185260              6297 ns/op        2601.91 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkHashScheme/1MiB                    2960            398518 ns/op        2631.19 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkPRFScheme/16B                  16242884                73.58 ns/op      217.44 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkPRFScheme/32B                  16184976                73.61 ns/op      434.71 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkPRFScheme/64B                  14451120                76.45 ns/op      837.12 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkPRFScheme/128B                 10966674               108.4 ns/op      1181.29 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkPRFScheme/256B                  8437740               141.1 ns/op      1814.75 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkPRFScheme/1KiB                  2960836               405.0 ns/op      2528.31 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkPRFScheme/16KiB                  186369              5891 ns/op        2781.30 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkPRFScheme/1MiB                     3190            374978 ns/op        2796.37 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkStreamScheme/16B               13117477                92.18 ns/op      173.57 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkStreamScheme/32B               12834481                92.71 ns/op      345.17 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkStreamScheme/64B               12596391                93.35 ns/op      685.56 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkStreamScheme/128B               9155252               131.3 ns/op       974.97 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkStreamScheme/256B               7110429               168.3 ns/op      1521.34 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkStreamScheme/1KiB               2628403               456.4 ns/op      2243.57 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkStreamScheme/16KiB               182524              6370 ns/op        2571.91 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkStreamScheme/1MiB                  2930            403863 ns/op        2596.37 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkAEADScheme/16B                  6736288               177.8 ns/op       179.99 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkAEADScheme/32B                  6762585               178.1 ns/op       269.58 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkAEADScheme/64B                  6662682               178.4 ns/op       448.50 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkAEADScheme/128B                 5518846               216.6 ns/op       664.85 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkAEADScheme/256B                 4750824               252.5 ns/op      1077.18 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkAEADScheme/1KiB                 2210043               543.5 ns/op      1913.64 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkAEADScheme/16KiB                 183354              6501 ns/op        2522.50 MB/s           0 B/op          0 allocs/op                                                                                                                                       
-BenchmarkAEADScheme/1MiB                    2937            409442 ns/op        2561.03 MB/s           0 B/op          0 allocs/op  
+BenchmarkHashScheme/16B                 20705578                57.71 ns/op      277.23 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkHashScheme/32B                 22098853                53.93 ns/op      593.32 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkHashScheme/64B                 21734372                54.93 ns/op     1165.12 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkHashScheme/128B                13497021                88.48 ns/op     1446.59 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkHashScheme/256B                 7603873               157.3 ns/op      1627.84 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkHashScheme/1KiB                 2694968               445.0 ns/op      2301.27 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkHashScheme/16KiB                 190098              6272 ns/op        2612.37 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkHashScheme/1MiB                    2961            399703 ns/op        2623.39 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkPRFScheme/16B                  20697609                57.13 ns/op      280.07 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkPRFScheme/32B                  21585451                55.05 ns/op      581.25 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkPRFScheme/64B                  21558080                55.18 ns/op     1159.86 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkPRFScheme/128B                 13316527                89.84 ns/op     1424.81 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkPRFScheme/256B                  9715753               123.1 ns/op      2080.31 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkPRFScheme/1KiB                  3111435               385.6 ns/op      2655.78 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkPRFScheme/16KiB                  206236              5798 ns/op        2825.93 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkPRFScheme/1MiB                     3206            375638 ns/op        2791.45 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkStreamScheme/16B               16954888                70.21 ns/op      227.88 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkStreamScheme/32B               17085883                70.31 ns/op      455.14 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkStreamScheme/64B               16449922                71.60 ns/op      893.84 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkStreamScheme/128B              11257392               108.6 ns/op      1178.95 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkStreamScheme/256B               8345169               146.1 ns/op      1751.64 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkStreamScheme/1KiB               2718831               441.4 ns/op      2320.04 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkStreamScheme/16KiB               184890              6514 ns/op        2515.28 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkStreamScheme/1MiB                  2780            422931 ns/op        2479.31 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkAEADScheme/16B                  7811796               156.5 ns/op       204.47 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkAEADScheme/32B                  7802522               153.5 ns/op       312.73 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkAEADScheme/64B                  7799248               154.5 ns/op       517.70 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkAEADScheme/128B                 6290869               196.5 ns/op       732.93 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkAEADScheme/256B                 4994802               236.1 ns/op      1152.09 MB/s           0 B/op          0 allocs/op                                                                                                                                       
+BenchmarkAEADScheme/1KiB                 2260888               523.3 ns/op      1987.22 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/16KiB                 184443              6460 ns/op        2538.68 MB/s           0 B/op          0 allocs/op
+BenchmarkAEADScheme/1MiB                    2961            410017 ns/op        2557.43 MB/s           0 B/op          0 allocs/op
 ```
 
 ## License
