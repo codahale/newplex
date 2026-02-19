@@ -111,13 +111,12 @@ built on a duplex construction using the [Simpira-1024] permutation. Inspired by
 and [Xoodyak], Newplex is optimized for 64-bit architectures (x86-64 and ARM64) to provide 10+ Gb/second performance on
 modern processors at a 128-bit security level.
 
-The framework is guided by two central design principles. First, by replacing the traditional suite of separate hash
-functions, MACs, stream ciphers, and KDFs with a single duplex construction, Newplex drastically simplifies the design
-and implementation of cryptographic schemes--from basic AEAD to complex multi-party protocols like OPRFs and handshakes.
-Second, the security of every scheme built on Newplex reduces to the well-studied properties of the underlying duplex
-(indifferentiability from a random oracle, pseudorandom function security, and collision resistance), all bounded by the
-256-bit capacity (`2**128` against generic attacks). This tight reduction means that a single, focused security analysis
-of the duplex and permutation layers provides assurance for the entire framework.
+Two design principles guide the framework. First, replacing separate hash functions, MACs, stream ciphers, and KDFs with
+a single duplex construction simplifies the design and implementation of cryptographic schemes--from basic AEAD to
+multi-party protocols like OPRFs and handshakes. Second, the security of every scheme reduces to the properties of the
+underlying duplex (indifferentiability from a random oracle, pseudorandom function security, and collision resistance),
+all bounded by the 256-bit capacity (`2**128` against generic attacks). A single security analysis of the duplex and
+permutation layers covers the entire framework.
 
 [Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
 
@@ -129,8 +128,7 @@ of the duplex and permutation layers provides assurance for the entire framework
 
 ## Architecture at a Glance
 
-Newplex is structured as a stack of four distinct layers, each building on the security and functionality of the one
-below it.
+Newplex is structured as four layers, each building on the one below it.
 
 ```mermaid
 graph TD
@@ -143,23 +141,18 @@ graph TD
     Duplex --- Permutation
 ```
 
-1. **Permutation Layer ([Simpira-1024](#the-simpira-1024-permutation)):** The foundation of the framework. It provides a
-   fixed-length, high-performance transformation of a 1024-bit state, leveraging hardware-accelerated AES instructions
-   for maximum efficiency.
-2. **Duplex Layer ([The Duplex Construction](#the-duplex-construction)):** The stateful engine. It manages the 1024-bit
-   state, logically partitioning it into a 768-bit rate and a 256-bit capacity. It handles data absorption, pseudorandom
-   squeezing, and internal framing boundaries.
-3. **Protocol Layer ([The Protocol Framework](#the-protocol-framework)):** The semantic enforcement layer. It wraps
-   duplex operations in a strict grammar of opcodes and labels, ensuring unique transcript decodability and providing
-   full context commitment (CMT-4).
-4. **Scheme Layer ([Basic](#basic-schemes) & [Complex](#complex-schemes) Schemes):** The application layer. It composes
-   protocol operations into interoperable cryptographic tools, ranging from simple hash functions and MACs to complex
-   multi-party protocols like OPRFs and Double Ratchets.
+1. **Permutation Layer ([Simpira-1024](#the-simpira-1024-permutation)):** A fixed-length, high-performance
+   transformation of a 1024-bit state using hardware-accelerated AES instructions.
+2. **Duplex Layer ([The Duplex Construction](#the-duplex-construction)):** Manages the 1024-bit state, partitioned into
+   a 768-bit rate and a 256-bit capacity. Handles data absorption, pseudorandom squeezing, and internal framing.
+3. **Protocol Layer ([The Protocol Framework](#the-protocol-framework)):** Wraps duplex operations in a strict grammar
+   of opcodes and labels, ensuring unique transcript decodability and full context commitment (CMT-4).
+4. **Scheme Layer ([Basic](#basic-schemes) & [Complex](#complex-schemes) Schemes):** Composes protocol operations into
+   cryptographic tools, from hash functions and MACs to multi-party protocols like OPRFs and Double Ratchets.
 
 ### Comparison with Related Frameworks
 
-Newplex draws inspiration from several foundational cryptographic frameworks. The following table highlights the key
-architectural differences:
+The following table highlights the key architectural differences between Newplex and related frameworks:
 
 | Feature            | Newplex            | STROBE             | Noise               | Xoodyak           |
 |--------------------|--------------------|--------------------|---------------------|-------------------|
@@ -172,59 +165,49 @@ architectural differences:
 
 ### Design Goals
 
-Newplex is engineered to be a high-performance, misuse-resistant cryptographic framework for modern systems. The primary
-design philosophy is simplicity through unification. By reducing the number of distinct primitives--replacing separate
-hash functions, MACs, stream ciphers, and KDFs with a single duplex construction--Newplex minimizes the complexity of
-both the design and implementation of a cryptographic scheme. This reduction allows for a compact design that is easier
-to audit, formally verify, and integrate into complex software stacks without sacrificing versatility.
+Newplex is a high-performance, misuse-resistant cryptographic framework for modern systems. The primary design
+philosophy is simplicity through unification. Replacing separate hash functions, MACs, stream ciphers, and KDFs with a
+single duplex construction minimizes the complexity of both design and implementation. The result is a compact design
+that is easier to audit, verify, and integrate into complex software stacks.
 
-Security in Newplex is enforced through a strict grammar of cryptographic intent which mandates domain separation at two
-distinct levels. At the protocol (or scheme) level, different applications (e.g., a file encryption tool vs. a network
-handshake) are domain-separated by unique initialization strings. Individual operations within a protocol are bound to
-their semantic role, distinguishing between key material, public metadata, and encrypted payloads. By absorbing this
-context into the duplex state, Newplex ensures full context commitment, preventing ambiguity attacks where valid data
-from one context is accepted in another. Furthermore, the design mandates constant-time execution for all
-secret-dependent operations and provides forward secrecy via a ratchet mechanism, ensuring that a compromise of the
-current state cannot retroactively expose past communications.
+Security is enforced through a strict grammar of cryptographic intent, mandating domain separation at two levels. At
+the protocol level, different applications (e.g., a file encryption tool vs. a network handshake) are domain-separated
+by unique initialization strings. Individual operations within a protocol are bound to their semantic role,
+distinguishing between key material, public metadata, and encrypted payloads. Absorbing this context into the duplex
+state ensures full context commitment, preventing ambiguity attacks where valid data from one context is accepted in
+another. The design also mandates constant-time execution for all secret-dependent operations and provides forward
+secrecy via a ratchet mechanism, so that a compromise of the current state cannot expose past communications.
 
-Finally, Newplex targets exceptional performance on 64-bit architectures. By building on the Simpira-1024
-permutation--which leverages ubiquitous AES hardware instructions (`AES-NI` on x86-64 and `FEAT_AES` on ARMv8)--the
-framework aims for a throughput target of 10+ Gb/s on modern CPUs. This performance profile allows Newplex to serve as a
-universal cryptographic layer for high-bandwidth network protocols, removing the traditional trade-off between security
-and speed.
+Newplex targets high performance on 64-bit architectures. By building on the Simpira-1024 permutation--which uses
+AES hardware instructions (`AES-NI` on x86-64 and `FEAT_AES` on ARMv8)--the framework targets 10+ Gb/s throughput on
+modern CPUs, making it suitable as a cryptographic layer for high-bandwidth network protocols.
 
 ### Security Assumptions
 
-The security of Newplex rests on two foundational assumptions. First, the analysis assumes that the Simpira-1024
-permutation behaves as an ideal permutation and exhibits no structural distinguishers with a complexity below `2**128`.
-Second, based on the [flat sponge claim], a capacity of 256 bits (`c=256`) provides a generic security level of 128 bits
-against all generic attacks. In the unkeyed model, where the adversary has read access to the full state, the
-construction is indifferentiable from a random oracle. In the keyed model, where the capacity is populated with secret
-entropy and hidden from the adversary, the construction acts as a cryptographically secure pseudorandom generator (PRG)
-or pseudorandom function (PRF). Finally, the security model assumes a constant-time implementation of Simpira-1024 to
-prevent side-channel leakage.
+The security of Newplex rests on two assumptions. First, Simpira-1024 behaves as an ideal permutation with no
+structural distinguishers below `2**128` complexity. Second, per the [flat sponge claim], a 256-bit capacity (`c=256`)
+provides 128-bit generic security. In the unkeyed model (adversary has read access to the full state), the construction
+is indifferentiable from a random oracle. In the keyed model (capacity is populated with secret entropy and hidden from
+the adversary), the construction acts as a secure pseudorandom generator (PRG) or pseudorandom function (PRF). The
+security model also assumes a constant-time implementation of Simpira-1024 to prevent side-channel leakage.
 
-A full security analysis, including concrete bounds, reduction arguments, and multi-user security, follows in
+A full security analysis with concrete bounds, reduction arguments, and multi-user security follows in
 [§Security Analysis](#security-analysis).
 
 [flat sponge claim]: https://keccak.team/files/CSF-0.1.pdf
 
 #### Safety in Implementation
 
-To ensure the security of the Newplex framework, implementers **must** adhere to the following safety guidelines:
+Implementers **must** adhere to the following safety guidelines:
 
-* **Constant-Time Execution:** All operations involving secret data (keys, plaintexts, internal state) must be executed
-  in constant time. Specifically, comparisons of authentication tags or session secrets **must** use constant-time
-  comparison functions (e.g., `CT_EQ`) to prevent timing side-channel attacks, and the AES round implementation in
-  Simpira-1024 **must** be constant time.
-* **Memory Management:** Secret data should be cleared from memory as soon as possible. This includes zeroing out
-  buffers containing plaintexts, keys, and the internal duplex state before they are deallocated.
-* **In-Place Operations and Error Handling:** When performing in-place decryption (such as in `Open`), implementers
-  **must** ensure that if an authentication check fails, the provisional plaintext is immediately zeroed out and never
-  returned to the caller.
-* **No Secret Logging:** Never log key material, plaintexts, or internal state. Debug logs should only contain public
-  metadata and non-sensitive operation info. Safe debug representations of protocols can be obtained via cloning the
-  protocol and performing a `Derive` operation on the clone.
+* **Constant-Time Execution:** All operations involving secret data (keys, plaintexts, internal state) must execute in
+  constant time. Comparisons of authentication tags or session secrets **must** use constant-time comparison functions
+  (e.g., `CT_EQ`), and the AES round implementation in Simpira-1024 **must** be constant time.
+* **Memory Management:** Zero out buffers containing plaintexts, keys, and internal duplex state before deallocation.
+* **In-Place Operations and Error Handling:** If an authentication check fails during in-place decryption (e.g.,
+  `Open`), the provisional plaintext **must** be zeroed and never returned to the caller.
+* **No Secret Logging:** Never log key material, plaintexts, or internal state. Debug logs should contain only public
+  metadata. Safe debug representations can be obtained by cloning the protocol and performing a `Derive` on the clone.
 
 ### Data Types and Conventions
 
@@ -326,57 +309,48 @@ of the Simpira v2 family:
 
 ### Rationale
 
-The selection of Simpira-1024 is driven by performance and architectural consistency.
+Simpira-1024 is selected for performance and architectural consistency.
 
 #### Hardware Acceleration
 
-The permutation leverages hardware AES instructions (`AES-NI` on x86-64 and `FEAT_AES` on ARMv8). These instructions are
-ubiquitous on modern server, consumer, and mobile processors, ensuring high throughput and constant-time execution
-without complex bit-slicing.
+The permutation uses hardware AES instructions (`AES-NI` on x86-64 and `FEAT_AES` on ARMv8), which are available on
+modern server, consumer, and mobile processors, providing high throughput and constant-time execution without
+bit-slicing.
 
 #### Architectural Parity
 
-Simpira-1024 provides consistent performance across major architectures. In contrast, while `Keccak-p[1600,12]` is
-highly efficient on ARMv8 processors with `FEAT_SHA3`, it performs significantly slower on x86-64 platforms lacking
-dedicated SHA-3 acceleration (less than half the speed of Simpira). Simpira bridges this gap, providing a high baseline
-speed on both platforms.
+Simpira-1024 provides consistent performance across major architectures. While `Keccak-p[1600,12]` is efficient on
+ARMv8 with `FEAT_SHA3`, it is less than half the speed of Simpira on x86-64 platforms lacking SHA-3 acceleration.
+Simpira provides a high baseline speed on both platforms.
 
 #### Implementation Compactness
 
-The reliance on standard AES intrinsics allows for a compact implementation code size compared to software-only
-permutations. A straightforward C implementation using Intel intrinsics is approximately 30 lines of code. An
-extensively optimized AMD64 assembly version is approximately 90 lines of code.
+Using standard AES intrinsics yields compact implementations compared to software-only permutations. A C implementation
+using Intel intrinsics is about 30 lines; an optimized AMD64 assembly version is about 250 lines.
 
-While Simpira has received less cryptanalytic scrutiny than Keccak, the results on reduced-round variants suggest a
-comfortable security margin. Furthermore, the Newplex framework is designed to be modular; the design does not strictly
-require Simpira and can be instantiated with `Keccak-f[1600]` or `Keccak-p[1600,12]` if additional security margin or
-embedded device performance is preferred.
+Simpira has received less cryptanalytic scrutiny than Keccak, but results on reduced-round variants suggest an adequate
+security margin. The design is modular and can be instantiated with `Keccak-f[1600]` or `Keccak-p[1600,12]` if
+additional margin or embedded device performance is preferred.
 
 ## The Duplex Construction
 
-The duplex construction serves as the foundational primitive of the Newplex framework. Formally introduced by Bertoni et
-al., the duplex is a stateful object derived from the sponge construction. While a standard sponge absorbs a complete
-message before producing an output, a duplex allows for the interleaved absorption of input and squeezing of output.
-This enables a continuous, interactive session where every output is cryptographically bound to the entire history of
+The duplex construction is the core primitive of Newplex. Introduced by Bertoni et al., the duplex is a stateful object
+derived from the sponge construction. While a standard sponge absorbs a complete message before producing output, a
+duplex allows interleaved absorption and squeezing. Every output is cryptographically bound to the entire history of
 preceding operations.
 
-To implement a duplex construction, three primary parameters must be selected: the underlying permutation `f`, the
-capacity `c`, and a padding rule `pad`. These choices then dictate the derived parameters of the construction: the width
-`b` (which is the width of the selected permutation) and the rate `r` (calculated as `r = b - c`).
+A duplex requires three parameters: the permutation `f`, the capacity `c`, and a padding rule `pad`. These determine
+the width `b` (the permutation width) and the rate `r = b - c`.
 
-The construction maintains a state buffer of `b` bits, which is logically partitioned into the rate (the first `r` bits)
-and the capacity (the remaining `c` bits). This state is initialized to all zeros. Input data is XORed into the rate
-portion of the state. If the input exceeds the rate, it is processed in blocks of `r` bits. Each block is XORed into the
-state, followed by a transformation of the entire `b`-bit state using the permutation `f`. Output is produced by reading
-bits directly from the rate. If more than `r` bits are required, the permutation `f` is applied to the state to refresh
-the rate before the next segment is read. The capacity portion of the state is never directly modified by user input and
-is never exposed in the squeezed output. It serves as a reservoir of entropy that ensures the security of the
-construction.
+The construction maintains a `b`-bit state buffer, partitioned into the rate (first `r` bits) and capacity (remaining
+`c` bits), initialized to all zeros. Input is XORed into the rate; if it exceeds the rate, it is processed in `r`-bit
+blocks, each followed by a permutation of the full state. Output is read from the rate; if more than `r` bits are
+needed, the permutation refreshes the rate before reading the next segment. The capacity is never directly modified by
+user input or exposed in output; it is the entropy reservoir that ensures security.
 
-To maintain the security proofs associated with the construction, every input sequence must be uniquely identifiable and
-properly terminated. This requires the use of a formal padding rule to ensure that messages of different lengths do
-not result in the same internal state. Newplex builds upon this standard duplex model by introducing specialized framing
-within the rate to enforce domain separation between different high-level protocol operations.
+Every input sequence must be uniquely identifiable and properly terminated. A formal padding rule ensures that messages
+of different lengths do not produce the same internal state. Newplex extends this standard model with specialized
+framing within the rate to enforce domain separation between protocol operations.
 
 [duplex]: https://eprint.iacr.org/2011/499.pdf
 
@@ -392,18 +366,15 @@ The Newplex duplex is instantiated with the following parameters:
 | Rate        | `r`      | 768 bits                       |
 | Padding     | `pad`    | multi-rate padding (`pad10*1`) |
 
-The choice of a 256-bit capacity provides a generic security level of 128 bits. Specifically, the construction offers
-128-bit resistance against collisions (`2**(c/2)`) and 128-bit security against output indistinguishability
-(`2**(c/2)`). Resistance against full state recovery is 256 bits (`2**c`).
+A 256-bit capacity provides 128-bit collision resistance (`2**(c/2)`), 128-bit output indistinguishability
+(`2**(c/2)`), and 256-bit state recovery resistance (`2**c`).
 
-These bounds are fundamental to the construction. Even if a higher-level component (such as a hash function) requests an
-output length `n` where `2**n > 2**c`, the effective security of the scheme has an upper bound set by the capacity.
-Specifically, resistance to preimage attacks and state recovery attacks will not exceed 256 bits, and resistance to
-collision and distinguishing attacks will not exceed 128 bits.
+These bounds are fundamental. Even if a higher-level component requests an output length `n` where `2**n > 2**c`, the
+capacity caps effective security: preimage and state recovery resistance cannot exceed 256 bits, and collision and
+distinguishing resistance cannot exceed 128 bits.
 
-To satisfy the security requirements of the duplex construction, Newplex uses the `pad10*1` multi-rate padding rule for
-every block. This rule ensures that every sequence of inputs results in a unique sequence of permutation inputs,
-preventing length-extension and collision attacks.
+Newplex uses the `pad10*1` multi-rate padding rule for every block, ensuring that every sequence of inputs produces a
+unique sequence of permutation inputs and preventing length-extension and collision attacks.
 
 In bit-level terms, `pad10*1` appends a `1` bit, followed by as many `0` bits as necessary, and a final `1` bit at the
 end of the rate. In the byte-oriented implementation of Newplex (assuming little-endian bit ordering within bytes):
@@ -412,44 +383,38 @@ end of the rate. In the byte-oriented implementation of Newplex (assuming little
 2. The final `1` bit corresponds to the most significant bit of the last byte of the rate (index 95), represented by the
    value `0x80`.
 
-This ensures the input is always uniquely decodable and that the boundary of every block is cryptographically distinct.
-Because every block in Newplex is framed and padded, the padding always consumes at least one bit and up to one full
-rate block.
+This ensures every input is uniquely decodable and every block boundary is cryptographically distinct. Because every
+block is framed and padded, the padding consumes at least one bit and up to one full rate block.
 
 ### Framing
 
-In a standard duplex construction, operations are naturally concatenative; for example, `Absorb(0x01)` followed by
-`Absorb(0x02)` results in the same internal state as a single `Absorb(0x0102)`. While this is acceptable for simple
-hashing, it is insufficient for complex protocols where the boundary between operations (such as a public key versus a
-nonce) must be cryptographically significant.
+In a standard duplex, operations are concatenative: `Absorb(0x01)` followed by `Absorb(0x02)` produces the same state
+as `Absorb(0x0102)`. This is acceptable for simple hashing but insufficient for protocols where operation boundaries
+(e.g., between a public key and a nonce) must be cryptographically significant.
 
-To enforce these boundaries, many designs trigger a full permutation between every operation. However, for wide-block
-permutations like Simpira-1024, this approach is inefficient, as many protocol metadata elements are significantly
-smaller than the 96-byte rate. Standard length-prefixing is an alternative, but it requires the length of data to be
-known before an operation begins, which is incompatible with streaming data.
+Many designs enforce boundaries by triggering a full permutation between every operation, but for wide-block
+permutations like Simpira-1024 this is inefficient--many metadata elements are much smaller than the 96-byte rate.
+Length-prefixing is an alternative but requires knowing the data length before an operation begins, which is
+incompatible with streaming.
 
-Newplex uses a STROBE-style framing mechanism to enforce domain separation. This mechanism records the byte index
-marking the beginning of a "frame" (a group of related duplex operations) and ensures this index is absorbed into the
-state. This approach provides several key advantages:
+Newplex uses a STROBE-style framing mechanism for domain separation. It records the byte index marking the beginning of
+a "frame" (a group of related duplex operations) and absorbs this index into the state. This provides:
 
-* **Operational Boundaries:** It distinguishes between different sequences of duplex operations within a single
-  permutation block, as well as across block boundaries.
-* **Streamability:** Because framing is handled as data is processed, it does not require prior knowledge of the total
-  data length.
-* **Space Efficiency:** The logic requires only two reserved bytes of the rate: one for the padding rule and one to
-  absorb the framing metadata.
+* **Operational Boundaries:** Distinguishes between different sequences of duplex operations within a single permutation
+  block and across block boundaries.
+* **Streamability:** Framing is handled as data is processed, requiring no prior knowledge of the total data length.
+* **Space Efficiency:** Only two reserved bytes of the rate are needed: one for padding and one for framing metadata.
 
-By treating the semantics of the session--the sequence and size of every operation--as data bound to the state, Newplex
-can combine metadata and raw data into a single, efficient process without risking concatenation attacks.
+By treating session semantics--the sequence and size of every operation--as data bound to the state, Newplex combines
+metadata and raw data in a single process without risking concatenation attacks.
 
 ### Constants
 
-Newplex is built on a 1024-bit permutation (`b=1024`) with a 256-bit capacity (`c=256`). This leaves a total rate of 768
-bits (or exactly 96 bytes). To maintain the structural integrity of the duplex and the semantic integrity of the
-protocol, Newplex reserves the final two bytes of this rate for metadata. Consequently, the effective rate available for
-user data is 94 bytes. This design ensures that every permutation block is cryptographically delimited and properly
-padded without reducing the security level below the target 128 bits.
-The following constants are defined based on these parameters:
+Newplex is built on a 1024-bit permutation (`b=1024`) with a 256-bit capacity (`c=256`), leaving a rate of 768 bits (96
+bytes). The final two bytes of the rate are reserved for metadata, giving an effective user data rate of 94 bytes. This
+ensures every permutation block is cryptographically delimited and padded without reducing security below 128 bits.
+
+The following constants are defined:
 
 | Constant       | Value | Description                                                                                               |
 |----------------|-------|-----------------------------------------------------------------------------------------------------------|
@@ -460,7 +425,7 @@ The following constants are defined based on these parameters:
 
 ### Variables And State Layout
 
-To manage the duplex state and the framing logic, the construction maintains the following variables:
+The construction maintains the following variables:
 
 #### `state`
 
@@ -495,16 +460,14 @@ permutation blocks.
 
 ### Data Operations
 
-These operations facilitate the primary flow of information into and out of the duplex state. Because the effective rate
-is limited to 94 bytes, these operations automatically trigger the internal `Permute` function whenever the boundary of
-the effective rate is reached, ensuring the construction can handle data streams of arbitrary length.
+These operations handle the flow of data into and out of the duplex state. Because the effective rate is 94 bytes, they
+automatically trigger `Permute` when the rate boundary is reached, allowing data streams of arbitrary length.
 
 #### `Absorb`
 
-The `Absorb` operation is the fundamental method for injecting data into the duplex state. It XORs the input data into
-the state byte-by-byte. If the input exceeds the available space in the current block, the permutation is triggered to
-provide a fresh rate for the remaining data. This process ensures that the internal state becomes a cryptographic digest
-of the entire input history.
+The `Absorb` operation injects data into the duplex state by XORing it byte-by-byte. If the input exceeds the available
+space in the current block, the permutation is triggered to provide a fresh rate. The internal state becomes a
+cryptographic digest of the entire input history.
 
 ```text
 function Absorb(input):
@@ -517,10 +480,9 @@ function Absorb(input):
 
 #### `Squeeze`
 
-The `Squeeze` operation extracts pseudorandom bytes from the rate portion of the state. It is used to generate
-keystreams, authentication tags, or derived keys. If the underlying permutation is indistinguishable from a random
-permutation, the squeezed output is indistinguishable from a random bitstring, provided the capacity remains
-uncompromised.
+`Squeeze` extracts pseudorandom bytes from the rate, used to generate keystreams, authentication tags, or derived keys.
+If the permutation is indistinguishable from a random permutation, the output is indistinguishable from a random
+bitstring, provided the capacity remains uncompromised.
 
 ```text
 function Squeeze(n):
@@ -535,16 +497,14 @@ function Squeeze(n):
 
 #### `Encrypt`/`Decrypt`
 
-These operations implement the [DuplexWrap] technique, combining the mechanics of absorption and squeezing into a
-single pass.
+These operations implement the [DuplexWrap] technique, combining absorption and squeezing in a single pass.
 
 [DuplexWrap]: https://competitions.cr.yp.to/round1/keyakv1.pdf
 
-* `Encrypt` XORs the plaintext with the current rate to produce ciphertext. The ciphertext is then treated as the
-  new state of the rate, effectively "absorbing" the plaintext's influence into the transcript.
-* `Decrypt` XORs the ciphertext with the current rate to recover the plaintext. Crucially, the ciphertext (not the
-  recovered plaintext) is used to update the state, ensuring that both the encrypter and decrypter maintain synchronized
-  states if the underlying plaintext is identical.
+* `Encrypt` XORs the plaintext with the current rate to produce ciphertext. The ciphertext becomes the new rate state,
+  absorbing the plaintext's influence into the transcript.
+* `Decrypt` XORs the ciphertext with the current rate to recover the plaintext. The ciphertext (not the recovered
+  plaintext) updates the state, so encrypter and decrypter maintain synchronized states when the plaintext is identical.
 
 This technique provides IND-EAV security and can achieve IND-CPA security if the state is probabilistic (e.g., by
 absorbing a unique nonce before encryption).
@@ -575,39 +535,34 @@ function Decrypt(ciphertext):
 
 ##### IND-EAV (Indistinguishability against Eavesdropping)
 
-By default, the DuplexWrap technique provides IND-EAV security. Because the plaintext is XORed with the current rate (a
-pseudorandom keystream), a passive adversary cannot distinguish between the ciphertexts of two equal-length messages
-without access to the duplex state. This property holds as long as the capacity `c` is large enough to prevent state
-recovery, and the permutation `f` is indistinguishable from a random permutation.
+DuplexWrap provides IND-EAV security by default. The plaintext is XORed with the current rate (a pseudorandom
+keystream), so a passive adversary cannot distinguish between ciphertexts of two equal-length messages without access to
+the duplex state. This holds as long as the capacity prevents state recovery and the permutation is indistinguishable
+from a random permutation.
 
 ##### IND-CPA (Indistinguishability under Chosen Plaintext Attack)
 
-To protect against adversaries with access to an encryption oracle (i.e., the ability to choose plaintexts), the duplex
-state must be probabilistic, with a random IV or message counter having been absorbed into the state before encryption.
-Without this, an adversary will be able to recover the keystream by encrypting an all-zero plaintext, allowing them to
-decrypt other ciphertexts. In addition, the keystream reuse will allow passive adversaries to recover the XOR of any two
-plaintexts by XORing any two ciphertexts.
+To protect against adversaries with encryption oracle access (chosen plaintext attacks), the duplex state must be
+probabilistic: a random IV or message counter must be absorbed before encryption. Without this, an adversary can recover
+the keystream by encrypting an all-zero plaintext, and keystream reuse lets passive adversaries recover the XOR of any
+two plaintexts by XORing their ciphertexts.
 
 ##### Plaintext Dependency
 
-A defining characteristic of DuplexWrap is that the plaintext is effectively absorbed into the duplex's state. This
-property ensures that if any ciphertext byte is modified in transit, the receiver's state will immediately diverge from
-the sender's. This provides the foundational mechanism for message integrity; any later `Squeeze` operation will produce
-a different output, allowing for the detection of unauthorized modifications.
+A key property of DuplexWrap is that the plaintext is absorbed into the duplex's state. If any ciphertext byte is
+modified in transit, the receiver's state diverges from the sender's, so any later `Squeeze` produces a different
+output, enabling detection of unauthorized modifications.
 
 ### Control Operations
 
-Control operations manage the structural integrity of the duplex session. Unlike data operations, which process
-payloads, control operations enforce the semantics of the protocol, ensuring that the state is cryptographically bound
-to the sequence of operations.
+Control operations manage the structural integrity of the duplex session. They enforce protocol semantics, ensuring that
+the state is cryptographically bound to the sequence of operations.
 
 #### `Frame`
 
-The `Frame` operation provides domain separation by grouping related duplex operations into a single logical unit. It
-works by using the current state of the duplex as an internal delimiter: it absorbs the `frameIdx` (the start of the
-previous frame) into the state and then updates `frameIdx` to the current `rateIdx` (the start of the new frame). This
-ensures that even if two different sequences of operations involve the same raw data, the internal states will diverge
-based on how those operations were framed.
+`Frame` provides domain separation by grouping related duplex operations into a logical unit. It absorbs the `frameIdx`
+(start of the previous frame) into the state, then sets `frameIdx` to the current `rateIdx` (start of the new frame).
+Even if two different operation sequences involve the same raw data, the internal states diverge based on framing.
 
 ```text
 function Frame():
@@ -617,14 +572,12 @@ function Frame():
 
 #### `Permute`
 
-The `Permute` operation is the finalization step for a block of data. It is responsible for injecting the framing
-metadata and the padding bits into the reserved bytes of the rate before transforming the state with the underlying
-permutation `f`.
+`Permute` finalizes a block by injecting framing metadata and padding into the reserved rate bytes, then transforming
+the state with the permutation `f`.
 
-`Permute` operates in three phases. First, it XORs the current `frameIdx` into the next available byte of the rate,
-potentially being absorbed into the reserved framing byte (`FRAME_BYTE_IDX`) if the rate is full (i.e.,
-if `rateIdx = MAX_RATE_IDX`). Second, it applies the `pad10*1` scheme to the framed rate. Finally, it performs the
-permutation `f` (Simpira-1024) on the entire state and resets `rateIdx` and `frameIdx` to zero.
+It operates in three phases: (1) XOR the current `frameIdx` into the next rate byte (which may be `FRAME_BYTE_IDX` if
+the rate is full); (2) apply `pad10*1` padding; (3) run Simpira-1024 on the full state and reset `rateIdx` and
+`frameIdx` to zero.
 
 ```text
 function Permute():
@@ -645,16 +598,14 @@ function Permute():
 
 ### Worked Example: Domain Separation through Framing
 
-To visualize how framing prevents concatenation attacks, consider a hypothetical "Tiny-Newplex" with an effective rate
-of only four bytes (indices `0..3`) and two reserved bytes (index `4` for framing, index `5` for padding).
+To illustrate how framing prevents concatenation attacks, consider a "Tiny-Newplex" with an effective rate of four bytes
+(indices `0..3`) and two reserved bytes (index `4` for framing, index `5` for padding).
 
-Suppose we want to distinguish between two different sequences of operations: `Absorb(0xCA); Absorb(0xFE)` and
-`Absorb(0xCA); Frame(); Absorb(0xFE)`.
+Compare two operation sequences: `Absorb(0xCA); Absorb(0xFE)` and `Absorb(0xCA); Frame(); Absorb(0xFE)`.
 
 #### Sequence A: `Absorb(0xCA); Absorb(0xFE)`
 
-In this sequence, the two `Absorb` operations are performed within a single frame, signaling that they belong to a
-single semantic unit (e.g., a two-byte message).
+Both `Absorb` operations occur within a single frame (a single semantic unit, e.g., a two-byte message).
 
 |                | `S[0]` | `S[1]` | `S[2]` | `S[3]` | `S[4]` | `S[5]` | `rateIdx` | `frameIdx` |
 |----------------|--------|--------|--------|--------|--------|--------|-----------|------------|
@@ -668,8 +619,8 @@ The final input to the permutation is `[0xCA, 0xFE, 0x00, 0x01, 0x00, 0x80]`.
 
 #### Sequence B: `Absorb(0xCA); Frame(); Absorb(0xFE)`
 
-Unlike in the first sequence, `Frame()` is called between the `Absorb` operations, signaling that they belong to
-different logical units (e.g., a key byte and a value byte).
+`Frame()` is called between the `Absorb` operations, signaling different logical units (e.g., a key byte and a value
+byte).
 
 |                | `S[0]` | `S[1]` | `S[2]` | `S[3]` | `S[4]` | `S[5]` | `rateIdx` | `frameIdx` |
 |----------------|--------|--------|--------|--------|--------|--------|-----------|------------|
@@ -682,30 +633,23 @@ different logical units (e.g., a key byte and a value byte).
 
 The final input to the permutation is `[0xCA, 0x00, 0xFE, 0x02, 0x01, 0x80]`.
 
-Even though both sequences processed the same input bytes in the same order (`[0xCA, 0xFE]`), the final permutation
-inputs are distinct. In Sequence A, the data occupies contiguous indices and the frame metadata is zero. In Sequence B,
-the `Frame` operation absorbed the previous `frameIdx` into the state and moved the absorption position of the second
-data byte (`0xFE`). This mechanism ensures that the duplex state is not just a transcript of the data but of the
-metadata as well.
+Both sequences process the same bytes (`[0xCA, 0xFE]`), but the permutation inputs differ. In Sequence A, the data
+occupies contiguous indices and the frame metadata is zero. In Sequence B, `Frame` absorbed the previous `frameIdx` and
+shifted the absorption position of `0xFE`. The duplex state captures not just the data but also its framing structure.
 
 ### State Operations
 
-State operations manage the lifecycle and security posture of the duplex object. These functions allow the duplex to
-provide advanced properties like forward secrecy and to support complex protocol flows that require state persistence or
-branching.
+State operations manage the lifecycle of the duplex object, enabling forward secrecy and supporting protocol flows that
+require state persistence or branching.
 
 #### `Ratchet`
 
-The `Ratchet` operation provides forward secrecy by irreversibly modifying the duplex state. In the event of a total
-state compromise, an adversary should ideally be unable to recover past inputs or outputs by inverting the permutation
-to a previous state.
+`Ratchet` provides forward secrecy by irreversibly modifying the duplex state. After a state compromise, an adversary
+cannot recover past inputs or outputs by inverting the permutation.
 
-`Ratchet` achieves this by invoking `Permute` and then zeroing out the initial portion of the rate. Advancing the
-`rateIdx` ensures that the next data operation begins after the zeroed-out memory. The 32-byte depth is mathematically
-chosen to match the 256-bit capacity (`c`). An attacker in possession of the post-ratchet state will be unable to invert
-the permutation without the missing `c` bits of the rate. Since recovering these bits requires `2**256` work (matching
-the cost of a full state recovery attack), the ratchet provides robust forward secrecy that aligns with the framework's
-maximum security bound.
+`Ratchet` invokes `Permute`, then zeros the first 32 bytes of the rate and advances `rateIdx` past them. The 32-byte
+depth matches the 256-bit capacity: an attacker with the post-ratchet state cannot invert the permutation without the
+missing `c` bits, which requires `2**256` work (the cost of full state recovery).
 
 ```text
 function Ratchet():
@@ -720,27 +664,25 @@ Ratcheting the duplex reduces its available rate by 32 bytes for the next block 
 
 #### `Clone`
 
-The `Clone` operation creates an exact, independent copy of the current duplex session. This includes the full 128-byte
-`state`, the current `rateIdx`, and the `frameIdx`.
+`Clone` creates an independent copy of the current duplex session, including the full 128-byte `state`, `rateIdx`, and
+`frameIdx`.
 
 #### `Clear`
 
-The `Clear` operation overwrites the duplex state, rate index, and frame index with zeros.
+`Clear` overwrites the duplex state, rate index, and frame index with zeros.
 
 ## The Protocol Framework
 
-The Newplex Protocol Framework sits atop the duplex engine, providing a high-level interface for building secure,
-interoperable cryptographic schemes. While the duplex engine ensures that data is processed securely, the Protocol
-Framework ensures that data is processed unambiguously.
+The Protocol Framework sits atop the duplex engine, providing a high-level interface for building cryptographic schemes.
+The duplex ensures data is processed securely; the Protocol Framework ensures it is processed unambiguously.
 
-This is achieved through a strict grammar of cryptographic intent. Every action taken--whether absorbing a public
-key, deriving a session secret, or encrypting a payload--is explicitly denoted with its semantic purpose.
+Every action--absorbing a public key, deriving a session secret, encrypting a payload--is explicitly tagged with its
+semantic purpose.
 
 ### Operation Codes
 
-Newplex defines seven fundamental operations: `Init`, `Mix`, `Derive`, `Mask`/`Unmask`, `Seal`/`Open`, `Fork`, and
-`Ratchet`. Each operation is assigned a unique base operation code (opcode) which distinguishes them in the duplex
-state.
+Newplex defines seven operations: `Init`, `Mix`, `Derive`, `Mask`/`Unmask`, `Seal`/`Open`, `Fork`, and `Ratchet`. Each
+has a unique base operation code (opcode).
 
 | Operation       | Code                 | Description                                                           |
 |-----------------|----------------------|-----------------------------------------------------------------------|
@@ -754,15 +696,12 @@ state.
 
 ### The Two-Frame Structure
 
-To enforce domain separation at the operation level, every operation (except `Init`) performs duplex operations within
-two distinct **operation phases**: the metadata frame and the data frame. While the duplex engine uses the term `Frame`
-to describe the low-level delimitation of data, the protocol framework uses these phases to distinguish between
-cryptographic intent (metadata) and the primary payload (data).
+Every operation except `Init` uses two phases: a metadata frame and a data frame. The duplex `Frame` provides low-level
+delimitation; the protocol framework uses these phases to distinguish cryptographic intent (metadata) from the
+primary payload (data).
 
-During the metadata frame, the protocol absorbs the base
-opcode (with the high bit cleared) and a domain separation label with the duplex. This binds the intent of the operation
-to the transcript. During the data frame, it absorbs the modified opcode (with the high bit set) with the duplex before
-executing the primary logic of the operation.
+In the metadata frame, the protocol absorbs the base opcode (high bit cleared) and a domain separation label. In the
+data frame, it absorbs the modified opcode (high bit set) before executing the operation's primary logic.
 
 ```mermaid
 flowchart LR
@@ -784,35 +723,29 @@ flowchart LR
 
 ### Operation Labels
 
-Every protocol operation requires a descriptive operation label. These labels act as internal documentation to be
-cryptographically folded into the state, enforcing domain separation between different operations. The purpose of an
-operation label is to provide clarity for human readers and cryptographic distinctness for the duplex; each should
-describe the specific purpose of the data (e.g., `"p256-public-key"`, `"session-nonce"`, or `"json-payload"`). Generic
-or sequential labels like `"data"`, `"first"`, or `"1"` should be avoided, as they provide no semantic context and
-increase the risk of domain confusion. Internally, operation labels are implemented as Unicode strings with an
-NFC-normalized UTF-8 byte representation.
+Every operation requires an operation label which is cryptographically folded into the state, enforcing domain
+separation. Labels should describe the specific purpose of the data (e.g., `"p256-public-key"`, `"session-nonce"`,
+`"json-payload"`). Avoid generic labels like `"data"`, `"first"`, or `"1"`--they provide no semantic context and
+increase the risk of domain confusion. Internally, labels are NFC-normalized UTF-8 byte strings.
 
 ### Transcript Security
 
-Because Newplex binds the protocol domain string, the sequence of all previous operations, the operation types, and
-their operation labels into the duplex state, the resulting transcript is uniquely decodable.
+Because Newplex binds the protocol domain string, the sequence of operations, their types, and their labels into the
+duplex state, the transcript is uniquely decodable.
 
-An adversary cannot take a valid `Mix` operation from one part of a protocol and present it as a `Seal` operation in
-another, nor can they swap the contents of two operations with different operation labels. Any deviation from the
-established sequence causes the internal state of the participants to diverge, ensuring that a final authentication
-check will fail.
+An adversary cannot reinterpret a `Mix` as a `Seal`, nor swap the contents of operations with different labels. Any
+deviation causes the participants' internal states to diverge, so a final authentication check will fail.
 
-These properties collectively provide full context commitment (CMT-4). Unlike traditional AEAD constructions where a
-ciphertext might only be a commitment to the key and nonce, a Newplex `Seal` is a commitment to the entire session
-transcript. This ensures that a ciphertext and tag pair is cryptographically inseparable from the specific protocol
-instance and sequence of operations that produced it.
+This provides full context commitment (CMT-4). Unlike traditional AEAD constructions where a ciphertext commits only to
+the key and nonce, a Newplex `Seal` commits to the entire session transcript. A ciphertext-tag pair is cryptographically
+inseparable from the specific protocol instance and operation sequence that produced it.
 
 ### Operations
 
 #### `Init`
 
-The `Init` operation is the required first operation for a protocol. As its only input is a protocol domain string for
-the entire protocol, it consists of a single metadata frame:
+`Init` is the required first operation. It takes a protocol domain string as its sole input and consists of a single
+metadata frame:
 
 ```text
 function Init(domain):
@@ -831,8 +764,8 @@ The BLAKE3 recommendations for KDF context strings apply equally to Newplex prot
 
 #### `Mix`
 
-The `Mix` operation accepts an operation label and an arbitrary byte sequence as inputs, and makes the protocol's state
-dependent on both. It can be used for both secret and public data alike. During its data frame, it absorbs the input.
+`Mix` accepts an operation label and an arbitrary byte sequence, making the protocol's state dependent on both. It works
+for both secret and public data. During its data frame, it absorbs the input.
 
 ```text
 function Mix(label, input):
@@ -844,13 +777,13 @@ function Mix(label, input):
   duplex.Absorb(input)
 ```
 
-Because the input is internally delimited within a duplex frame, the length of the input does not need to be known in
-advance, making `Mix` suitable for streaming data.
+Because the input is delimited within a duplex frame, its length does not need to be known in advance, making `Mix`
+suitable for streaming data.
 
 #### `Derive`
 
-The `Derive` operation extracts a pseudorandom byte string of length `n` from the current protocol state. This output is
-cryptographically dependent on the entire preceding transcript, the operation label, and the requested output length.
+`Derive` extracts `n` pseudorandom bytes from the current protocol state, cryptographically dependent on the entire
+preceding transcript, the operation label, and the requested output length.
 
 ```text
 function Derive(label, n):
@@ -864,34 +797,29 @@ function Derive(label, n):
   return duplex.Squeeze(n)
 ```
 
-`Derive` absorbs the operation code and operation label in the metadata frame. In the data frame, it absorbs the output
-length (encoded with LEB128) and permutes the duplex state, ensuring both its pseudorandomness and its cryptographic
-dependence on the output length. Finally, it squeezes `n` bytes from the duplex state.
+`Derive` absorbs the opcode and label in the metadata frame. In the data frame, it absorbs the output length (LEB128
+encoded) and permutes the state, ensuring pseudorandomness and dependence on the output length, then squeezes `n` bytes.
 
 ##### Random Oracle
 
-Assuming the Simpira-1024 permutation is indistinguishable from a random permutation (a Pseudorandom Permutation, or
-PRP), [the duplex is indistinguishable from a random oracle][duplex security] up to the capacity bound. The inclusion of
-the output length prior to permutation and squeezing allows for `Derive` to be used in cryptographic schemes where a
-random oracle is required.
+Assuming Simpira-1024 is indistinguishable from a random permutation (PRP), [the duplex is indistinguishable from a
+random oracle][duplex security] up to the capacity bound. Including the output length before permuting and squeezing
+allows `Derive` to serve as a random oracle.
 
 [duplex security]: https://eprint.iacr.org/2022/1340.pdf
 
 ##### KDF Security
 
-A sequence of `Mix` operations followed by an operation which produces output (e.g., `Derive`, `Mask`, `Seal`, etc.)
-is equivalent to constructing a string using a recoverable encoding, absorbing it into a duplex, then squeezing a
-prefix-free output string. This maps directly to [Backendal et al.'s RO-KDF construction][n-KDFs], meaning a Newplex
-protocol is a KDF-secure XOF-n-KDF.
+A sequence of `Mix` operations followed by an output operation (`Derive`, `Mask`, `Seal`, etc.) is equivalent to
+absorbing a recoverably-encoded string into a duplex and squeezing a prefix-free output. This maps to [Backendal et
+al.'s RO-KDF construction][n-KDFs], making a Newplex protocol a KDF-secure XOF-n-KDF.
 
 [n-KDFs]: https://eprint.iacr.org/2025/657.pdf
 
 ##### KDF Chains
 
-Because `Derive` is KDF-secure with respect to the protocol's state and replaces the protocol's state with KDF-derived
-output (i.e., permutation outputs), sequences of operations which accept input and output in a protocol form
-a [KDF chain] if terminated with a `Ratchet` operation. Consequently, Newplex protocols have the following security
-properties:
+Because `Derive` is KDF-secure and replaces the protocol's state with permutation outputs, sequences of input/output
+operations form a [KDF chain] when terminated with `Ratchet`. This gives Newplex protocols the following properties:
 
 [KDF chain]: https://signal.org/docs/specifications/doubleratchet/doubleratchet.pdf
 
@@ -904,8 +832,8 @@ properties:
 
 #### `Mask` / `Unmask`
 
-The `Mask` operation encrypts a plaintext using the current protocol state and operation label, while `Unmask` reverses
-the process. Both operations result in a protocol state dependent on the operation's plaintext.
+`Mask` encrypts a plaintext using the current protocol state and operation label; `Unmask` reverses the process. Both
+leave the protocol state dependent on the plaintext.
 
 ```text
 function Mask(label, plaintext):
@@ -927,14 +855,11 @@ function Unmask(label, ciphertext):
   return duplex.Decrypt(ciphertext)
 ```
 
-`Mask` absorbs the operation code and operation label in the metadata frame. In the data frame, it first permutes the
-duplex's state to ensure its pseudorandomness. It then calls the [`Encrypt`](#encryptdecrypt) operation, which XORs the
-plaintext with the duplex's state to produce both the ciphertext and the duplex's new state.
+`Mask` absorbs the opcode and label in the metadata frame. In the data frame, it permutes the state, then calls
+[`Encrypt`](#encryptdecrypt) to XOR the plaintext with the state, producing ciphertext and updating the state.
+`Unmask` is identical but calls [`Decrypt`](#encryptdecrypt).
 
-`Unmask` is identical except it calls the [`Decrypt`](#encryptdecrypt) duplex operation.
-
-Unlike [`Derive`](#derive) and [`Seal`](#sealopen), `Mask` does not require the length of the plaintext to be known in
-advance, and is suitable for streaming operations.
+Unlike `Derive` and `Seal`, `Mask` does not require the plaintext length in advance and is suitable for streaming.
 
 ##### Cryptographic Properties
 
@@ -957,8 +882,8 @@ advance, and is suitable for streaming operations.
 
 #### `Seal`/`Open`
 
-`Seal` and `Open` operations extend the `Mask` and `Unmask` operations with the inclusion of a 16-byte authentication
-tag. The `Open` operation verifies the tag, returning an error if the tag is invalid.
+`Seal` and `Open` extend `Mask` and `Unmask` with a 16-byte authentication tag. `Open` verifies the tag, returning an
+error if invalid.
 
 ```text
 function Seal(label, plaintext):
@@ -991,33 +916,27 @@ function Open(label, input):
   return plaintext
 ```
 
-`Seal` absorbs the operation code and operation label in the metadata frame. In the data frame, it absorbs the length of
-the plaintext (as encoded with LEB128) and permutes the duplex's state to ensure its pseudorandomness. It then calls
-the [`Encrypt`](#encryptdecrypt) operation, which XORs the plaintext with the duplex's state to produce both the
-ciphertext and the duplex's new state. Next, it permutes the duplex's state again to enforce the dependency on the
-plaintext and squeezes a 16-byte authentication tag from the duplex.
+`Seal` absorbs the opcode and label in the metadata frame. In the data frame, it absorbs the plaintext length (LEB128
+encoded) and permutes the state. It then encrypts the plaintext, permutes again to enforce plaintext dependency, and
+squeezes a 16-byte tag.
 
-`Open` is identical but uses the duplex to decrypt the data and compares the received tag to an expected tag derived
-from the received plaintext. If the two are equal (using a constant-time comparison function), the plaintext is
-returned. Otherwise, an error is returned.
+`Open` is identical but decrypts and compares the received tag to the expected tag using constant-time comparison.
 
-The ciphertext is dependent on the length of the plaintext, making `Seal` unsuitable for streaming operations. See
-the [streaming authenticated encryption](#streaming-authenticated-encryption) scheme for a solution.
+Because `Seal` depends on the plaintext length, it is unsuitable for streaming. See
+[streaming authenticated encryption](#streaming-authenticated-encryption) for a streaming alternative.
 
 ##### Cryptographic Properties
 
-* `Seal` and `Open` provide indistinguishability under adaptive chosen-ciphertext attack (IND-CCA2), ensuring both
-  confidentiality and integrity, provided the protocol state is probabilistic (e.g., includes a nonce).
-* Because the authentication tag is derived from the duplex state after every preceding operation (including the domain
-  string, all previous labels, and all previous data), `Seal` provides a binding commitment to the entire session
-  context. Full context commitment (CMT-4) prevents partitioning oracle attacks and context-confusion vulnerabilities,
-  as a ciphertext and tag pair cannot be validly decrypted under a different key, nonce, associated data, or protocol
-  state.
+* `Seal` and `Open` provide IND-CCA2 security (confidentiality and integrity), given a probabilistic protocol state
+  (e.g., includes a nonce).
+* The tag is derived from the duplex state after all preceding operations, so `Seal` commits to the entire session
+  context (CMT-4). A ciphertext-tag pair cannot be validly decrypted under a different key, nonce, associated data, or
+  protocol state, preventing partitioning oracle and context-confusion attacks.
 
 #### `Fork`
 
-`Fork` accepts a label and a variable number of branch values, returning a tuple (or array) of independent, cloned child
-protocols that have each absorbed their respective branch value.
+`Fork` accepts a label and branch values, returning independent cloned child protocols that have each absorbed their
+respective branch value.
 
 ```text
 function Fork(label, ...values):
@@ -1034,14 +953,14 @@ function Fork(label, ...values):
   return branches
 ```
 
-The ability to create two divergent branches is useful
+Divergent branches are useful
 for [bidirectional communication](#mutually-authenticated-handshake), [Fiat-Shamir transforms](#digital-signature), and
-any scheme in which data flow is non-linear (e.g. [SIV](#deterministic-authenticated-encryption-siv)).
+non-linear data flows (e.g., [SIV](#deterministic-authenticated-encryption-siv)).
 
 #### `Ratchet`
 
 `Ratchet` accepts an operation label and irreversibly modifies the protocol's state, preventing rollback attacks and
-establishing forward secrecy in the event of a state compromise.
+establishing forward secrecy.
 
 ```text
 function Ratchet(label):
@@ -1056,32 +975,26 @@ function Ratchet(label):
 > [!NOTE]
 > Ratcheting a protocol reduces its available rate by 32 bytes for the next block of data.
 
-As described in the duplex [`Ratchet`](#ratchet) operation, this permutes the state, clears the first 32 bytes of the
-rate, and advances the duplex's rate index by 32.
+As in the duplex [`Ratchet`](#ratchet), this permutes the state, clears the first 32 bytes of the rate, and advances the
+rate index by 32.
 
 ## Basic Schemes
 
-The operations defined in the Newplex [protocol](#the-protocol-framework) provide a complete toolkit for symmetric
-cryptography. Because Newplex is designed to be fundamentally flexible, it can seamlessly replace a wide variety of
-traditional, single-purpose cryptographic primitives--including standalone hash functions, message authentication codes
-(MACs), stream ciphers, and AEADs.
+The [protocol operations](#the-protocol-framework) provide a complete symmetric cryptography toolkit, replacing
+standalone hash functions, MACs, stream ciphers, and AEADs.
 
-The schemes detailed in this section demonstrate how to combine Newplex's operations to construct standard, high-level
-cryptographic primitives. Crucially, these basic schemes are self-contained; they require no cryptographic algorithms or
-primitives other than the Newplex framework. By relying solely on the stateful duplex engine and the structure of the
-protocol operations, designers and implementers can achieve clear, secure, and auditable cryptographic schemes.
+The schemes in this section combine Newplex operations to construct standard cryptographic primitives. They are
+self-contained, requiring no algorithms beyond the Newplex framework.
 
-Each scheme's security analysis follows a common structure: it identifies the relevant duplex model (unkeyed or keyed),
-maps the scheme's operations to established duplex properties (random oracle indifferentiability, PRF security, or
-collision resistance), and derives concrete bounds from the 256-bit capacity. This uniform approach demonstrates that
-the security of every basic scheme reduces directly to the security of the duplex construction, with no additional
-assumptions beyond the ideal-permutation model for Simpira-1024.
+Each security analysis identifies the relevant duplex model (unkeyed or keyed), maps the scheme's operations to duplex
+properties (random oracle indifferentiability, PRF security, or collision resistance), and derives concrete bounds from
+the 256-bit capacity. Every basic scheme's security reduces to the duplex construction, with no additional assumptions
+beyond the ideal-permutation model for Simpira-1024.
 
 ### Message Digest
 
-A message digest (or cryptographic hash function) maps an input message of arbitrary length to a deterministic,
-fixed-length pseudorandom output. By initializing a Newplex protocol, mixing in the message, and deriving an output, the
-framework trivially implements a secure hash function.
+A message digest maps an arbitrary-length input to a deterministic, fixed-length pseudorandom output. Initializing a
+protocol, mixing in the message, and deriving output yields a secure hash function.
 
 ```text
 function MessageDigest(message):
@@ -1094,42 +1007,30 @@ function MessageDigest(message):
 
 #### Cryptographic Properties
 
-The security of a hash function is formally evaluated against three games: Collision Resistance (CR), Preimage
-Resistance (Pre), and Second Preimage Resistance (Sec).
+Hash function security is evaluated against three games:
 
-* **Collision Resistance:** In the CR game, an adversary wins if they can find any two distinct inputs `x` and `x'` such
-  that `H(x) = H(x')` within a polynomial time frame; because of the Birthday Paradox, this is generally considered the
-  hardest property to maintain, as the security bound is `2**(n/2)` for an `n`-bit output.
-* **Preimage Resistance** The Pre game (the "one-way" property) challenges the adversary to find an input `x` that maps
-  to a specific, randomly chosen target `y`.
-* **Second Preimage Resistance**: In the Sec game, the adversary must find a different input `x'` that hashes to the
-  same value as a fixed, given input `x`.
+* **Collision Resistance (CR):** Find any two distinct inputs `x`, `x'` with `H(x) = H(x')`. The birthday bound gives
+  security `2**(n/2)` for an `n`-bit output.
+* **Preimage Resistance (Pre):** Given a target `y`, find `x` such that `H(x) = y`.
+* **Second Preimage Resistance (Sec):** Given a fixed input `x`, find a different `x'` with `H(x) = H(x')`.
 
 #### Security Analysis
 
-Because this scheme does not incorporate secret key material, it is evaluated in the unkeyed duplex model. The adversary
-is assumed to have full read access to the internal state and the sequence of operations.
+This scheme uses no secret key material and is evaluated in the unkeyed duplex model, where the adversary has full read
+access to the internal state.
 
-The security of this scheme reduces directly to the security of the underlying duplex construction. Since `Init`, `Mix`,
-and `Derive` are strictly sequenced `Absorb` and `Squeeze` operations, the scheme inherits the
-duplex's [indifferentiability from a random oracle](#assumptions) up to the 128-bit security bound, provided the
-Simpira-1024 permutation has no structural weaknesses.
+Since `Init`, `Mix`, and `Derive` are sequenced `Absorb` and `Squeeze` operations, the scheme inherits the
+duplex's [indifferentiability from a random oracle](#assumptions) up to the 128-bit bound.
 
-In a random oracle model, resistance to preimage attacks requires an effort of `2**(n*8)`, where `n` is the length of
-the digest in bytes. However, in the duplex construction, this is capped by the capacity `c`. For Newplex, preimage
-resistance is `min(2**256, 2**(n*8))`. Due to the birthday bound, resistance to collision attacks requires an effort of
-`min(2**128, 2**((n*8)/2))`.
-
-To align with Newplex's baseline security target of `2**128`, a message digest must be at least 32 bytes (256 bits)
-long. This provides 256-bit preimage resistance and 128-bit collision resistance. Requesting a longer digest (e.g., 64
-bytes) will increase resistance to brute-force preimage attacks up to the 256-bit capacity limit, but will not increase
-collision resistance beyond the 128-bit construction bound.
+Preimage resistance is `min(2**256, 2**(n*8))` for an `n`-byte digest; collision resistance is
+`min(2**128, 2**((n*8)/2))`. To meet the 128-bit security target, a digest must be at least 32 bytes (256 bits),
+providing 256-bit preimage resistance and 128-bit collision resistance. Longer digests increase preimage resistance up
+to the 256-bit capacity limit but do not increase collision resistance beyond 128 bits.
 
 ### Message Authentication Code (MAC)
 
-A Message Authentication Code (MAC) provides both data integrity and authenticity. By mixing a secret key into the
-protocol state before processing the message, Newplex creates a cryptographically secure binding between the secret key,
-the arbitrary-length message, and the resulting fixed-length tag.
+A MAC provides data integrity and authenticity by binding a secret key, an arbitrary-length message, and a fixed-length
+tag.
 
 ```text
 function MAC(key, message):
@@ -1143,51 +1044,34 @@ function MAC(key, message):
 
 #### Cryptographic Properties
 
-The security of a MAC is formally evaluated against two unforgeability games: Existential Unforgeability under
-Chosen-Message Attacks (EUF-CMA) and Strong Existential Unforgeability under Chosen-Message Attacks (SUF-CMA).
+MAC security is evaluated against two unforgeability games:
 
-* **Existential Unforgeability:** In this game, an adversary can query an oracle to get valid tags for multiple messages
-  of their choosing. A scheme is EUF-CMA secure if the adversary remains computationally unable to generate a valid tag
-  for any new, previously unqueried message. This is the baseline level of security for a MAC.
-* **Strong Existential Unforgeability:** In the SUF-CMA game, the adversary's winning condition is expanded: they
-  succeed not only by forging a tag for a new message, but also by producing a new, alternative valid tag for a message
-  they have already queried. This is a higher level of security that precludes malleability attacks.
+* **EUF-CMA (Existential Unforgeability):** The adversary queries an oracle for tags on chosen messages and must forge a
+  valid tag for a new, unqueried message.
+* **SUF-CMA (Strong Existential Unforgeability):** The adversary must produce either a tag for a new message or a new
+  valid tag for an already-queried message. This precludes malleability attacks.
 
 #### Security Analysis
 
-Unlike the Message Digest scheme, the MAC scheme is evaluated in the keyed duplex model. The adversary is assumed to not
-have access to the duplex's state but is limited to choosing inputs and seeing outputs.
+The MAC scheme is evaluated in the keyed duplex model: the adversary cannot access the duplex state but can choose
+inputs and observe outputs.
 
-[As previously mentioned](#assumptions), in the keyed model the duplex construction acts as a secure pseudorandom
-function (PRF) as a result of the unexposed capacity portion of its state. A secure PRF natively satisfies the
-requirements for both EUF-CMA and SUF-CMA because its output is computationally indistinguishable from a truly random
-string to any polynomial-time adversary. In the EUF-CMA model, an attacker who queries a PRF-based MAC for various
-messages `M_i` cannot produce a valid tag for any new message `M_*` because the PRF's output on an unseen input is, by
-definition, unpredictable and appears as a random draw from the output space `{0,1}**n`. Furthermore, the PRF's property
-as a deterministic function inherently grants it SUF-CMA security; since a specific message can only map to one unique,
-pseudorandom tag `T`, an adversary cannot produce a "new" valid tag for a previously queried message. Consequently, the
-probability of an adversary successfully forging a tag is effectively bounded by the probability of guessing a random
-`n`-bit string, which is `2**(-n)`, plus the negligible advantage of distinguishing the PRF from a random oracle (which
-is bounded by `N**2 / 2**256` for `N` queries).
+[As established](#assumptions), the keyed duplex acts as a secure PRF. A secure PRF satisfies both EUF-CMA and SUF-CMA
+because its output is indistinguishable from random. The forgery probability is bounded by `2**(-n)` (guessing an
+`n`-bit tag) plus the PRF distinguishing advantage (`N**2 / 2**256` for `N` queries).
 
-To maintain the framework's baseline security target of `2**128` even in multi-target scenarios, the `key` must contain
-at least 16 bytes (128 bits) of cryptographic entropy. A 32-byte (256-bit) key is strongly recommended; while it does
-not increase the theoretical security bound of the duplex construction (which remains 128-bit due to the birthday bound
-on the capacity), it provides a significantly larger margin against key-search and multi-target attacks with effectively
-no performance penalty.
+The `key` must contain at least 16 bytes (128 bits) of entropy. A 32-byte (256-bit) key is recommended: it does not
+increase the theoretical security bound (128-bit, due to the birthday bound on capacity) but provides a larger margin
+against key-search and multi-target attacks.
 
-The `Derive` operation requests a 16-byte (128-bit) tag. Unlike collision resistance in hash functions, MAC
-unforgeability is not constrained by the birthday bound. To forge a tag for a specific message, an attacker must guess
-the exact 128-bit output, which requires a computational effort of `2**128`. Therefore, a 16-byte tag provides the full
-128-bit security level.
+The 16-byte (128-bit) tag provides the full 128-bit security level. Unlike collision resistance, MAC unforgeability is
+not constrained by the birthday bound--forging requires guessing the exact output, costing `2**128`.
 
 ### Stream Cipher
 
-A stream cipher provides confidentiality for arbitrary-length data by combining the plaintext with a pseudorandom
-keystream. In Newplex, a secure stream cipher is constructed by initializing a protocol and mixing a secret key and a
-unique nonce into the state. This establishes a probabilistic, secret context. The `Mask` and `Unmask` operations then
-use the duplex to generate the keystream on demand, encrypting or decrypting the data continuously without the need for
-block padding or prior knowledge of the message length.
+A stream cipher provides confidentiality by combining plaintext with a pseudorandom keystream. Mixing a secret key and
+unique nonce into the protocol state establishes a probabilistic, secret context. `Mask` and `Unmask` generate the
+keystream on demand, encrypting or decrypting without block padding or prior knowledge of message length.
 
 ```text
 function StreamEncrypt(key, nonce, plaintext):
@@ -1207,45 +1091,25 @@ function StreamDecrypt(key, nonce, ciphertext):
 
 #### Cryptographic Properties
 
-Formal evaluation of a stream cipher is done with two indistinguishability games: Indistinguishability under
-Eavesdropping (IND-EAV) and Indistinguishability under Chosen-Plaintext Attack (IND-CPA).
+Stream cipher security is evaluated with two games:
 
-* **Indistinguishability under Eavesdropping:** In the IND-EAV game (often referred to as the semantic security game),
-  the adversary provides two equal-length messages, `m0` and `m1`, and must determine which was encrypted by a challenge
-  ciphertext; success requires the cipher to hide all partial information against a passive observer. For stream
-  ciphers, this is equivalent to the Pseudorandom Generator (PRG) game, where a distinguisher tries to differentiate the
-  keystream from a truly random string.
-* **Indistinguishability under Chosen-Plaintext Attack:** IND-CPA extends IND-EAV by allowing the adversary to query an
-  encryption oracle for chosen messages, a scenario where stateful stream ciphers must remain secure provided a unique
-  initialization vector or nonce is used for every session. In this context, the security goal is to ensure that even
-  with multiple ciphertexts, the underlying "mask" remains pseudorandom, preventing any linear or statistical leakage
-  that could compromise the plaintext.
+* **IND-EAV:** The adversary provides two equal-length messages and must determine which was encrypted. For stream
+  ciphers, this is equivalent to the PRG game: distinguishing the keystream from a random string.
+* **IND-CPA:** Extends IND-EAV by allowing encryption oracle queries. Security holds provided a unique nonce is used per
+  session.
 
 #### Security Analysis
 
-Like the MAC scheme, the stream cipher scheme is evaluated in the keyed duplex model. The adversary is assumed
-to not have access to the duplex's state but is limited to choosing inputs and seeing outputs.
-
-[As previously mentioned](#assumptions), in the keyed model the duplex construction acts as a secure pseudorandom
-function (PRF) as a result of the unexposed capacity portion of its state. A secure PRF combined with the XOR operation
-achieves IND-EAV and IND-CPA security by effectively approximating a One-Time Pad. For IND-EAV, the PRF's output is
-computationally indistinguishable from a truly random string (a Random Oracle). XORing the plaintext with this keystream
-produces a ciphertext that is also indistinguishable from random noise, thereby leaking zero information to a passive
-adversary. This security extends to IND-CPA provided that a unique nonce or initialization vector is used for every
-encryption query. By inputting the unique nonce into the PRF, the sender ensures that each keystream is independent and
-fresh; even an adversary with oracle access cannot predict the keystream for a new challenge because they cannot
-distinguish the PRF's output from a fresh random draw. The advantage of any adversary in these games is bounded by the
-PRF distinguishing advantage of the duplex, which is at most `N**2 / 2**256` for `N` total queries to the permutation,
-yielding 128-bit security up to the birthday bound of the capacity.
+Evaluated in the keyed duplex model. The keyed duplex acts as a secure PRF, and PRF output XORed with plaintext
+approximates a one-time pad. For IND-EAV, the ciphertext is indistinguishable from random. IND-CPA holds when a unique
+nonce ensures each keystream is independent. The adversary's advantage is bounded by the PRF distinguishing advantage
+(`N**2 / 2**256` for `N` queries), yielding 128-bit security.
 
 ### Authenticated Encryption with Associated Data (AEAD)
 
-Authenticated Encryption with Associated Data (AEAD) provides confidentiality for a plaintext while simultaneously
-ensuring the integrity and authenticity of both the plaintext and any additional unencrypted information (associated
-data). In Newplex, an AEAD scheme is constructed by sequentially mixing a secret key, a unique nonce, and the associated
-data into the protocol state to establish a fully authenticated, probabilistic context. The Seal operation then encrypts
-the plaintext and generates an authentication tag bound to the entire transcript, while the Open operation verifies this
-tag to ensure the ciphertext and associated data have not been tampered with.
+AEAD provides confidentiality for a plaintext while ensuring the integrity and authenticity of both the plaintext and
+associated data. A secret key, unique nonce, and associated data are mixed into the protocol state. `Seal` encrypts the
+plaintext and generates a tag bound to the entire transcript; `Open` verifies the tag.
 
 ```text
 function AEADSeal(key, nonce, ad, plaintext):
@@ -1265,71 +1129,35 @@ function AEADOpen(key, nonce, ad, ciphertext):
 
 #### Cryptographic Properties
 
-The formal evaluation of an AEAD scheme uses the Indistinguishability under Adaptive Chosen-Ciphertext Attack (IND-CCA2)
-game. IND-CCA2 focuses on confidentiality and integrity, but it does not strictly guarantee that a ciphertext is "tied"
-uniquely to a specific key, nonce, or associated data. The notion of Context Commitment addresses partitioning attacks,
-where a single ciphertext could potentially decrypt to two different valid plaintexts under two different contexts and
-is formally evaluated with the Full Context Commitment (CMT-4) game.
+AEAD security is evaluated with two games:
 
-* **Indistinguishability under Adaptive Chosen-Ciphertext Attack:** The IND-CCA2 game evaluates a scheme's resilience
-  against an adversary with continuous, stateful access to a decryption oracle. In this game, an adversary is first
-  permitted to submit arbitrary ciphertexts to an oracle and receive their corresponding plaintexts (the "pre-challenge"
-  phase). The adversary then provides two equal-length messages, `M_0` and `M_1`, and receives a challenge ciphertext
-  corresponding to one of them selected at random. Unlike the weaker IND-CCA1 model, the IND-CCA2 adversary retains
-  access to the decryption oracle even after receiving `C*`, allowing them to adaptively query any ciphertext provided
-  it is not bitwise identical to the challenge itself. To win, the adversary must determine which message was encrypted
-  with a probability non-negligibly greater than a random guess; thus, a scheme is IND-CCA2 secure only if it is
-  non-malleable, ensuring that even minor, strategic manipulations of a ciphertext yield no useful information about the
-  underlying plaintext.
-* **Full Context Commitment:** The CMT-4 game extends the traditional notion of key commitment to encompass the entire
-  input tuple of an AEAD scheme. In this game, an adversary is tasked with finding two distinct sets of
-  inputs--consisting of the secret key `K`, the nonce `N`, the associated data `AD`, and the message `M`--that map to
-  the same ciphertext/tag pair `(C, T)`. Formally, the scheme is considered context-committing if it is computationally
-  infeasible for an adversary to output `(K1, N1, AD1, M1)` and `(K2, N2, AD2, M2)` such that
-  `AEAD(K1...) = AEAD(K2...)` while ensuring the two input tuples are not identical. Achieving this property is critical
-  for preventing partitioning oracle attacks and "invisible salamander" exploits, where a single ciphertext could
-  otherwise be cryptographically misattributed to different senders or contexts. This effectively requires the AEAD
-  function to behave as a collision-resistant commitment to all its inputs.
+* **IND-CCA2:** The adversary has adaptive access to a decryption oracle. They submit two equal-length messages, receive
+  a challenge ciphertext, and must determine which message was encrypted--even while continuing to query the oracle
+  (excluding the challenge itself). A scheme is IND-CCA2 secure only if it is non-malleable.
+* **CMT-4 (Full Context Commitment):** The adversary must find two distinct input tuples `(K, N, AD, M)` that produce
+  the same ciphertext-tag pair. This prevents partitioning oracle attacks where a ciphertext could decrypt to different
+  plaintexts under different contexts.
 
 #### Security Analysis
 
-Like the stream cipher scheme, the AEAD scheme is evaluated in the keyed duplex model. The adversary is assumed
-to not have access to the duplex's state but is limited to choosing inputs and seeing outputs.
+Evaluated in the keyed duplex model. Absorbing the key, nonce, and associated data before producing output makes the
+initial state unpredictable. The synchronized state provides both confidentiality (stream cipher) and integrity (rolling
+MAC). IND-CCA2 follows because the construction provides INT-CTXT: any ciphertext manipulation causes the tag to
+mismatch. INT-CTXT combined with IND-CPA implies IND-CCA2.
 
-The IND-CCA2 security of this scheme is fundamentally derived from the properties of the underlying duplex construction
-and the strict enforcement of a nonce-based, authenticated-encryption-then-decryption flow. By absorbing the key, nonce,
-and associated data into the duplex state before producing any output, it effectively ensures that the initial state is
-unpredictable to an adversary. During the encryption phase, the scheme maintains a synchronized state that serves as a
-stream cipher for confidentiality while simultaneously functioning as a rolling MAC for integrity. The IND-CCA2
-guarantee is achieved because the construction provides INT-CTXT through its tag-generation mechanism; if an adversary
-attempts to adaptively submit a manipulated ciphertext to the decryption oracle, the duplex state's collision-resistant
-properties ensure that the resulting tag will, with overwhelming probability, fail to match. Since INT-CTXT combined
-with IND-CPA (provided by the secrecy of the duplex's inner state) implies IND-CCA2, this scheme remains secure even
-against adversaries who can adaptively query the decryption oracle with ciphertexts related to the challenge.
-
-The CMT-4 security of this scheme is rooted in the collision resistance of the underlying duplex and the fact that the
-entire input context--key, nonce, and associated data--is fully absorbed into the duplex state before the first
-ciphertext or tag bits are squeezed. Because the duplex operates as a sequence of permutations on a fixed-width state,
-the resulting ciphertext and tag are deterministic functions of the cumulative input history; thus, producing a
-duplicate `(C, T)` pair from two different `(K, N, AD, M)` tuples would require finding a collision within the inner
-state of the permutation. In a duplex with a 256-bit capacity, the probability of such a collision is bounded by the
-birthday bound relative to that capacity (`2**128`). Consequently, this scheme acts as a binding commitment to its full
-context up to the 128-bit security level, preventing an adversary from finding a single ciphertext that validly decrypts
-under different keys or metadata, thereby satisfying the CMT-4 requirement.
+CMT-4 follows from the duplex's collision resistance: the full context (key, nonce, associated data) is absorbed before
+any output. Producing a duplicate `(C, T)` pair from different `(K, N, AD, M)` tuples requires an inner-state collision,
+bounded by `2**128` (the birthday bound on the 256-bit capacity).
 
 ### Deterministic Authenticated Encryption (SIV)
 
-Deterministic Authenticated Encryption (DAE) provides the same confidentiality and integrity guarantees as a standard
-AEAD but adds robust protection against nonce reuse (commonly referred to as Misuse-Resistant Authenticated Encryption,
-or MRAE). In a standard stream cipher or AEAD scheme, reusing a nonce with the same key catastrophically compromises the
-keystream. SIV, a common DAE construction, mitigates this by requiring two passes over the data, ensuring the keystream
-is dependent on the plaintext itself.
+DAE provides the same guarantees as AEAD but adds protection against nonce reuse (Misuse-Resistant Authenticated
+Encryption, or MRAE). In a standard AEAD, nonce reuse catastrophically compromises the keystream. SIV mitigates this
+with two passes over the data, making the keystream dependent on the plaintext.
 
-To achieve these goals, this scheme leverages Newplex's `Fork` operation to branch the protocol state into independent
-authentication and confidentiality contexts. The authentication branch processes the entire plaintext to derive a
-deterministic authentication tag. This tag is then mixed into the confidentiality branch before the plaintext is
-encrypted. Consequently, if a nonce is accidentally reused, ciphertexts will only leak whether the underlying plaintexts
-were identical, preserving confidentiality for all unique messages.
+This scheme uses `Fork` to branch the protocol into independent authentication and confidentiality contexts. The
+authentication branch processes the plaintext to derive a deterministic tag, which is mixed into the confidentiality
+branch before encryption. If a nonce is reused, ciphertexts leak only whether the plaintexts were identical.
 
 ```text
 function SIVSeal(key, nonce, ad, plaintext):
@@ -1368,76 +1196,44 @@ function SIVOpen(key, nonce, ad, input):
 
 #### Cryptographic Properties
 
-The security of a DAE or MRAE scheme is formally evaluated using an "all-in-one" distinguishing game.
+DAE/MRAE security uses an "all-in-one" distinguishing game. The adversary has encryption and decryption oracles and
+must distinguish the real scheme from an ideal one (encryption returns random strings; decryption always rejects).
+Repeated queries are permitted since DAE is deterministic; the ideal oracle is also deterministic for identical inputs.
 
-In this model, an adversary is given access to an encryption oracle and a decryption oracle and must distinguish between
-the "real" scheme and an "ideal" counterpart. In the ideal world, the encryption oracle is replaced by a random
-injection (a true random function that returns uniformly random bitstrings of the appropriate length), and the
-decryption oracle unconditionally returns an invalid state for all queries.
-
-Because a DAE scheme is inherently deterministic, the adversary is explicitly permitted to query the encryption oracle
-with repeated inputs. To match this, the ideal encryption oracle is also deterministic: querying the exact same (nonce,
-associated data, plaintext) tuple will invariably return the identical random string.
-
-A scheme is considered secure if no polynomial-time adversary can distinguish the real oracles from the ideal oracles
-with non-negligible advantage. This single formalization captures two security goals: confidentiality and authenticity.
-First, the ciphertexts leak absolutely no information about the plaintexts--other than the equality of identical
-queries--and appear indistinguishable from random noise. If the nonces provided to the oracle are unique, the scheme
-achieves standard probabilistic AEAD security without leaking equality. Second, the adversary is computationally unable
-to forge a new, valid ciphertext that the decryption oracle will accept, even after actively forcing the encryption
-oracle to reuse nonces across multiple chosen plaintexts.
+This captures both confidentiality (ciphertexts leak nothing beyond equality of identical queries) and authenticity (no
+forgery is possible). With unique nonces, the scheme achieves standard AEAD security without leaking equality.
 
 #### Security Analysis
 
-Like the AEAD scheme, the SIV scheme is evaluated in the keyed duplex model. The adversary is assumed to not have access
-to the duplex's state but is limited to choosing inputs and seeing
-outputs. [As established in the security analysis](#assumptions), the duplex is a cryptographically secure Pseudorandom
-Function (PRF). The mixing of the `nonce` and `ad` binds this PRF to the specific message context.
+Evaluated in the keyed duplex model. Security reduces to the [SIV composition][SIV] of Rogaway and Shrimpton, which
+requires a secure PRF for tag generation and an IND-CPA cipher parameterized by the tag.
 
-The security of the scheme then reduces directly to the [Synthetic Initialization Vector (SIV)][SIV] composition
-established by Rogaway and Shrimpton, which requires two independent primitives: a secure PRF to generate a
-tag, and an IND-CPA secure cipher parameterized by that tag. Newplex achieves this composition seamlessly through the
-`Fork` and `Mask` operations.
+`Fork` with distinct `"auth"` and `"conf"` labels separates the parent PRF into two independent, domain-separated
+functions, effectively deriving two subkeys from a single master sequence.
 
-By branching the protocol state with distinct `"auth"` and `"conf"` labels, the `Fork` operation cryptographically
-separates the parent PRF into two independent, domain-separated functions. This effectively derives two independent
-subkeys from the single master sequence, fulfilling the SIV composition requirement without demanding multiple keys
-from the user.
+The `"auth"` branch absorbs the plaintext and squeezes a 16-byte tag--a deterministic, strongly unforgeable MAC over
+`(key, nonce, ad, plaintext)`. The `"conf"` branch absorbs this tag as a synthetic IV before executing `Mask`, making
+the keystream dependent on the plaintext.
 
-The `"auth"` branch absorbs the entire `plaintext` and squeezes a 16-byte `tag`. Because the state is a secure PRF
-evaluated over the entire input tuple `(key, nonce, ad, plaintext)`, this tag acts as a deterministic, strongly
-unforgeable MAC (see the [MAC scheme](#message-authentication-code-mac)). It is computationally indistinguishable from a
-random oracle's output for that specific input tuple, ensuring authenticity.
-
-The `"conf"` branch absorbs the derived `tag` before executing the `Mask` operation. Here, the tag acts as the synthetic
-IV. Because the confidentiality PRF is parameterized by this tag, the resulting keystream is cryptographically dependent
-on the plaintext itself.
-
-This structure satisfies the MRAE requirements. If a `nonce` is reused with a different plaintext, the
-authentication branch will produce a completely different tag. Mixing this different tag into the confidentiality branch
-forces it to generate a completely distinct, pseudorandom keystream, preventing the catastrophic "two-time pad" failure
-of standard stream ciphers and ensuring confidentiality. The scheme only leaks equality when the exact same
-`(nonce, ad, plaintext)` tuple is submitted, as both the tag and the keystream will be deterministically identical.
+If a nonce is reused with a different plaintext, the authentication branch produces a different tag, forcing a different
+keystream and preventing two-time pad failure. Equality leaks only when the exact `(nonce, ad, plaintext)` tuple
+repeats.
 
 [SIV]: https://www.cs.ucdavis.edu/~rogaway/papers/keywrap.pdf
 
 ### Streaming Authenticated Encryption
 
-The standard `Seal` and `Open` operations in Newplex are intentionally limited to processing plaintexts whose lengths
-are known in advance. This design choice strictly enforces the cryptographic principle of never revealing
-unauthenticated plaintext, ensuring an application cannot act on malicious data before the final authentication tag is
-verified. However, this strictness presents a challenge when processing continuous network streams or large files that
-exceed available memory.
+`Seal` and `Open` require the plaintext length in advance, enforcing the principle of never revealing unauthenticated
+plaintext. This is impractical for continuous streams or large files exceeding available memory.
 
-To securely handle streams of arbitrary or unknown length, Newplex implements a streaming authenticated encryption
-scheme inspired by the STREAM construction. This approach breaks the continuous plaintext into a sequence of
-independently sealed blocks, concluding with a specialized zero-length block to explicitly signal the end of the stream.
-Because the framework's protocol state is continuous, each block's tag cryptographically binds it to the sequence of all
-preceding blocks, preventing reordering or truncation attacks.
+This streaming scheme, inspired by the [STREAM] construction, breaks plaintext into independently sealed blocks, ending
+with a zero-length block to signal stream completion. The continuous protocol state binds each block's tag to all
+preceding blocks, preventing reordering or truncation.
 
-Crucially, because this scheme yields decrypted data incrementally, implementers **must** treat the intermediate
-plaintext stream as provisional and untrusted until the final, zero-length termination block is successfully opened and
-verified.
+[STREAM]: https://eprint.iacr.org/2015/189.pdf
+
+Because decrypted data is yielded incrementally, implementers **must** treat intermediate plaintext as provisional until
+the final termination block is opened and verified.
 
 ```text
 function AEStreamSend(key, nonce, pt, blockLen):
@@ -1485,77 +1281,47 @@ function AEStreamRecv(key, nonce, ct):
 
 #### Cryptographic Properties
 
-The formal evaluation of a streaming authenticated encryption scheme extends standard AEAD games to account for the
-incremental, multi-block nature of the data. Because data is processed and potentially released in chunks, the security
-model must assume the adversary can interact with stateful encryption and decryption oracles. There are three relevant
-security notions: Online Authenticated Encryption (OAE1 and OAE2), Block IND-CCA2/Stateful Decryption, and Termination
-Validity.
+Streaming AE extends standard AEAD games for incremental, multi-block data with stateful oracles. Three security
+notions apply:
 
-* **Online Authenticated Encryption (OAE1 and OAE2):** Online schemes are evaluated on their ability to securely process
-  data in a single pass without prior knowledge of the total message length. OAE1 defines the baseline security for
-  such schemes, ensuring confidentiality and authenticity as long as nonces are never reused. OAE2 extends this
-  framework to provide stronger guarantees, particularly regarding how the scheme hides the boundaries of fragmented
-  data and limits the exact amount of length information leaked to an adversary observing the stream's network packets.
-* **Block IND-CCA2 and Stateful Decryption:** In a streaming context, the standard IND-CCA2 game is evaluated
-  block-by-block. Each block must maintain full indistinguishability and integrity. Furthermore, the decryption oracle
-  in this game is stateful. It evaluates the sequence of the ciphertexts as part of the authentication context. A scheme
-  achieves stateful security if an adversary is computationally unable to reorder, replay, duplicate, or drop
-  intermediate blocks without the decryption oracle immediately detecting the state desynchronization and halting.
-* **Termination Validity (Truncation Resistance):** Because a stream's length is open-ended, an adversary can trivially
-  launch a truncation attack by simply severing the network connection or dropping the final packets. A formally secure
-  streaming scheme must guarantee termination validity. This requires the end of the stream to be explicitly and
-  cryptographically signaled. If an adversary truncates the ciphertext, the decryption oracle will never receive the
-  valid termination block, allowing the receiver to recognize the stream as incomplete and securely discard the
-  provisional plaintext.
+* **OAE1/OAE2 (Online Authenticated Encryption):** OAE1 ensures confidentiality and authenticity in a single pass
+  without knowing the total length, given unique nonces. OAE2 adds boundary-hiding and limits length information leaked
+  to observers.
+* **Block IND-CCA2 / Stateful Decryption:** Each block maintains indistinguishability and integrity. The stateful
+  decryption oracle detects reordering, replay, duplication, or dropping of blocks.
+* **Termination Validity:** The stream end must be cryptographically signaled. Truncation causes the receiver to never
+  receive the termination block, allowing it to recognize the stream as incomplete.
 
 #### Security Analysis
 
-Like the standard AEAD scheme, the streaming authenticated encryption scheme is evaluated in the keyed duplex model. The
-adversary is assumed to not have access to the duplex's state but can observe the ciphertext stream, manipulate the
-network transport, and interact with the endpoints. The security of the scheme reduces to the PRF and collision
-resistance properties of the duplex construction, bounded by the 256-bit capacity.
+Evaluated in the keyed duplex model. Security reduces to the PRF and collision resistance of the duplex, bounded by the
+256-bit capacity.
 
-The continuous, stateful nature of the duplex natively fulfills the requirements of OAE1. Because the protocol is
-initialized with a secret key and a unique nonce, it establishes a secure context capable of processing data in a single
-pass. Every Seal operation internally absorbs the plaintext and mutates the duplex state, so the tag generated for any
-given block `i` is cryptographically bound to the entire ordered transcript of blocks `0` through `i-1`. This unbroken
-chain provides stateful decryption and block IND-CCA2 security, immediately detecting any attempt to reorder, replay,
-duplicate, or drop intermediate blocks.
+The stateful duplex provides OAE1: initialized with a secret key and unique nonce, every `Seal` absorbs the plaintext
+and mutates state, so block `i`'s tag is bound to all preceding blocks. This chain provides block IND-CCA2 security,
+detecting reordering, replay, duplication, or dropping.
 
-Furthermore, the construction addresses the stricter boundary-hiding and fragmentation resistance goals of OAE2. By
-using a two-step sealing process for each chunk--independently sealing the 3-byte length header before sealing the block
-itself--the scheme strongly authenticates the chunk boundaries. If an adversary attempts to shift block boundaries or
-manipulate the framing, the decryption oracle will fail to authenticate the length header and halt before attempting to
-process the modified chunk. This limits the leakage of length information and prevents the adversary from gaining an
-advantage through maliciously fragmented ciphertexts.
+For OAE2, the two-step sealing (length header then block) authenticates chunk boundaries. Boundary manipulation causes
+the header authentication to fail.
 
-Finally, the scheme achieves termination validity by mandating a final, authenticated zero-length block.
-The receiver only returns the successful plaintext if it explicitly opens an authenticated block where the plaintext is
-an empty string. If the underlying transport connection is severed or an adversary drops the final packets, the
-ciphertext stream will end before the zero-length block is processed, safely resulting in a decryption error. This
-explicit cryptographic signaling guarantees that a receiver can distinguish between a genuinely completed stream and a
-maliciously truncated one.
+Termination validity follows from the mandatory zero-length final block. If the stream is truncated, the receiver never
+receives the termination block and reports a decryption error.
 
 ### Memory-Hard Hash Function
 
-A memory-hard hash function is designed to be computationally expensive to evaluate, specifically by requiring a
-significant amount of memory. This property defends against brute-force attacks using specialized hardware (ASICs and
-FPGAs) by making the hardware cost proportional to the memory requirement. This is critical for password hashing
-(deriving keys from low-entropy secrets) and password-based encryption.
+A memory-hard hash function requires significant memory to evaluate, defending against brute-force attacks with
+specialized hardware (ASICs and FPGAs) by making cost proportional to memory. This is critical for password hashing and
+password-based encryption.
 
 Newplex implements a data-dependent memory-hard function (dMHF) using the [DEGSample] construction from Blocki & Holman
 (2025). DEGSample combines an indegree-reduced static graph (DRSample ∪ Grates) with a data-dependent dynamic challenge
-chain, providing optimal sustained space trade-offs. Unlike purely data-independent schemes (iMHFs), dMHFs use the
-secret input to determine some of the memory access patterns. This provides significantly stronger resistance against
-ASIC-enabled attackers, who can otherwise exploit the fixed access patterns of iMHFs to reduce their memory
-requirements.
+chain. Unlike data-independent schemes (iMHFs), dMHFs use the secret input to determine some memory access patterns,
+providing stronger resistance against ASIC-enabled attackers who could exploit fixed access patterns.
 
 [DEGSample]: https://arxiv.org/pdf/2508.06795
 
-The construction builds a Directed Acyclic Graph (DAG) of `5N` blocks (where `N = 2**cost`), where each block's value
-depends on its parents in the graph. To optimize for modern processor architectures while maximizing the penalty for
-ASIC attackers, the block size is fixed at 1KiB to align with common CPU cache lines. The total memory required is
-`5 * 2**(cost+10)` bytes.
+The construction builds a DAG of `5N` blocks (`N = 2**cost`), where each block's value depends on its parents. Block
+size is 1KiB (aligned with CPU cache lines). Total memory is `5 * 2**(cost+10)` bytes.
 
 The DAG is divided into two phases:
 
@@ -1664,53 +1430,35 @@ The static graph uses helper functions to determine parents for each sub-node:
 
 #### Cryptographic Properties
 
-Memory-hard functions are evaluated on two complementary metrics that measure how effectively they force an attacker to
-commit memory over time.
+Memory-hard functions are evaluated on two metrics:
 
-* **Cumulative Memory Cost (CMC):** CMC measures the *area under the memory-usage curve* over the entire execution: the
-  sum, over all time steps, of the number of blocks the algorithm must keep in memory. A high CMC means that even an
-  attacker willing to recompute discarded blocks cannot avoid paying a large total memory × time cost. CMC is the
-  primary metric for password hashing because it directly determines the amortized cost of brute-force search on
-  parallel hardware: an attacker with a fixed silicon budget (memory × cores) can try fewer passwords per second when
-  CMC is high.
+* **Cumulative Memory Cost (CMC):** The sum of memory held at each time step (area under the memory-usage curve). High
+  CMC means an attacker cannot avoid a large total memory × time cost, directly determining the amortized cost of
+  brute-force search on parallel hardware.
 
-* **Sustained Space Complexity (SSC):** SSC measures the *minimum memory an algorithm must hold simultaneously* during a
-  sustained fraction of its execution. Formally, a graph has `(s, t)`-sustained space complexity if any legal
-  black-pebbling strategy must keep at least `s` pebbles on the graph for at least `t` consecutive steps. High SSC
-  prevents "dip-and-recover" strategies where an attacker briefly frees memory and recomputes, because the graph forces
-  a large working set to persist over a long window.
+* **Sustained Space Complexity (SSC):** The minimum memory held simultaneously during a sustained fraction of execution.
+  High SSC prevents strategies where an attacker briefly frees memory and recomputes.
 
-* **SSC/CMC Trade-offs:** The two metrics capture different attacker strategies and are not interchangeable. A graph can
-  have high CMC but modest SSC if it allows brief periods of low memory usage between expensive phases (the total area
-  is large, but the sustained floor is moderate). Conversely, a graph can have high SSC but comparatively lower CMC if
-  the sustained memory requirement is large but the total execution time is short. DEGSample is specifically designed to
-  be strong on *both* axes: the depth-robust static graph (DRSample ∪ Grates) provides high SSC by forcing a large
-  working set across a long span of the computation, while the data-dependent challenge chain in Phase 2 raises CMC by
-  creating unpredictable back-pointers that prevent an attacker from scheduling efficient batch recomputations.
+In addition:
 
-* **Data-Dependency:** The Phase 2 challenge-chain back-pointers are determined by intermediate block labels, which
-  depend on the `password` and `salt`. This data-dependency prevents "peeling" attacks where an attacker pre-computes
-  the graph structure to optimize memory usage.
+* **SSC/CMC Trade-offs:** The metrics are not interchangeable. DEGSample is strong on both: the depth-robust static
+  graph provides high SSC, while the data-dependent challenge chain raises CMC by creating unpredictable back-pointers.
 
-* **Side-Channel Mitigation:** The static graph structure (Phase 1) is entirely data-independent--its edges depend only
-  on the public `cost` parameter--so Phase 1 memory access patterns leak no information about the password. Only the
-  Phase 2 back-pointers are data-dependent.
+* **Data-Dependency:** Phase 2 back-pointers depend on intermediate block labels (derived from `password` and `salt`),
+  preventing attackers from pre-computing graph structure to optimize memory.
+
+* **Side-Channel Mitigation:** Phase 1 is data-independent (edges depend only on `cost`), leaking no password
+  information. Only Phase 2 back-pointers are data-dependent.
 
 #### Security Analysis
 
-The security of the scheme relies on the structural properties of the DEGSample graph and the cryptographic strength
-of the underlying Newplex primitives.
+Security relies on the DEGSample graph structure and the cryptographic strength of Newplex primitives.
 
-Because the calculation of each block `blocks[v]` requires mixing the content of parent blocks using the Newplex
-protocol, the value of every block acts as a cryptographically strong commitment to its history in the graph. The use of
-`Mix` and `Derive` ensures that the protocol acts as a random oracle. Consequently, an adversary cannot compute a block
-without knowing the exact values of all its parents.
+Each block's value is a cryptographic commitment to its parent history (via `Mix` and `Derive` acting as a random
+oracle). An adversary cannot compute a block without the exact values of all its parents.
 
-To produce the final output, the adversary must effectively compute the value of the last block
-`blocks[totalNodes-1]`. Due to the depth-robust and data-dependent properties of the graph, this requires computing
-(and storing) a constant fraction of the entire memory graph. If the adversary attempts to use less memory by
-recomputing blocks on the fly, the number of re-computations grows super-linearly, making the attack computationally
-infeasible compared to the honest execution.
+Producing the final output requires computing (and storing) a constant fraction of the memory graph. Using less memory
+requires super-linear recomputations, making the attack infeasible compared to honest execution.
 
 > [!NOTE]
 > The potential for side-channel leakage, where a co-located adversary observes memory access patterns, only affects the
@@ -1733,27 +1481,18 @@ infeasible compared to the honest execution.
 
 ## Complex Schemes
 
-The preceding section established the formal security of Newplex's fundamental operations by reducing them to standard
-cryptographic primitives. However, applied cryptography frequently requires composing these operations into complex,
-multi-stage protocols, such as mutually authenticated handshakes, asymmetric key exchanges, or verifiable oblivious
-pseudorandom functions (VOPRFs).
+Applied cryptography often requires composing operations into multi-stage protocols: handshakes, asymmetric key
+exchanges, VOPRFs, and more. Traditional implementations coordinate multiple algorithms (hash function, KDF, AEAD),
+and managing state across these components introduces complexity and risk.
 
-Traditional implementations of these protocols require coordinating multiple distinct algorithms, often combining a hash
-function for transcript integrity, a KDF for key derivation, and an AEAD for payload confidentiality. Managing the state
-and data flow between these disparate tools introduces significant complexity and increases the risk of transcript
-desynchronization or context-confusion vulnerabilities.
-
-This section details how the Newplex framework streamlines the design of these advanced schemes. The following examples
-illustrate how Newplex cleanly replaces the required underlying primitives. By relying on a single, continuously
-evolving duplex state, designers can execute complex data flows using sequential `Mix`, `Derive`, `Mask`, `Seal`, and
-`Fork` operations. Because the framework's structure inherently authenticates the entire historical transcript and binds
-each operation to its specific context, this unified approach eliminates the boundaries between primitives, ensuring
-robust security with a drastically reduced footprint.
+This section shows how Newplex's continuous duplex state replaces these separate primitives. Sequential `Mix`, `Derive`,
+`Mask`, `Seal`, and `Fork` operations handle complex data flows, with the framework's transcript authentication and
+context binding providing security without inter-primitive boundaries.
 
 For asymmetric operations, this section uses the [Ristretto255 group from RFC 9496][RFC 9496], which provides a
-prime-order group, non-malleable canonical encodings, a well-defined scalar reduction function, and a well-defined
-element derivation function. This is not an exclusive choice, but is certainly recommended as it eliminates whole
-categories of subtle cryptographic vulnerabilities like point malleability and cofactor concerns.
+prime-order group, non-malleable canonical encodings, and well-defined scalar reduction and element derivation
+functions.
+This is recommended as it eliminates point malleability and cofactor concerns.
 
 [RFC 9496]: https://www.rfc-editor.org/rfc/rfc9496.html
 
@@ -1775,22 +1514,16 @@ The following notations are used throughout this section:
 
 ### Digital Signature
 
-A digital signature provides cryptographic proof of a message's authenticity and integrity, ensuring it was generated by
-the holder of a specific private key and has not been altered.
+A digital signature proves a message's authenticity and integrity, ensuring it was generated by the holder of a specific
+private key.
 
-This scheme implements a Schnorr signature over the Ristretto255 group. Schnorr signatures are originally defined as an
-interactive zero-knowledge proof: a prover generates a random commitment, a verifier replies with a random challenge,
-and the prover answers with a mathematical proof. To make this non-interactive--so a signature can be attached to a
-message and verified later--this scheme uses the Fiat-Shamir transform.
+This scheme implements a Schnorr signature over Ristretto255. Schnorr signatures are an interactive zero-knowledge
+proof made non-interactive via the Fiat-Shamir transform: the signer uses the duplex state as a random oracle to derive
+the challenge from the transcript (public key, message, commitment).
 
-Instead of interacting with a live verifier, the signer uses the Newplex duplex state as an ideal random oracle. The
-state absorbs the signer's public identity and the message, then derives the challenge directly from the cryptographic
-transcript.
-
-Furthermore, this scheme implements a hedged deterministic signature. By mixing the signer's private key into the
-`prover` branch, the commitment scalar is deterministically generated from the message and the private key, eliminating
-the catastrophic risk of private key recovery due to a reused or weak random number generator. The optional inclusion of
-random data provides a "hedge" protecting the deterministic derivation from fault-injection attacks.
+The scheme uses hedged deterministic signing. The private key is mixed into the `prover` branch, so the commitment
+scalar is deterministically derived from the message and key, eliminating the risk of key recovery from nonce reuse.
+Optional random data hedges against fault-injection attacks.
 
 ```text
 function Sign(d, message):
@@ -1845,38 +1578,20 @@ function Verify(Q, signature, message):
   return ElementEncode(expectedR) == receivedR
 ```
 
-Implementing a safe digital signature from scratch is historically fraught with subtle vulnerabilities. Standard
-non-interactive signatures require meticulous handling of transcript hashes (to prevent message malleability) and rigid
-adherence to complex specifications like RFC 6979 to safely generate deterministic nonces.
+The continuous duplex state binds the message and signer's public key to the challenge scalar, resisting
+context-confusion and malleability attacks without rigid serialization formats.
 
-Newplex significantly lowers this implementation burden. By relying on the continuous duplex state, the message and the
-signer's public key are automatically and irrevocably bound to the challenge scalar `c`, naturally resisting
-context-confusion and message malleability attacks without requiring standard rigid serialization formats.
-
-The security of this scheme reduces to the discrete logarithm problem and the indifferentiability of the duplex from a
-random oracle. By using `Fork` to separate the prover and verifier branches, the framework ensures that the prover's
-secret (the private key and hedging data) is cryptographically isolated from the public transcript while still being
-bound to it. The challenge scalar `c` is derived from the unified transcript, satisfying the requirements of the
-Fiat-Shamir transform in the random oracle model. The Fiat-Shamir transform relies on the `Derive` operation's property
-as a random oracle to produce uniformly random challenge scalars that are cryptographically bound to the entire
-transcript. Because the transcript includes the signer's identity, the message, and the commitment point, the resulting
-signature achieves strong existential unforgeability under chosen-message attacks (sUF-CMA).
-
-More importantly, the `Fork` operation cleanly isolates the secret key material. By branching the state into a `prover`,
-the private key `d` can be safely absorbed to deterministically derive `k`. Because the `verifier` branch never sees
-this private key, it securely mirrors the exact state that a third-party verifier will construct when checking the
-signature, ensuring synchronization between the prover and the verifier of the proof. The use of a random hedge protects
-the deterministic derivation of `k` against fault-injection attacks, ensuring that even if the private key is
-compromised via side channels, the randomness of the commitment point is preserved.
+Security reduces to the discrete logarithm problem and the duplex's indifferentiability from a random oracle. `Fork`
+isolates the prover's secret from the public transcript: the challenge scalar is derived from the unified transcript
+(signer identity, message, commitment), achieving sUF-CMA. The `verifier` branch mirrors the state a third-party
+verifier constructs, ensuring synchronization.
 
 ### Hybrid Public Key Encryption (HPKE)
 
-Hybrid Public Key Encryption allows a sender to securely transmit an arbitrary-length message to a receiver using the
-receiver's public key.
+HPKE allows a sender to transmit a message to a receiver using the receiver's public key.
 
-This specific scheme implements an authenticated variant of HPKE. By incorporating the sender's static private key
-alongside a freshly generated ephemeral key, it guarantees both confidentiality and forward secrecy while mathematically
-proving the sender's identity to the receiver.
+This authenticated variant incorporates the sender's static private key alongside a fresh ephemeral key, providing
+confidentiality, forward secrecy, and sender authentication.
 
 ```text
 function HPKESeal(dS, QR, plaintext):
@@ -1913,29 +1628,20 @@ function HPKEOpen(dR, QS, ciphertext):
   return protocol.Open("message", ciphertext[32:])
 ```
 
-Standard implementations of HPKE (such as RFC 9180) require stitching together three distinct cryptographic algorithms:
-a Key Encapsulation Mechanism (KEM) to establish a shared secret, a Key Derivation Function (KDF) to extract symmetric
-keys from that secret, and a Data Encapsulation Mechanism (DEM) to encrypt the actual payload. Formal security proofs
-for these compositions are notoriously complex because they must account for the strict API boundaries between the
-algorithms as well as the specific properties of each component.
+Standard HPKE (e.g., RFC 9180) requires three algorithms: KEM, KDF, and DEM. Newplex replaces this composite
+structure. The `Mix` operations map to the [RO-KDF][n-KDFs] construction, absorbing the public keys and shared secrets.
 
-Newplex replaces this entire composite structure. The sequence of `Mix` operations maps directly to the [RO-KDF][n-KDFs]
-construction, absorbing the three public keys and two shared secrets to establish a shared protocol state.
-
-Because every input--including the sender and receiver identities--is absorbed directly into the protocol transcript,
-the context is inherently strongly committing (CMT-4). Any modification to the public keys, the ephemeral key, or the
-ciphertext by an attacker will produce a divergent pre-`Seal` state. This guarantees that the final `Open` operation
-will fail, providing IND-CCA2 security without the overhead of a separate DEM or MAC wrapper.
+Because all inputs (including sender and receiver identities) are absorbed into the transcript, the context is CMT-4
+committing. Any modification to the keys or ciphertext produces a divergent state, so `Open` fails, providing IND-CCA2
+security without a separate DEM or MAC.
 
 ### Signcryption
 
-Signcryption provides both confidentiality and authenticity in the public key model with a single operation. Only the
-owner of the receiver's private key can decrypt the message, and only the owner of the sender's private key could have
-authored it.
+Signcryption provides confidentiality and authenticity in the public key model. Only the receiver's private key can
+decrypt; only the sender's private key could have authored the message.
 
-Because Newplex protocols are incremental and stateful, this scheme integrates the Fiat-Shamir signature transform and
-an HPKE-style Diffie-Hellman exchange into a unified scheme. The resulting construction is strictly stronger than
-generic schemes that attempt to compose separate public-key encryption and digital signature algorithms.
+This scheme integrates the Fiat-Shamir signature and an HPKE-style Diffie-Hellman exchange into a single protocol,
+stronger than generic Encrypt-then-Sign or Sign-then-Encrypt compositions.
 
 ```text
 function SigncryptSeal(dS, QR, message):
@@ -2019,68 +1725,31 @@ function SigncryptOpen(dR, QS, payload):
   return message
 ```
 
-This scheme is both outsider- and insider-secure for both confidentiality and authenticity. Outsider security ensures
-that an adversary in possession of only public keys will be unable to read plaintexts or forge ciphertexts. Insider
-security for confidentiality ensures that the sender cannot read messages sent to other receivers, while insider
-security for authenticity ensures that the receiver cannot forge a message from the sender to themselves (e.g., to
-show to a judge).
+The scheme provides both outsider and insider security. An outsider (with only public keys) cannot read plaintexts or
+forge ciphertexts. The sender cannot read messages sent to other receivers (insider confidentiality), and the receiver
+cannot forge messages from the sender (insider authenticity).
 
-Because a Newplex protocol is an incremental, stateful way of building a cryptographic scheme, this integrated
-signcryption scheme is stronger than generic schemes which combine separate public key encryption and digital signature
-algorithms: Encrypt-Then-Sign (`EtS`) and Sign-then-Encrypt (`StE`).
-
-An adversary attacking an `EtS` scheme can strip the signature from someone else's encrypted message and replace it with
-their own, potentially allowing them to trick the recipient into decrypting the message for them. That's possible
-because the signature is of the ciphertext itself, which the adversary knows. A standard Schnorr signature scheme like
-Ed25519 derives the challenge scalar `r` from a hash of the signer's public key and the message being signed (i.e., the
-ciphertext).
-
-With this scheme, on the other hand, the digital signature isn't of the ciphertext alone, but of all inputs to the
-protocol. The challenge scalar `r` is derived from the protocol's state, which depends on (among other things) the ECDH
-shared secret. Unless the adversary already knows the shared secret (i.e., the secret key that the plaintext is
-encrypted with), they can't create their own signature (which they're trying to do to trick someone into giving them the
-plaintext). This provides robust non-malleability and CMT-4 security.
-
-An adversary attacking an `StE` scheme can decrypt a signed message sent to them and re-encrypt it for someone else,
-allowing them to pose as the original sender. This scheme makes simple replay and re-encryption attacks impossible by
-including both the intended sender and receiver's public keys and their shared secret in the protocol state. The
-initial [HPKE-style](#hybrid-public-key-encryption-hpke) portion of the protocol establishes the session's
-confidentiality, while the final portion is the sUF-CMA secure [Schnorr signature scheme](#digital-signature) from the
-previous section, which is unforgeable without the sender's private key even by an insider (the receiver). As with the
-standard signature scheme, the security of this Schnorr-based proof reduces to the discrete logarithm problem and the
-indifferentiability of the duplex from a random oracle (up to the capacity bound).
+The integration of confidentiality and authenticity provides strong guarantees than generic composition methods. Unlike
+`EtS` (Encrypt-then-Sign), the signature covers all protocol inputs including the ECDH shared secret, not just the
+ciphertext. An adversary cannot replace the signature without knowing the shared secret, providing non-malleability and
+CMT-4 security. Unlike `StE` (Sign-then-Encrypt), both parties' public keys and shared secret are in the protocol state,
+preventing re-encryption attacks. Security reduces to the discrete logarithm problem and the duplex's
+indifferentiability from a random oracle.
 
 ### Mutually Authenticated Handshake
 
-A mutually authenticated handshake, such as the `XX` pattern from the Noise Protocol Framework, establishes secure,
-independent communication channels between an initiator and a responder using long-term static keys. By executing a
-sequence of ephemeral and static Diffie-Hellman exchanges, this protocol guarantees strong forward secrecy and Key
-Compromise Impersonation (KCI) resistance. Furthermore, it inherently protects the privacy of the participants by
-encrypting their static public identities before transmission, ensuring that an active attacker cannot trivially harvest
-identities without first committing their own ephemeral key material.
+A mutually authenticated handshake (e.g., the Noise `XX` pattern) establishes secure, independent communication
+channels between an initiator and a responder using long-term static keys. Ephemeral and static Diffie-Hellman exchanges
+provide forward secrecy and KCI resistance. Static public identities are encrypted before transmission, preventing
+identity harvesting without committing ephemeral key material.
 
-In a standard implementation of such a handshake, developers must coordinate a sprawling suite of distinct symmetric
-cryptographic primitives. A hash function is required to maintain a continuous, tamper-proof digest of the transcript. A
-Key Derivation Function (KDF)--typically HKDF, which itself relies on HMAC--must be instantiated to carefully extract
-and expand the entropy from each successive Diffie-Hellman shared secret. Finally, an Authenticated Encryption with
-Associated Data (AEAD) cipher is invoked to encrypt the static keys and later messages, using keys derived from the KDF
-and nonces that must be meticulously managed to prevent catastrophic reuse. Maintaining the strict API boundaries and
-state synchronization across these discrete components introduces significant implementation complexity and fragility.
+Standard implementations coordinate a hash function (transcript integrity), a KDF (entropy extraction), and an AEAD
+(payload encryption), with nonce management across all three. Newplex collapses this into a single duplex state that
+serves as transcript hash, KDF, and AEAD simultaneously. Shared secrets are absorbed via `Mix`; sealed identities are
+implicitly authenticated by the full preceding transcript.
 
-Newplex collapses this traditional stack into a single, continuous duplex state, acting as the transcript hash, the KDF,
-and the AEAD cipher simultaneously. As the initiator and responder compute their Diffie-Hellman shared secrets, they
-simply absorb them directly into the protocol state using `Mix` operations. When the static public identities are sealed
-or opened, the underlying state has already absorbed the entire sequence of prior operations, meaning a successful
-decryption implicitly authenticates the historical transcript and ensures both parties share the exact same view of the
-handshake, naturally resisting reordering and reflection attacks.
-
-At the conclusion of the handshake, the framework provides a natural transition into the transport phase. A `Ratchet`
-operation irreversibly modifies the state, providing an absolute forward-secrecy boundary that prevents an attacker from
-inverting the state to recover the ephemeral key material or previous session secrets even if the long-term static keys
-are later compromised. Finally, a `Fork` operation cleanly splits the authenticated root state into independent sending
-and receiving pipes. This establishes bidirectional transport channels securely bound to both the handshake transcript
-and the intended channel use without requiring the explicit derivation, storage, or management of standalone symmetric
-transport keys.
+After the handshake, `Ratchet` provides a forward-secrecy boundary, and `Fork` splits the state into independent
+sending and receiving channels--no standalone symmetric key derivation or management required.
 
 ```mermaid
 sequenceDiagram
@@ -2113,161 +1782,70 @@ sequenceDiagram
 
 ### Asynchronous Double Ratchet
 
-The Double Ratchet algorithm provides fully asynchronous messaging with strong forward secrecy and post-compromise
-recovery, ensuring resilience even if messages are dropped or arrive out of order. By continuously updating key material
-on both the sending and receiving channels, the protocol ensures that a compromise of the current state cannot be used
-to decrypt past messages (forward secrecy) or future messages once the compromised party executes a new asymmetric key
-exchange (post-compromise security).
+The Double Ratchet provides asynchronous messaging with forward secrecy and post-compromise recovery, even when messages
+are dropped or reordered. Key material is continuously updated on both channels: compromising the current state cannot
+decrypt past messages, and a new asymmetric exchange restores security.
 
-In a standard implementation, developers must maintain three synchronized Key Derivation Function (KDF) chains: a root
-chain, a sending chain, and a receiving chain. The output of a Diffie-Hellman shared secret must be fed into the root
-chain to produce a chain key, which is then fed into a sending or receiving chain. That chain is iteratively hashed to
-produce individual message keys, which are finally used to instantiate an AEAD cipher. Managing the entropy flow, key
-derivation boundaries, and state synchronization across these distinct KDF and AEAD components is a significant source
-of implementation complexity.
+Standard implementations maintain three synchronized KDF chains (root, sending, receiving), each feeding into an AEAD.
+Newplex replaces this with independent duplex pipes and protocol cloning. New shared secrets are absorbed via `Mix`;
+each message uses a cloned pipe with the header mixed in before sealing, providing CMT-4 per-message security.
 
-Newplex replaces this entire key-derivation pipeline through the use of independent duplex pipes and protocol cloning.
-When an asymmetric ratchet step occurs, the new Diffie-Hellman shared secret is absorbed into the relevant receiving or
-sending pipe using `Mix` operations. Instead of generating standalone symmetric keys for each message, Newplex clones
-the active pipe to create a single-use message state. By mixing the unencrypted header into this cloned protocol before
-sealing or opening the payload, the ciphertext is cryptographically bound to its metadata (including the public key and
-message number) without requiring a separate authentication step, providing CMT-4 security for every message.
-
-To guarantee forward secrecy, the framework uses an explicit `Ratchet` operation to irreversibly advance the main
-sending or receiving pipe after a message state is cloned. An adversary who steals the device's current state cannot
-invert it to recover the protocol states used for previous messages. This provides the exact security properties of a
-traditional hash-based KDF chain, but without the architectural overhead of managing discrete message keys and chain
-keys. Furthermore, because the `Ratchet` operation clears 32 bytes of the duplex rate, the scheme achieves 128-bit
-post-compromise security as soon as a new secret Diffie-Hellman shared secret is mixed into the state.
+`Ratchet` irreversibly advances each pipe after cloning a message state, providing forward secrecy equivalent to
+hash-based KDF chains without managing discrete keys. The 32-byte ratchet provides 128-bit post-compromise security
+once a new shared secret is mixed in.
 
 ### Password-Authenticated Key Exchange (PAKE)
 
-A Password-Authenticated Key Exchange (PAKE) allows two parties who share a low-entropy secret--such as a human-readable
-password--to establish a high-entropy, cryptographically secure shared state. By performing a key exchange
-mathematically bound to the shared secret, the protocol guarantees that an active attacker cannot mount an offline
-dictionary attack simply by observing or intercepting the network traffic. An attacker is restricted to a single online
-guess per execution, ensuring that even weak passwords can establish robust communication channels.
+A PAKE allows two parties sharing a low-entropy password to establish a high-entropy shared state. The protocol
+prevents offline dictionary attacks from network observation; an attacker is limited to one online guess per execution.
 
-Standard implementations of balanced PAKEs (such as CPace) often require a careful assembly of hashing functions,
-Hash-to-Curve algorithms, and Key Derivation Functions. The password and session identifiers must be hashed and securely
-mapped into an elliptic curve group to create a specialized, session-specific generator point. The parties then perform
-a Diffie-Hellman exchange using this unique generator, feed the exchanged elements back into a separate transcript hash,
-and finally push the resulting shared secret through an HKDF to produce usable symmetric keys. Ensuring that these
-disparate operations are properly domain-separated and that no context is accidentally omitted requires significant
-engineering rigor.
+Standard PAKEs (e.g., CPace) require coordinating Hash-to-Curve, transcript hashing, and KDF operations. Newplex uses
+the continuous duplex state for all of these. Session identifiers, participant IDs, and the password are absorbed via
+`Mix`. The `Derive` operation's random oracle property extracts 64 bytes to map (via `ElementDerive`) to a
+session-specific Ristretto255 base point, replacing a standalone Hash-to-Curve suite.
 
-Newplex streamlines this flow by using the continuous duplex state to derive both the group parameters and the final
-keys. Both parties initialize the protocol and use `Mix` operations to absorb the session identifiers, participant IDs,
-and the shared password. Instead of implementing a standalone Hash-to-Curve suite, Newplex leverages the `Derive`
-operation's random oracle property to extract 64 bytes of pseudorandom bytes directly from this password-bound
-transcript, passing them to `ElementDerive` to map them to a valid Ristretto255 element that serves as the unique base
-point.
-
-The participants then generate random scalars, multiply them by this derived base point, and exchange the resulting
-elements. Once these elements and the final Diffie-Hellman shared secret are mixed back into the duplex, the protocol
-state is fully authenticated. Because every step--from the initial password input to the final exchanged elements--is
-incrementally absorbed into the exact same continuous state, the final transcript is strongly bound to the password and
-session identifiers. This provides robust resistance to offline dictionary attacks, as any deviation in the password
-or public elements inherently produces a divergent state. An attacker's success is strictly bounded by the probability
-of guessing the password in a single online attempt.
+Participants generate random scalars, exchange elements, and mix the shared secret back into the duplex. Because every
+step is absorbed into the same continuous state, the transcript is bound to the password and session identifiers. Any
+password deviation produces a divergent state.
 
 ### Verifiable Random Function (VRF)
 
-A Verifiable Random Function (VRF) operates as a public-key version of a keyed cryptographic hash. Only the holder of
-the private key can compute the pseudorandom output for a given input message, but anyone in possession of the
-corresponding public key can verify that the output was computed correctly. This provides unique, collision-resistant,
-and verifiable pseudorandomness. VRFs are used in decentralized systems for tasks like cryptographic sortition, leader
-election, and secure randomized resource allocation, where a party must prove they won a lottery without revealing their
-secret key.
+A VRF is a public-key keyed hash: only the private key holder can compute the pseudorandom output, but anyone with the
+public key can verify correctness. VRFs are used for cryptographic sortition, leader election, and similar tasks.
 
-Standard VRF constructions require a meticulously assembled suite of distinct cryptographic primitives. The input
-message must first be mapped to an elliptic curve point using a robust Hash-to-Curve specification to avoid timing or
-bias vulnerabilities. Next, the prover must construct a zero-knowledge Proof of Discrete Logarithm Equality (DLEQ) using
-the Fiat-Shamir transform, which proves the output was generated using the correct private key. This requires managing
-multiple separate hash contexts: one for the initial Hash-to-Curve, another for generating the interactive challenge,
-and typically a Key Derivation Function (KDF) or expansion step to squeeze the final pseudorandom bytes from the curve
-points. Ensuring strict domain separation across these distinct hashing phases is complex and error-prone.
+Standard VRFs require Hash-to-Curve, a DLEQ proof (Fiat-Shamir), and a KDF, each with separate hash contexts. Newplex
+unifies these into a single flow. `Derive` maps the input to a curve point via `ElementDerive` (replacing
+Hash-to-Curve).
+The prover evaluates the point with their private key and derives the pseudorandom output, all bound to the transcript.
 
-Newplex unifies this entire process into a single, continuous flow. To map the input message to the curve, the
-protocol initializes the state, mixes in the prover's public key and the message, and uses the `Derive` operation
-to extract 64 bytes of pseudorandom output, which is then mapped to a curve point via `ElementDerive`. This entirely
-replaces the need for a standalone Hash-to-Curve suite, leveraging the indifferentiability of the duplex from a random
-oracle (up to the capacity bound) to ensure a uniform distribution of points.
-
-The use of `Fork` in the DLEQ proof ensures that the prover's private key is used only within a dedicated branch, while
-the resulting commitment points are mixed back into the verifier's transcript to derive the challenge. This provides a
-clean reduction to the RO-based security of the Fiat-Shamir transform. The prover multiplies this point by their private
-key to yield the evaluated point, mixes it back into the protocol, and directly derives the requested length of
-pseudorandom output. Because the duplex absorbs every input at every step, the final output is strongly bound to both
-the message and the prover's identity, ensuring uniqueness and collision resistance.
-
-To construct the DLEQ proof, Newplex leverages the same `Fork` technique used in the digital signature scheme. The state
-splits into prover and verifier branches. The prover branch safely absorbs the private key and random hedging data to
-generate a commitment scalar and its corresponding commitment points. The verifier branch absorbs these public points
-and derives the challenge scalar from the unified transcript. This explicitly maps the underlying interactive protocol
-to a non-interactive zero-knowledge proof in the random oracle model. During verification, the evaluating party
-reconstructs the identical state machine, mixing in the proof elements to derive the expected challenge. If the proof is
-valid, the state naturally outputs the verified pseudorandom bytes, eliminating the need for separate hash, XOF, or KDF
-algorithms.
+The DLEQ proof uses the same `Fork` technique as the digital signature scheme: the prover branch absorbs the private
+key and hedging data to generate commitments; the verifier branch absorbs the public points and derives the challenge.
+Verification reconstructs the same state machine. If valid, the state outputs the verified pseudorandom bytes directly.
 
 ### Oblivious Pseudorandom Function (OPRF) and Verifiable Pseudorandom Function (VOPRF)
 
-An Oblivious Pseudorandom Function (OPRF) is a two-party protocol that allows a client to securely compute a
-pseudorandom function using their own private input and a server's secret key. The protocol guarantees mutual privacy:
-the client learns only the evaluated output, and the server learns absolutely nothing about the client's input or the
-final result. This cryptographic blindness is fundamental to modern privacy-preserving systems, such as secure password
-breach monitoring, anonymous authorization tokens, and private set intersection. A Verifiable OPRF (VOPRF) extends these
-guarantees by requiring the server to cryptographically prove that it evaluated the blinded input using a specific,
-advertised public key, preventing the server from silently swapping keys to deanonymize users.
+An OPRF allows a client to compute a pseudorandom function using their private input and a server's secret key. The
+client learns only the output; the server learns nothing about the input. A VOPRF adds a proof that the server used a
+specific public key, preventing silent key swapping.
 
-In standard implementations of these protocols, such as those defined in RFC 9497, developers must orchestrate an
-intricate sequence of disjointed cryptographic algorithms. The client must execute a rigid Hash-to-Curve algorithm to
-map their input to a valid group element before blinding it. To provide verifiability, the server must construct a
-non-interactive Zero-Knowledge Proof of Discrete Logarithm Equality (DLEQ), which requires instantiating multiple
-separate Hash-to-Scalar contexts to generate pseudorandom composite weights and the Fiat-Shamir challenge. Finally, the
-client must unblind the evaluated element and feed the entire transcript into a separate Key Derivation Function (KDF)
-to generate the final pseudorandom output. Managing the distinct context domains across these hashing phases is a
-notorious source of subtle engineering vulnerabilities.
+Standard implementations (e.g., RFC 9497) require Hash-to-Curve, DLEQ proofs with multiple hash contexts, and a
+separate KDF. Newplex uses a single duplex state. The client `Fork`s into element and PRF branches; `Derive` maps the
+input to a curve point via `ElementDerive`. After blinding, evaluation, and unblinding, the result is mixed into the PRF
+branch for final output derivation.
 
-Newplex streamlines this multi-stage protocol by again relying on the continuous evolution of a single duplex state. To
-initiate the exchange, the client initializes the protocol, mixes in their private input, and invokes a `Fork`
-operation to cleanly divide the state into an element branch and a PRF branch. The element branch immediately uses a
-`Derive` operation to map the input to a secure curve point via `ElementDerive`, entirely bypassing the need for a
-standalone Hash-to-Curve suite. After blinding, transmitting, and receiving the evaluated element from the server, the
-client unblinds the element and mixes it directly into the waiting PRF branch. A final `Derive` operation extracts the
-requested pseudorandom output, ensuring that the final PRF result is cryptographically bound to the client's original
-private input and the server's evaluation.
-
-Adding verifiability to this flow highlights the framework's simplicity when constructing complex zero-knowledge proofs.
-Rather than importing specialized hashing suites to compute the DLEQ proof, the server simply iterates over the blinded
-and evaluated elements, mixing them into the protocol state to directly derive the pseudorandom weighting scalars
-necessary for batching. It then absorbs the resulting composite elements alongside the proof commitments to derive the
-final challenge scalar using the `Derive` operation as a random oracle. The client verification mirrors this flow,
-reconstructing the composites and the expected challenge from their own state machine. This replaces a brittle
-collection of specialized hashing routines with a unified, continuous cryptographic context that provides both client
-privacy and server verifiability.
+For VOPRF, the server mixes blinded and evaluated elements into the protocol state to derive weighting scalars and the
+challenge scalar. The client mirrors this flow to verify. This replaces separate hashing routines with a unified
+cryptographic context.
 
 ### FROST Threshold Signature
 
-A threshold signature scheme allows a group of `n` participants to collectively sign a message such that any subset of
-at least `t` participants can produce a valid signature, but no subset smaller than `t` can. FROST (Flexible
-Round-Optimized Schnorr Threshold) is a two-round threshold Schnorr signature protocol. In the first round, each
-participant generates a pair of ephemeral nonce commitments and broadcasts them. In the second round, each participant
-computes a signature share using their secret key share, their nonces, and binding factors derived from the full set of
-commitments. These shares are then aggregated into a standard Schnorr signature that is indistinguishable from a
-single-signer signature.
+A threshold signature lets `t` of `n` participants produce a valid signature; fewer than `t` cannot. FROST is a
+two-round threshold Schnorr protocol: participants broadcast nonce commitments, then compute signature shares using
+binding factors derived from all commitments. Shares aggregate into a standard Schnorr signature.
 
-Standard FROST implementations require three separate hash function instantiations with distinct domain separation tags:
-one for nonce generation, one for the Fiat-Shamir challenge, and one for the per-participant binding factors that
-prevent rogue-key attacks. Managing these disjoint hash contexts and ensuring their domain separation tags do not collide
-is a persistent source of implementation complexity.
-
-Newplex collapses this entirely. The binding factors, the challenge, and the nonce generation all derive from the same
-continuously evolving duplex state. The binding factor computation absorbs the group key, the message, and every
-participant's commitment into a single protocol instance, then sequentially derives each participant's binding factor
-via `Mix` and `Derive`. Because the commitments are absorbed in a canonical order (sorted by identifier), the total
-ordering ensures each binding factor depends on the full set of commitments without requiring per-participant state
-cloning.
+Standard FROST requires three separate hash instantiations (nonce generation, challenge, binding factors). Newplex
+derives all three from the same duplex state. Binding factor computation absorbs the group key, message, and all
+commitments (sorted by identifier), then sequentially derives each factor via `Mix` and `Derive`.
 
 ```text
 function ComputeBindingFactors(domain, groupKey, message, commitments):
@@ -2289,11 +1867,9 @@ function ComputeBindingFactors(domain, groupKey, message, commitments):
   return factors
 ```
 
-The challenge derivation reuses the identical Newplex transcript structure as the single-signer digital signature
-scheme: `Mix("signer", ...)`, `Mix("message", ...)`, `Fork("role", "prover", "verifier")`,
-`Mix("commitment", ...)`, `Derive("challenge", 64)`. This means FROST signatures are standard Schnorr signatures,
-directly verifiable by the single-signer `Verify` function with no protocol-level distinction between single-signer and
-threshold signatures.
+Challenge derivation reuses the single-signer transcript structure (`Mix("signer", ...)`, `Mix("message", ...)`,
+`Fork("role", ...)`, `Mix("commitment", ...)`, `Derive("challenge", 64)`), so FROST signatures are standard Schnorr
+signatures verifiable by the single-signer `Verify` function.
 
 ```text
 function Sign(signingShare, identifier, domain, nonce, message, commitments):
@@ -2314,41 +1890,29 @@ function Aggregate(domain, groupKey, message, commitments, sigShares):
   return ElementEncode(groupCommitment) || ScalarEncode(z)
 ```
 
-Nonce generation uses the same hedged deterministic approach as the single-signer scheme: the signer's secret share and
-caller-provided randomness are mixed into a fresh protocol instance, and the hiding and binding nonces are derived via
-sequential `Derive` operations. This protects against both nonce reuse (the derivation is deterministic given the same
-inputs) and weak randomness (the secret share provides a high-entropy seed even if the random data is compromised).
-
-Individual signature shares can be verified before aggregation using each participant's verifying share (the public key
-corresponding to their secret share), enabling identification of misbehaving signers without revealing any secret
-material.
+Nonce generation uses the same hedged deterministic approach as the single-signer scheme, protecting against both nonce
+reuse and weak randomness. Individual signature shares can be verified before aggregation using each participant's
+verifying share, identifying misbehaving signers without revealing secrets.
 
 ## Security Analysis
 
-This section consolidates the security argument for the Newplex framework. It restates the foundational assumptions
-(now with the reader fully equipped to appreciate them), provides concrete bounds, and establishes the reductions from
-individual schemes to the duplex construction.
+This section consolidates the security argument for Newplex: assumptions, concrete bounds, and reductions from schemes
+to the duplex construction.
 
 ### Assumptions
 
-The security of the Newplex framework rests on two pillars: the well-studied properties of the duplex construction and
-the assumption that the Simpira-1024 permutation is indistinguishable from an ideal permutation.
+Newplex's security rests on two assumptions: the duplex construction's properties and Simpira-1024's
+indistinguishability from an ideal permutation.
 
-The duplex construction is instantiated with the Simpira-1024 permutation. The analysis assumes that Simpira-1024
-behaves as an ideal permutation and exhibits no structural distinguishers with a complexity below `2**128`. Based on
-the [flat sponge claim], a capacity of 256 bits (`c=256`) provides a generic security level of 128 bits against all
-generic attacks: a probabilistic polynomial-time adversary making `N < 2**128` queries to the permutation cannot
-distinguish the output of the duplex from a random bitstream or force a collision in its internal capacity. In the
-unkeyed model, where the adversary has read access to the full state, the construction is indifferentiable from a random
-oracle. In the keyed model, where the capacity is populated with secret entropy and hidden from the adversary, the
-construction acts as a cryptographically secure pseudorandom generator (PRG) or pseudorandom function (PRF). These
-properties hold as long as the underlying permutation Simpira-1024 is a secure Pseudorandom Permutation (PRP) and the
-total number of queries across all protocol instances does not approach the birthday bound of the capacity (`2**128`).
+The analysis assumes Simpira-1024 has no structural distinguishers below `2**128` complexity. Per the [flat sponge
+claim], the 256-bit capacity provides 128-bit generic security: an adversary making `N < 2**128` queries cannot
+distinguish duplex output from random or force a capacity collision. In the unkeyed model, the construction is
+indifferentiable from a random oracle. In the keyed model, it acts as a secure PRG/PRF. These properties hold while
+Simpira-1024 is a secure PRP and total queries across all instances remain below `2**128`.
 
 ### Duplex Security Bounds
 
-Instantiated with a 256-bit capacity, the duplex provides the following generic bounds against an adversary making at
-most `N` queries to the permutation:
+With a 256-bit capacity, the duplex provides these bounds for an adversary making at most `N` queries:
 
 | Property                          | Bound                     | Applicable Model |
 |-----------------------------------|---------------------------|------------------|
@@ -2358,26 +1922,21 @@ most `N` queries to the permutation:
 | PRF distinguishing advantage      | `N**2 / 2**256`           | Keyed            |
 | PRG indistinguishability          | `N**2 / 2**256`           | Keyed            |
 
-These bounds are the ceiling for every scheme in the framework. No scheme can exceed the collision resistance of
-`2**128` or the state-recovery resistance of `2**256`, regardless of its output length or key size.
+These are ceilings for every scheme. No scheme exceeds `2**128` collision resistance or `2**256` state-recovery
+resistance, regardless of output length or key size.
 
 ### Protocol Framework Security
 
-The security of the protocol framework relies on the injectivity of the operation framing and metadata. Each protocol
-operation absorbs a unique frame index into the duplex state to ensure that distinct sequences of variable-length inputs
-result in distinct sequences of inputs to the underlying permutation. In addition, protocol operation types are
-disambiguated with distinct operation codes, and all operations require domain separation labels. Because the framing
-and metadata preclude ambiguity between operations and enforce domain separation at the state level, any successful
-attack against the protocol implies a collision or distinguishing attack against the duplex construction or permutation
-itself. Furthermore, this construction ensures the protocol is full context committing (CMT-4): every bit of squeezed
-output is cryptographically bound to the entire history of the session, including all metadata and secret material.
+Protocol security relies on the injectivity of operation framing and metadata. Each operation absorbs a unique frame
+index, ensuring distinct input sequences produce distinct permutation inputs. Operation types use distinct opcodes, and
+all operations require domain separation labels. Any attack against the protocol implies a collision or distinguishing
+attack against the duplex or permutation. The protocol is CMT-4: every output bit is bound to the full session history,
+including all metadata and secret material.
 
 ### Reduction From Schemes To The Duplex
 
-Because the protocol layer's strict framing and semantic labeling ensure that each scheme's transcript is uniquely
-decodable and fully context-committing (CMT-4), the security of every scheme reduces to the duplex bounds above.
-
-Concretely:
+Because the protocol's framing and labeling ensure each transcript is uniquely decodable and CMT-4, every scheme's
+security reduces to the duplex bounds:
 
 * **Unkeyed schemes** (e.g., Message Digest) inherit the duplex's indifferentiability from a random oracle, providing
   collision resistance up to `min(2**128, 2**((n*8)/2))` and preimage resistance up to `min(2**256, 2**(n*8))` for an
@@ -2392,9 +1951,8 @@ Concretely:
 
 ### Multi-User Security
 
-The single-user bounds above extend naturally to the multi-user setting. In a system with `U` independent users, each
-with their own key, an adversary can attempt to break *any one* of the `U` instances. The standard hybrid argument
-applies: the adversary's advantage against `U` users is at most `U` times its advantage against a single user.
+The single-user bounds extend to the multi-user setting via the standard hybrid argument: the adversary's advantage
+against `U` users is at most `U` times the single-user advantage.
 
 For keyed schemes, the multi-user PRF distinguishing advantage becomes `U * N**2 / 2**256`, where `N` is the total
 number of queries across all users. For practical deployments (e.g., `U = 2**32` users each making `N = 2**48`
@@ -2411,9 +1969,7 @@ by different users) is similarly bounded by the birthday limit on the output len
 
 ### Simplification Through Unification
 
-By collapsing separate hash functions, MACs, KDFs, stream ciphers, and AEADs into a single duplex construction, Newplex
-eliminates the API boundaries and state-synchronization overhead that traditionally complicate multi-primitive designs.
-This unification directly benefits security analysis: rather than reasoning about the composition of independent
-algorithms, a designer need only verify that the scheme correctly sequences protocol operations--the duplex provides the
-rest.
+Collapsing hash functions, MACs, KDFs, stream ciphers, and AEADs into a single duplex construction eliminates the API
+boundaries and state-synchronization overhead of multi-primitive designs. A designer need only verify correct sequencing
+of protocol operations--the duplex provides the rest.
 
