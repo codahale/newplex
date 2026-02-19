@@ -5,13 +5,12 @@ built on a duplex construction using the [Simpira-1024] permutation. Inspired by
 and [Xoodyak], Newplex is optimized for 64-bit architectures (x86-64 and ARM64) to provide 10+ Gb/second performance on
 modern processors at a 128-bit security level.
 
-The framework is guided by two central design principles. First, by replacing the traditional suite of separate hash
-functions, MACs, stream ciphers, and KDFs with a single duplex construction, Newplex drastically simplifies the design
-and implementation of cryptographic schemes--from basic AEAD to complex multi-party protocols like OPRFs and handshakes.
-Second, the security of every scheme built on Newplex reduces to the well-studied properties of the underlying duplex
-(indifferentiability from a random oracle, pseudorandom function security, and collision resistance), all bounded by the
-256-bit capacity (`2**128` against generic attacks). This tight reduction means that a single, focused security analysis
-of the duplex and permutation layers provides assurance for the entire framework.
+Two design principles guide the framework. First, replacing separate hash functions, MACs, stream ciphers, and KDFs with
+a single duplex construction simplifies the design and implementation of cryptographic schemes--from basic AEAD to
+multi-party protocols like OPRFs and handshakes. Second, the security of every scheme reduces to the properties of the
+underlying duplex (indifferentiability from a random oracle, pseudorandom function security, and collision resistance),
+all bounded by the 256-bit capacity (`2**128` against generic attacks). A single security analysis of the duplex and
+permutation layers covers the entire framework.
 
 [Simpira-1024]: https://eprint.iacr.org/2016/122.pdf
 
@@ -36,15 +35,14 @@ go get github.com/codahale/newplex
 
 ## Usage
 
-On AMD64 and ARM64 architectures, newplex uses the AES-NI instruction set to achieve this level of performance. On other
-architectures, or if the `purego` build tag is used, it uses a much-slower Go implementation with a bit-sliced,
-constant-time AES round implementation.
+On AMD64 and ARM64 architectures, newplex uses hardware AES instructions for performance. On other architectures, or if
+the `purego` build tag is used, it falls back to a slower Go implementation with a bit-sliced, constant-time AES round
+implementation.
 
-The AMD64 implementation requires the AES-NI and SSE2 instruction sets, which are ubiquitous.
+The AMD64 implementation requires AES-NI and SSE2. The ARM64 implementation requires ARMv8 Crypto Extensions and
+ASIMD (NEON).
 
-The ARM64 implementation requires the ARMv8 Crypto Extensions and ASIMD (NEON) support.
-
-To force the use of the portable implementation, use the `purego` build tag:
+To force the portable implementation, use the `purego` build tag:
 
 ```bash
 go build -tags purego ./...
@@ -52,8 +50,8 @@ go build -tags purego ./...
 
 ### Protocol
 
-`Protocol` is a high-level API, designed for easily building complex cryptographic schemes (e.g., hash functions, MACs,
-stream ciphers, AEADs, sessions) with built-in domain separation and state management.
+`Protocol` is a high-level API for building cryptographic schemes (e.g., hash functions, MACs, stream ciphers, AEADs,
+sessions) with built-in domain separation and state management.
 
 ```go
 // Initialize a protocol with a domain separation string.
@@ -76,7 +74,7 @@ tag := p.Derive("tag", nil, 32)
 
 ### Standard Packages
 
-Newplex includes many cryptographic schemes implemented as sub-packages:
+Newplex includes the following cryptographic schemes as sub-packages:
 
 * [`newplex/adratchet`](adratchet): Implements a Signal-like asynchronous double ratchet.
 * [`newplex/aead`](aead): Implements `cipher.AEAD` with support for additional data.
@@ -94,7 +92,7 @@ Newplex includes many cryptographic schemes implemented as sub-packages:
 * [`newplex/siv`](siv): Implements a SIV-style deterministic authentication scheme.
 * [`newplex/vrf`](vrf): Implements a verifiable random function.
 
-Design details for these are included in [`design.md`](design.md).
+Design details are in [`design.md`](design.md).
 
 ## Performance
 
