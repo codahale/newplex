@@ -2,7 +2,7 @@ package simpira1024
 
 // aesEnc is an implementation of Algorithm 1 of the Simpira V2 paper.
 //
-// It is equivalent to the AESENC instruction from AES-NI, but uses a bitsliced, pure Go implementation.
+// It is equivalent to the AESENC instruction from AES-NI, but uses a bit-sliced, pure Go implementation.
 func aesEnc(state, key [16]byte) [16]byte {
 	q := pack(state)
 	q = sbox(q)

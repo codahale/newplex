@@ -37,7 +37,7 @@ go get github.com/codahale/newplex
 ## Usage
 
 On AMD64 and ARM64 architectures, newplex uses the AES-NI instruction set to achieve this level of performance. On other
-architectures, or if the `purego` build tag is used, it uses a much-slower Go implementation with a bitsliced,
+architectures, or if the `purego` build tag is used, it uses a much-slower Go implementation with a bit-sliced,
 constant-time AES round implementation.
 
 The AMD64 implementation requires the AES-NI and SSE2 instruction sets, which are ubiquitous.
