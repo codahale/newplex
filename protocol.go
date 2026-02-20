@@ -65,11 +65,7 @@ func (p *Protocol) String() string {
 // Mix panics if a streaming operation is currently active.
 func (p *Protocol) Mix(label string, input []byte) {
 	p.checkState()
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opMix)
-	p.duplex.AbsorbString(label)
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opMix | 0x80)
+	p.duplex.AbsorbHeader(opMix, label)
 	p.duplex.Absorb(input)
 }
 
@@ -83,11 +79,7 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 		panic("invalid argument to Derive: n cannot be negative")
 	}
 
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opDerive)
-	p.duplex.AbsorbString(label)
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opDerive | 0x80)
+	p.duplex.AbsorbHeader(opDerive, label)
 	p.duplex.AbsorbLEB128(uint64(n))
 
 	ret, prf := sliceForAppend(dst, n)
@@ -111,11 +103,7 @@ func (p *Protocol) Derive(label string, dst []byte, n int) []byte {
 func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 	p.checkState()
 	ret, ciphertext := sliceForAppend(dst, len(plaintext))
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opCrypt)
-	p.duplex.AbsorbString(label)
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opCrypt | 0x80)
+	p.duplex.AbsorbHeader(opCrypt, label)
 	p.duplex.Permute()
 	p.duplex.Encrypt(ciphertext, plaintext)
 	return ret
@@ -133,11 +121,7 @@ func (p *Protocol) Mask(label string, dst, plaintext []byte) []byte {
 func (p *Protocol) Unmask(label string, dst, ciphertext []byte) []byte {
 	p.checkState()
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opCrypt)
-	p.duplex.AbsorbString(label)
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opCrypt | 0x80)
+	p.duplex.AbsorbHeader(opCrypt, label)
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
 	return ret
@@ -157,11 +141,7 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 	ret, ciphertext := sliceForAppend(dst, len(plaintext)+TagSize)
 	ciphertext, tag := ciphertext[:len(plaintext)], ciphertext[len(plaintext):]
 
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opAuthCrypt)
-	p.duplex.AbsorbString(label)
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opAuthCrypt | 0x80)
+	p.duplex.AbsorbHeader(opAuthCrypt, label)
 	p.duplex.AbsorbLEB128(uint64(len(plaintext)))
 	p.duplex.Permute()
 	p.duplex.Encrypt(ciphertext, plaintext)
@@ -193,11 +173,7 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	ciphertext, receivedTag := ciphertextAndTag[:len(plaintext)], ciphertextAndTag[len(plaintext):]
 	var expectedTag [TagSize]byte
 
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opAuthCrypt)
-	p.duplex.AbsorbString(label)
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opAuthCrypt | 0x80)
+	p.duplex.AbsorbHeader(opAuthCrypt, label)
 	p.duplex.AbsorbLEB128(uint64(len(plaintext)))
 	p.duplex.Permute()
 	p.duplex.Decrypt(plaintext, ciphertext)
@@ -217,11 +193,7 @@ func (p *Protocol) ForkN(label string, values ...[]byte) []Protocol {
 	branches := make([]Protocol, len(values))
 	for i := range branches {
 		clone := p.Clone()
-		clone.duplex.Frame()
-		clone.duplex.AbsorbByte(opFork)
-		clone.duplex.AbsorbString(label)
-		clone.duplex.Frame()
-		clone.duplex.AbsorbByte(opFork | 0x80)
+		clone.duplex.AbsorbHeader(opFork, label)
 		clone.duplex.Absorb(values[i])
 		branches[i] = clone
 	}
@@ -238,11 +210,7 @@ func (p *Protocol) Fork(label string, leftValue, rightValue []byte) (left, right
 // Ratchet irreversibly modifies the protocol's state, preventing rollback and establishing forward secrecy.
 func (p *Protocol) Ratchet(label string) {
 	p.checkState()
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opRatchet)
-	p.duplex.AbsorbString(label)
-	p.duplex.Frame()
-	p.duplex.AbsorbByte(opRatchet | 0x80)
+	p.duplex.AbsorbHeader(opRatchet, label)
 	p.duplex.Ratchet()
 }
 

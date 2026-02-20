@@ -83,6 +83,37 @@ func (d *State) AbsorbLEB128(x uint64) {
 	d.AbsorbByte(byte(x))
 }
 
+// AbsorbHeader absorbs the common protocol operation header pattern:
+// Frame + AbsorbByte(op) + AbsorbString(label) + Frame + AbsorbByte(op|0x80)
+// in a single pass, avoiding per-byte overflow checks when the header fits within the remaining rate.
+func (d *State) AbsorbHeader(op byte, label string) {
+	n := len(label)
+	headerLen := 4 + n // frame byte + op + label + frame byte + op|0x80
+
+	if d.rateIdx+headerLen <= maxRateIdx {
+		// Fast path: absorb entire header without overflow checks.
+		R := d.rateIdx
+		d.state[R] ^= byte(d.frameIdx) // Frame: absorb old frameIdx
+		d.state[R+1] ^= op             // Op byte
+		s := d.state[R+2 : R+2+n]
+		for i := range n {
+			s[i] ^= label[i]
+		}
+		d.state[R+2+n] ^= byte(R + 1) // Frame: absorb new frameIdx (set to R+1)
+		d.state[R+3+n] ^= op | 0x80   // Op|0x80
+		d.frameIdx = R + 3 + n
+		d.rateIdx = R + headerLen
+		return
+	}
+
+	// Slow path: use individual operations for cases near the rate boundary.
+	d.Frame()
+	d.AbsorbByte(op)
+	d.Absorb([]byte(label))
+	d.Frame()
+	d.AbsorbByte(op | 0x80)
+}
+
 // Frame absorbs the current frame index and updates the frame index to be the current rate index.
 func (d *State) Frame() {
 	// Absorb the previous frame index.
