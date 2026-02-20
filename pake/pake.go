@@ -82,6 +82,6 @@ func exchange(domain string, initiatorID, responderID, sessionID, password, rand
 		p.Mix("key-element", k.Bytes())
 
 		// Return a fully keyed protocol.
-		return &p, nil
+		return p, nil
 	}, out
 }

@@ -49,7 +49,7 @@ func Hash(domain string, cost uint8, salt, password, dst []byte, n int) []byte {
 	dd.Derive("source", blocks[0][:0], blockSize)
 
 	for v := 1; v < staticNodes; v++ {
-		p1, p2 := staticParents(new(id.Clone()), gratesCols, v)
+		p1, p2 := staticParents(id.Clone(), gratesCols, v)
 		h := dd.Clone()
 		if p1 >= 0 {
 			h.Mix("required", blocks[p1][:])

@@ -40,7 +40,7 @@ func NewKeyed(domain string, key []byte) hash.Hash {
 }
 
 type digest struct {
-	base, p newplex.Protocol
+	base, p *newplex.Protocol
 	w       *newplex.MixWriter
 	size    int
 }
@@ -61,7 +61,7 @@ func (d *digest) Sum(b []byte) []byte {
 }
 
 func (d *digest) Reset() {
-	d.p = d.base
+	d.p = d.base.Clone()
 	d.w = d.p.MixWriter("message", io.Discard)
 }
 

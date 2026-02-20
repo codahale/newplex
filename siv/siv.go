@@ -25,7 +25,7 @@ func New(domain string, key []byte, nonceSize int) cipher.AEAD {
 }
 
 type aead struct {
-	p         newplex.Protocol
+	p         *newplex.Protocol
 	nonceSize int
 }
 
@@ -42,7 +42,7 @@ func (a *aead) Seal(dst, nonce, plaintext, additionalData []byte) []byte {
 		panic("newplex/siv: invalid nonce size")
 	}
 
-	p := a.p
+	p := a.p.Clone()
 	p.Mix("nonce", nonce)
 	p.Mix("ad", additionalData)
 
@@ -66,7 +66,7 @@ func (a *aead) Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, erro
 
 	ciphertext, receivedTag := ciphertext[:len(ciphertext)-newplex.TagSize], ciphertext[len(ciphertext)-newplex.TagSize:]
 
-	p := a.p
+	p := a.p.Clone()
 	p.Mix("nonce", nonce)
 	p.Mix("ad", additionalData)
 

@@ -71,10 +71,10 @@ type MixWriter struct {
 
 // Branch returns a clone of the writer's protocol with the Mix operation completed. The original writer and protocol
 // remain unmodified.
-func (m *MixWriter) Branch() Protocol {
+func (m *MixWriter) Branch() *Protocol {
 	p := *m.p // Using a copy instead of Clone to bypass the streaming flag.
 	p.streaming = false
-	return p
+	return &p
 }
 
 func (m *MixWriter) Write(p []byte) (n int, err error) {

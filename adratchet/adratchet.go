@@ -20,7 +20,7 @@ type State struct {
 	remotePub               *ristretto255.Element
 	send, recv              *newplex.Protocol
 	sendN, recvN, prevSendN uint32
-	skipped                 map[skippedKey]newplex.Protocol
+	skipped                 map[skippedKey]*newplex.Protocol
 }
 
 const (
@@ -38,12 +38,12 @@ func NewInitiator(p *newplex.Protocol, local *ristretto255.Scalar, remote *ristr
 		localPriv: local,
 		localPub:  ristretto255.NewIdentityElement().ScalarBaseMult(local),
 		remotePub: remote,
-		send:      &send,
-		recv:      &recv,
+		send:      send,
+		recv:      recv,
 		sendN:     0,
 		recvN:     0,
 		prevSendN: 0,
-		skipped:   make(map[skippedKey]newplex.Protocol),
+		skipped:   make(map[skippedKey]*newplex.Protocol),
 	}
 	s.Ratchet()
 	return s
@@ -57,12 +57,12 @@ func NewResponder(p *newplex.Protocol, local *ristretto255.Scalar, remote *ristr
 		localPriv: local,
 		localPub:  ristretto255.NewIdentityElement().ScalarBaseMult(local),
 		remotePub: remote,
-		send:      &send,
-		recv:      &recv,
+		send:      send,
+		recv:      recv,
 		sendN:     0,
 		recvN:     0,
 		prevSendN: 0,
-		skipped:   make(map[skippedKey]newplex.Protocol),
+		skipped:   make(map[skippedKey]*newplex.Protocol),
 	}
 	return s
 }

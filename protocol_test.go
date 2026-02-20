@@ -10,7 +10,7 @@ import (
 
 func TestNewProtocol(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
-	if got, want := p1.Equal(new(newplex.NewProtocol("other"))), 0; got != want {
+	if got, want := p1.Equal(newplex.NewProtocol("other")), 0; got != want {
 		t.Errorf("Equal() = %v, want = %v (domain separation failure)", got, want)
 	}
 }
@@ -32,7 +32,7 @@ func TestProtocol_Equal(t *testing.T) {
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("one", []byte{1})
 
-		if got, want := p1.Equal(&p2), 1; got != want {
+		if got, want := p1.Equal(p2), 1; got != want {
 			t.Errorf("Equal = %v, want = %v", got, want)
 		}
 	})
@@ -43,7 +43,7 @@ func TestProtocol_Equal(t *testing.T) {
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("one", []byte{2})
 
-		if got, want := p1.Equal(&p2), 0; got != want {
+		if got, want := p1.Equal(p2), 0; got != want {
 			t.Errorf("Equal = %v, want = %v", got, want)
 		}
 	})
@@ -53,7 +53,7 @@ func TestProtocol_Clone(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("one", []byte{1})
 
-	if got, want := p1.Equal(new(p1.Clone())), 1; got != want {
+	if got, want := p1.Equal(p1.Clone()), 1; got != want {
 		t.Errorf("Equal() = %v, want = %v (post-clone states should be equal)", got, want)
 	}
 }
@@ -75,19 +75,19 @@ func TestProtocol_Fork(t *testing.T) {
 	l, r := p.Fork("side", []byte("l"), []byte("r"))
 
 	t.Run("left vs parent", func(t *testing.T) {
-		if got, want := p.Equal(&l), 0; got != want {
+		if got, want := p.Equal(l), 0; got != want {
 			t.Errorf("Equal() = %v, want = %v (left side of fork same as parent)", got, want)
 		}
 	})
 
 	t.Run("right vs parent", func(t *testing.T) {
-		if got, want := p.Equal(&r), 0; got != want {
+		if got, want := p.Equal(r), 0; got != want {
 			t.Errorf("Equal() = %v, want = %v (right side of fork same as parent)", got, want)
 		}
 	})
 
 	t.Run("left vs right", func(t *testing.T) {
-		if got, want := l.Equal(&r), 0; got != want {
+		if got, want := l.Equal(r), 0; got != want {
 			t.Errorf("Equal() = %v, want = %v (left side of fork same as right)", got, want)
 		}
 	})
@@ -121,7 +121,7 @@ func TestProtocol_ForkN(t *testing.T) {
 				if i == j {
 					continue
 				}
-				if got, want := forks[i].Equal(&forks[j]), 0; got != want {
+				if got, want := forks[i].Equal(forks[j]), 0; got != want {
 					t.Errorf("forks[%d] == forks[%d]", i, j)
 				}
 			}
@@ -144,7 +144,7 @@ func TestProtocol_Ratchet(t *testing.T) {
 	p2.Mix("a thing", []byte("another thing"))
 	p2.Ratchet("ratchet")
 
-	if got, want := p1.Equal(&p2), 0; got != want {
+	if got, want := p1.Equal(p2), 0; got != want {
 		t.Errorf("Equal() = %v, want = %v (post-ratchet states should not be equal)", got, want)
 	}
 }
@@ -163,7 +163,7 @@ func TestProtocol_MarshalBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := p2.Equal(&p1), 1; got != want {
+	if got, want := p2.Equal(p1), 1; got != want {
 		t.Errorf("Equal() = %v, want = %v (unmarshaled state should be equal)", got, want)
 	}
 }
@@ -202,7 +202,7 @@ func TestProtocol_Mix(t *testing.T) {
 		p2 := newplex.NewProtocol("empty-test")
 		p2.Mix("label", nil)
 
-		if got, want := p1.Equal(&p2), 0; got != want {
+		if got, want := p1.Equal(p2), 0; got != want {
 			t.Errorf("Equal() = %v, want = %v (Mix(''); Mix('label') should not be equal)", got, want)
 		}
 	})
@@ -256,7 +256,7 @@ func TestProtocol_Mask(t *testing.T) {
 			t.Errorf("Mask(16)[:10] = %x, want = %x", got, want)
 		}
 
-		if p1.Equal(&p2) == 1 {
+		if p1.Equal(p2) == 1 {
 			t.Errorf("Mask(10) state and Mask(16) state should not be equal")
 		}
 	})
@@ -381,12 +381,8 @@ func TestProtocol_Open(t *testing.T) {
 
 	t.Run("empty ciphertext", func(t *testing.T) {
 		p := newplex.NewProtocol("empty-test")
-
-		pSeal := p
-		sealed := pSeal.Seal("seal", nil, nil)
-
-		pOpen := p
-		opened, err := pOpen.Open("seal", nil, sealed)
+		sealed := p.Clone().Seal("seal", nil, nil)
+		opened, err := p.Clone().Open("seal", nil, sealed)
 		if err != nil {
 			t.Errorf("Open(Seal(nil)) failed: %v", err)
 		}
@@ -408,11 +404,11 @@ func FuzzProtocol_Open(f *testing.F) {
 			t.Skip()
 		}
 
-		p := newplex.NewProtocol("fuzz-open")
-		ciphertext := p.Seal("message", nil, plaintext)
+		p1 := newplex.NewProtocol("fuzz-open")
+		ciphertext := p1.Seal("message", nil, plaintext)
 		ciphertext[idx] ^= mask
 
-		p = newplex.NewProtocol("fuzz-open")
+		p := newplex.NewProtocol("fuzz-open")
 		recovered, err := p.Open("message", nil, ciphertext)
 		if err == nil {
 			t.Errorf("Open(ciphertext=%x) = plaintext=%x, want = err", ciphertext, recovered)

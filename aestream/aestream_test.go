@@ -17,7 +17,7 @@ func TestNewWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(p1, buf, aestream.MaxBlockSize)
 		if _, err := w.Write([]byte("here's one message; ")); err != nil {
 			t.Fatal(err)
 		}
@@ -30,7 +30,7 @@ func TestNewWriter(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+		r := aestream.NewReader(p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 		b, err := io.ReadAll(r)
 		if err != nil {
 			t.Fatal(err)
@@ -45,7 +45,7 @@ func TestNewWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(p1, buf, aestream.MaxBlockSize)
 		message := make([]byte, 2345)
 		n, err := io.CopyBuffer(w, bytes.NewReader(message), make([]byte, 100))
 		if err != nil {
@@ -61,7 +61,7 @@ func TestNewWriter(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+		r := aestream.NewReader(p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 		b, err := io.ReadAll(r)
 		if err != nil {
 			t.Fatal(err)
@@ -76,7 +76,7 @@ func TestNewWriter(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(p1, buf, aestream.MaxBlockSize)
 
 		if _, err := w.Write([]byte("first")); err != nil {
 			t.Fatal(err)
@@ -93,7 +93,7 @@ func TestNewWriter(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+		r := aestream.NewReader(p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 		b, err := io.ReadAll(r)
 		if err != nil {
 			t.Fatal(err)
@@ -111,14 +111,14 @@ func TestNewWriter(t *testing.T) {
 			}
 		}()
 
-		aestream.NewWriter(new(newplex.NewProtocol("example")), io.Discard, 0)
+		aestream.NewWriter(newplex.NewProtocol("example"), io.Discard, 0)
 	})
 }
 
 func TestWriter_Write(t *testing.T) {
 	t.Run("underlying writer error", func(t *testing.T) {
 		ew := &testdata.ErrWriter{Err: errors.New("write failed")}
-		w := aestream.NewWriter(new(newplex.NewProtocol("example")), ew, aestream.MaxBlockSize)
+		w := aestream.NewWriter(newplex.NewProtocol("example"), ew, aestream.MaxBlockSize)
 
 		_, err := w.Write([]byte("hello"))
 		if !errors.Is(err, ew.Err) {
@@ -132,7 +132,7 @@ func TestNewReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(p1, buf, aestream.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -140,7 +140,7 @@ func TestNewReader(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
+		r := aestream.NewReader(p2, bytes.NewReader(buf.Bytes()), aestream.MaxBlockSize)
 		_, err := io.ReadAll(r)
 		if err == nil {
 			t.Error("expected error on truncated stream, got nil")
@@ -151,7 +151,7 @@ func TestNewReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(p1, buf, aestream.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -162,7 +162,7 @@ func TestNewReader(t *testing.T) {
 
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
-		r := aestream.NewReader(&p2, bytes.NewReader(truncated), aestream.MaxBlockSize)
+		r := aestream.NewReader(p2, bytes.NewReader(truncated), aestream.MaxBlockSize)
 		_, err := io.ReadAll(r)
 		if err == nil {
 			t.Error("expected error on truncated header, got nil")
@@ -176,7 +176,7 @@ func TestNewReader(t *testing.T) {
 		p1 := newplex.NewProtocol("example")
 		p1.Mix("key", []byte("it's a key"))
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(&p1, buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(p1, buf, aestream.MaxBlockSize)
 		if _, err := w.Write([]byte("message")); err != nil {
 			t.Fatal(err)
 		}
@@ -187,7 +187,7 @@ func TestNewReader(t *testing.T) {
 		p2 := newplex.NewProtocol("example")
 		p2.Mix("key", []byte("it's a key"))
 		// Set max block size smaller than "message" length (7 bytes)
-		r := aestream.NewReader(&p2, bytes.NewReader(buf.Bytes()), 6)
+		r := aestream.NewReader(p2, bytes.NewReader(buf.Bytes()), 6)
 		_, err := io.ReadAll(r)
 		if err == nil {
 			t.Error("expected error on block too large, got nil")
@@ -200,7 +200,7 @@ func TestNewReader(t *testing.T) {
 
 func TestReader_Read(t *testing.T) {
 	t.Run("empty read", func(t *testing.T) {
-		r := aestream.NewReader(new(newplex.NewProtocol("example")), bytes.NewReader(nil), aestream.MaxBlockSize)
+		r := aestream.NewReader(newplex.NewProtocol("example"), bytes.NewReader(nil), aestream.MaxBlockSize)
 		n, err := r.Read(nil)
 		if n != 0 || err != nil {
 			t.Errorf("expected 0, nil; got %d, %v", n, err)
@@ -209,7 +209,7 @@ func TestReader_Read(t *testing.T) {
 
 	t.Run("underlying reader error", func(t *testing.T) {
 		er := &testdata.ErrReader{Err: errors.New("read failed")}
-		r := aestream.NewReader(new(newplex.NewProtocol("example")), er, aestream.MaxBlockSize)
+		r := aestream.NewReader(newplex.NewProtocol("example"), er, aestream.MaxBlockSize)
 
 		_, err := r.Read(make([]byte, 100))
 		if !errors.Is(err, er.Err) {
@@ -218,7 +218,7 @@ func TestReader_Read(t *testing.T) {
 	})
 
 	t.Run("empty stream", func(t *testing.T) {
-		r := aestream.NewReader(new(newplex.NewProtocol("example")), bytes.NewReader(nil), aestream.MaxBlockSize)
+		r := aestream.NewReader(newplex.NewProtocol("example"), bytes.NewReader(nil), aestream.MaxBlockSize)
 		_, err := r.Read(make([]byte, 100))
 		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
 			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
@@ -227,14 +227,14 @@ func TestReader_Read(t *testing.T) {
 
 	t.Run("invalid header tag", func(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(new(newplex.NewProtocol("example")), buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(newplex.NewProtocol("example"), buf, aestream.MaxBlockSize)
 		_, _ = w.Write([]byte("message"))
 		_ = w.Close()
 
 		data := buf.Bytes()
 		data[5] ^= 1 // tamper with header tag
 
-		r := aestream.NewReader(new(newplex.NewProtocol("example")), bytes.NewReader(data), aestream.MaxBlockSize)
+		r := aestream.NewReader(newplex.NewProtocol("example"), bytes.NewReader(data), aestream.MaxBlockSize)
 		_, err := io.ReadAll(r)
 		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
 			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
@@ -243,14 +243,14 @@ func TestReader_Read(t *testing.T) {
 
 	t.Run("invalid block tag", func(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
-		w := aestream.NewWriter(new(newplex.NewProtocol("example")), buf, aestream.MaxBlockSize)
+		w := aestream.NewWriter(newplex.NewProtocol("example"), buf, aestream.MaxBlockSize)
 		_, _ = w.Write([]byte("message"))
 		_ = w.Close()
 
 		data := buf.Bytes()
 		data[len(data)-1] ^= 1 // tamper with block tag
 
-		r := aestream.NewReader(new(newplex.NewProtocol("example")), bytes.NewReader(data), aestream.MaxBlockSize)
+		r := aestream.NewReader(newplex.NewProtocol("example"), bytes.NewReader(data), aestream.MaxBlockSize)
 		_, err := io.ReadAll(r)
 		if !errors.Is(err, newplex.ErrInvalidCiphertext) {
 			t.Errorf("expected ErrInvalidCiphertext, got %v", err)
@@ -266,7 +266,7 @@ func BenchmarkNewWriter(b *testing.B) {
 
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
-			w := aestream.NewWriter(&p1, io.Discard, aestream.MaxBlockSize)
+			w := aestream.NewWriter(p1, io.Discard, aestream.MaxBlockSize)
 			buf := make([]byte, length.n)
 
 			for b.Loop() {
@@ -287,7 +287,7 @@ func BenchmarkNewReader(b *testing.B) {
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
 			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
-			w := aestream.NewWriter(&p1, ciphertext, aestream.MaxBlockSize)
+			w := aestream.NewWriter(p1, ciphertext, aestream.MaxBlockSize)
 			buf := make([]byte, length.n)
 			_, _ = w.Write(buf)
 			_ = w.Close()
@@ -295,10 +295,9 @@ func BenchmarkNewReader(b *testing.B) {
 			p2 := newplex.NewProtocol("example")
 			p2.Mix("key", []byte("it's a key"))
 
-			var p3 newplex.Protocol
 			for b.Loop() {
-				p3 = p2
-				aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
+				p3 := p2.Clone()
+				aestream.NewReader(p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
 			}
 		})
 	}
@@ -313,7 +312,7 @@ func BenchmarkNewReader_Read(b *testing.B) {
 			p1 := newplex.NewProtocol("example")
 			p1.Mix("key", []byte("it's a key"))
 			ciphertext := bytes.NewBuffer(make([]byte, 0, length.n))
-			w := aestream.NewWriter(&p1, ciphertext, aestream.MaxBlockSize)
+			w := aestream.NewWriter(p1, ciphertext, aestream.MaxBlockSize)
 			buf := make([]byte, length.n)
 			_, _ = w.Write(buf)
 			_ = w.Close()
@@ -321,10 +320,9 @@ func BenchmarkNewReader_Read(b *testing.B) {
 			p2 := newplex.NewProtocol("example")
 			p2.Mix("key", []byte("it's a key"))
 
-			var p3 newplex.Protocol
 			for b.Loop() {
-				p3 = p2
-				r := aestream.NewReader(&p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
+				p3 := p2.Clone()
+				r := aestream.NewReader(p3, bytes.NewReader(ciphertext.Bytes()), aestream.MaxBlockSize)
 				if _, err := io.CopyBuffer(io.Discard, r, buf); err != nil {
 					b.Fatal(err)
 				}
@@ -345,7 +343,7 @@ func Example() {
 		ciphertext := bytes.NewBuffer(nil)
 
 		// Create a streaming authenticated encryption writer.
-		w := aestream.NewWriter(&p, ciphertext, aestream.MaxBlockSize)
+		w := aestream.NewWriter(p, ciphertext, aestream.MaxBlockSize)
 
 		// Write the plaintext to the writer.
 		if _, err := w.Write(plaintext); err != nil {
@@ -368,7 +366,7 @@ func Example() {
 		p.Mix("key", key)
 
 		// Create a streaming authenticated encryption reader.
-		r := aestream.NewReader(&p, bytes.NewReader(ciphertext), aestream.MaxBlockSize)
+		r := aestream.NewReader(p, bytes.NewReader(ciphertext), aestream.MaxBlockSize)
 
 		// Read the plaintext from the reader.
 		plaintext, err := io.ReadAll(r)
@@ -418,7 +416,7 @@ func FuzzReader(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		r := aestream.NewReader(new(newplex.NewProtocol("fuzz")), bytes.NewReader(data), 4096)
+		r := aestream.NewReader(newplex.NewProtocol("fuzz"), bytes.NewReader(data), 4096)
 		v, err := io.ReadAll(r)
 		if err == nil {
 			t.Errorf("ReadAll(data=%x) = plaintext=%x, want = err", data, v)

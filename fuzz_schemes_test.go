@@ -14,14 +14,14 @@ func FuzzStream(f *testing.F) {
 		protocol := newplex.NewProtocol("stream")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.Mask("message", nil, message), &protocol
+		return protocol.Mask("message", nil, message), protocol
 	}
 
 	decrypt := func(key []byte, nonce []byte, message []byte) (plaintext []byte, p *newplex.Protocol) {
 		protocol := newplex.NewProtocol("stream")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.Unmask("message", nil, message), &protocol
+		return protocol.Unmask("message", nil, message), protocol
 	}
 
 	drbg := testdata.New("newplex stream")
@@ -49,7 +49,7 @@ func FuzzAEAD(f *testing.F) {
 		protocol := newplex.NewProtocol("aead")
 		protocol.Mix("key", key)
 		protocol.Mix("nonce", nonce)
-		return protocol.Seal("message", nil, message), &protocol
+		return protocol.Seal("message", nil, message), protocol
 	}
 
 	decrypt := func(key []byte, nonce []byte, message []byte) (plaintext []byte, p *newplex.Protocol, err error) {
@@ -60,7 +60,7 @@ func FuzzAEAD(f *testing.F) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return plaintext, &protocol, nil
+		return plaintext, protocol, nil
 	}
 
 	drbg := testdata.New("newplex aead")

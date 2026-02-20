@@ -47,15 +47,15 @@ type Protocol struct {
 //
 // The domain separation string should be unique to the application and specific protocol. It should not contain dynamic
 // data like timestamps or user IDs. A good format is "application-name.protocol-name".
-func NewProtocol(domain string) (p Protocol) {
+func NewProtocol(domain string) *Protocol {
+	var p Protocol
 	p.duplex.AbsorbHeader(opInit, domain)
-	return p
+	return &p
 }
 
 // String returns a safe string representation of the protocol's state for debugging purposes.
 func (p *Protocol) String() string {
-	clone := p.Clone()
-	return fmt.Sprintf("Protocol(%x)", clone.Derive("debug", nil, 8))
+	return fmt.Sprintf("Protocol(%x)", p.Clone().Derive("debug", nil, 8))
 }
 
 // Mix updates the protocol's state using the given label and input.
@@ -186,9 +186,9 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 }
 
 // ForkN returns N copies of the receiver, with each branch having absorbed the branch-specific value.
-func (p *Protocol) ForkN(label string, values ...[]byte) []Protocol {
+func (p *Protocol) ForkN(label string, values ...[]byte) []*Protocol {
 	p.checkState()
-	branches := make([]Protocol, len(values))
+	branches := make([]*Protocol, len(values))
 	for i := range branches {
 		clone := p.Clone()
 		clone.duplex.AbsorbHeader(opFork, label)
@@ -200,7 +200,7 @@ func (p *Protocol) ForkN(label string, values ...[]byte) []Protocol {
 
 // Fork returns two copies of the receiver, with the left side having absorbed the left value and the right side having
 // absorbed the right.
-func (p *Protocol) Fork(label string, leftValue, rightValue []byte) (left, right Protocol) {
+func (p *Protocol) Fork(label string, leftValue, rightValue []byte) (left, right *Protocol) {
 	branches := p.ForkN(label, leftValue, rightValue)
 	return branches[0], branches[1]
 }
@@ -215,9 +215,9 @@ func (p *Protocol) Ratchet(label string) {
 // Clone returns a full clone of the receiver.
 //
 // Clone panics if a streaming operation is currently active.
-func (p *Protocol) Clone() Protocol {
+func (p *Protocol) Clone() *Protocol {
 	p.checkState()
-	return *p
+	return new(*p)
 }
 
 // Clear erases the protocol's state
