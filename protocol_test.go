@@ -10,9 +10,7 @@ import (
 
 func TestNewProtocol(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
-	p2 := newplex.NewProtocol("other")
-
-	if got, want := p1.Equal(&p2), 0; got != want {
+	if got, want := p1.Equal(new(newplex.NewProtocol("other"))), 0; got != want {
 		t.Errorf("Equal() = %v, want = %v (domain separation failure)", got, want)
 	}
 }
@@ -55,8 +53,7 @@ func TestProtocol_Clone(t *testing.T) {
 	p1 := newplex.NewProtocol("example")
 	p1.Mix("one", []byte{1})
 
-	p2 := p1.Clone()
-	if got, want := p1.Equal(&p2), 1; got != want {
+	if got, want := p1.Equal(new(p1.Clone())), 1; got != want {
 		t.Errorf("Equal() = %v, want = %v (post-clone states should be equal)", got, want)
 	}
 }

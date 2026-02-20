@@ -418,8 +418,7 @@ func FuzzReader(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		p := newplex.NewProtocol("fuzz")
-		r := aestream.NewReader(&p, bytes.NewReader(data), 4096)
+		r := aestream.NewReader(new(newplex.NewProtocol("fuzz")), bytes.NewReader(data), 4096)
 		v, err := io.ReadAll(r)
 		if err == nil {
 			t.Errorf("ReadAll(data=%x) = plaintext=%x, want = err", data, v)
