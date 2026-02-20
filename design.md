@@ -696,9 +696,8 @@ has a unique base operation code (opcode).
 
 ### The Two-Frame Structure
 
-Every operation except `Init` uses two phases: a metadata frame and a data frame. The duplex `Frame` provides low-level
-delimitation; the protocol framework uses these phases to distinguish cryptographic intent (metadata) from the
-primary payload (data).
+Every operation uses two phases: a metadata frame and a data frame. The duplex `Frame` provides low-level delimitation;
+the protocol framework uses these phases to distinguish cryptographic intent (metadata) from the primary payload (data).
 
 In the metadata frame, the protocol absorbs the base opcode (high bit cleared) and a domain separation label. In the
 data frame, it absorbs the modified opcode (high bit set) before executing the operation's primary logic.
@@ -744,15 +743,19 @@ inseparable from the specific protocol instance and operation sequence that prod
 
 #### `Init`
 
-`Init` is the required first operation. It takes a protocol domain string as its sole input and consists of a single
-metadata frame:
+`Init` is the required first operation. It takes a protocol domain string as its sole input and uses the standard
+two-frame structure:
 
 ```text
 function Init(domain):
   duplex.Frame()
   duplex.Absorb([OP_INIT | F_META])
   duplex.Absorb(domain)
+  duplex.Frame()
+  duplex.Absorb([OP_INIT | F_DATA])
 ```
+
+Unlike other operations, it does not modify the duplex state in the data frame.
 
 The BLAKE3 recommendations for KDF context strings apply equally to Newplex protocol domains:
 
