@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -413,20 +412,6 @@ func BenchmarkDuplex_Absorb(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				d.Absorb(input)
-			}
-		})
-	}
-}
-
-func BenchmarkDuplex_AbsorbString(b *testing.B) {
-	for _, length := range lengths {
-		b.Run(length.name, func(b *testing.B) {
-			var d State
-			input := strings.Repeat("*", length.n)
-			b.SetBytes(int64(length.n))
-			b.ReportAllocs()
-			for b.Loop() {
-				d.AbsorbString(input)
 			}
 		})
 	}

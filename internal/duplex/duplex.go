@@ -48,23 +48,6 @@ func (d *State) Absorb(b []byte) {
 	}
 }
 
-// AbsorbString updates the duplex's state with the given string, running the permutation as the rate is exhausted.
-// It avoids the []byte conversion overhead of Absorb for string labels.
-func (d *State) AbsorbString(s string) {
-	for len(s) > 0 {
-		remain := min(len(s), maxRateIdx-d.rateIdx)
-		dst := d.state[d.rateIdx : d.rateIdx+remain]
-		for i := range remain {
-			dst[i] ^= s[i]
-		}
-		d.rateIdx += remain
-		if d.rateIdx == maxRateIdx {
-			d.Permute()
-		}
-		s = s[remain:]
-	}
-}
-
 // AbsorbByte absorbs a single byte.
 func (d *State) AbsorbByte(b byte) {
 	d.state[d.rateIdx] ^= b
