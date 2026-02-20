@@ -39,14 +39,7 @@ func (d *State) Permute() {
 func (d *State) Absorb(b []byte) {
 	for len(b) > 0 {
 		remain := min(len(b), maxRateIdx-d.rateIdx)
-		dst := d.state[d.rateIdx : d.rateIdx+remain]
-		if remain <= 16 {
-			for i := range remain {
-				dst[i] ^= b[i]
-			}
-		} else {
-			absorbBlock(dst, b[:remain])
-		}
+		absorbBlock(d.state[d.rateIdx:d.rateIdx+remain], b[:remain])
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
 			d.Permute()
@@ -105,14 +98,7 @@ func (d *State) Frame() {
 func (d *State) Squeeze(out []byte) {
 	for len(out) > 0 {
 		remain := min(len(out), maxRateIdx-d.rateIdx)
-		src := d.state[d.rateIdx : d.rateIdx+remain]
-		if remain <= 16 {
-			for i := range remain {
-				out[i] = src[i]
-			}
-		} else {
-			copy(out[:remain], src)
-		}
+		copy(out[:remain], d.state[d.rateIdx:d.rateIdx+remain])
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
 			d.Permute()
@@ -154,15 +140,7 @@ func (d *State) Decrypt(plaintext, ciphertext []byte) {
 		// P = C ^ K; K = C
 		// decryptBlock reads ciphertext[i] before writing plaintext[i], so it
 		// is correct even when plaintext and ciphertext are the same slice.
-		if remain <= 16 {
-			for i := range remain {
-				c := ciphertext[i]
-				plaintext[i] = k[i] ^ c
-				k[i] = c
-			}
-		} else {
-			decryptBlock(plaintext[:remain], k, ciphertext[:remain])
-		}
+		decryptBlock(plaintext[:remain], k, ciphertext[:remain])
 
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
