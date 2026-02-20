@@ -74,7 +74,7 @@ func (d *State) AbsorbHeader(op byte, label string) {
 	headerLen := 4 + n // frame byte + op + label + frame byte + op|0x80
 
 	if d.rateIdx+headerLen <= maxRateIdx {
-		// Fast path: absorb entire header without overflow checks.
+		// Fast path: absorb the entire header without overflow checks.
 		R := d.rateIdx
 		d.state[R] ^= byte(d.frameIdx) // Frame: absorb old frameIdx
 		d.state[R+1] ^= op             // Op byte

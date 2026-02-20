@@ -1288,8 +1288,8 @@ Streaming AE extends standard AEAD games for incremental, multi-block data with 
 notions apply:
 
 * **OAE1/OAE2 (Online Authenticated Encryption):** OAE1 ensures confidentiality and authenticity in a single pass
-  without knowing the total length, given unique nonces. OAE2 adds boundary-hiding and limits length information leaked
-  to observers.
+  without knowing the total length, given unique nonces. OAE2 adds boundary-hiding and limits the amount of length
+  information which can be leaked to observers.
 * **Block IND-CCA2 / Stateful Decryption:** Each block maintains indistinguishability and integrity. The stateful
   decryption oracle detects reordering, replay, duplication, or dropping of blocks.
 * **Termination Validity:** The stream end must be cryptographically signaled. Truncation causes the receiver to never
@@ -1329,7 +1329,7 @@ size is 1KiB (aligned with CPU cache lines). Total memory is `5 * 2**(cost+10)` 
 The DAG is divided into two phases:
 
 * **Phase 1: Static Graph (`3N` nodes).** The first `3N` nodes form an indegree-reduced [EGSample] graph (the union of
-  [DRSample] and [Grates]). Each original node in the `N`-node EGSample graph has up to 3 parents (chain, DRSample
+  [DRSample] and [Grates]). Each original node in the `N`-node EGSample graph has up to three parents (chain, DRSample
   random, Grates grid). Indegree reduction expands each original node into 3 sub-nodes `{3v, 3v+1, 3v+2}`, each
   receiving at most one external parent edge and one internal chain edge. This ensures every sub-node has indegree at
   most 2. Parent selection for DRSample edges uses a data-independent protocol branch, making this phase's graph
@@ -1410,9 +1410,9 @@ function MemoryHardHash(domain, cost, salt, password, n):
 The static graph uses helper functions to determine parents for each sub-node:
 
 * **`staticParents(id, gratesCols, v)`**: Returns the parent indices `(p1, p2)` for sub-node `v` in the
-  indegree-reduced static graph. Each original node `v/3` has up to 3 parents: a chain edge (`v-1`, for `v >= 1`),
+  indegree-reduced static graph. Each original node `v/3` has up to three parents: a chain edge (`v-1`, for `v >= 1`),
   a DRSample random edge (`drsParent(v)`, for `v >= 2`), and a Grates grid edge (`gratesParent(v)`, for `v >= cols`).
-  Indegree reduction maps these onto 3 sub-nodes:
+  Indegree reduction maps these onto three sub-nodes:
   * Sub-node `3v`: one external parent → last sub-node of parent[0]
   * Sub-node `3v+1`: internal chain from `3v`, plus external parent → last sub-node of parent[1]
   * Sub-node `3v+2`: internal chain from `3v+1`, plus external parent → last sub-node of parent[2]
@@ -1732,11 +1732,11 @@ The scheme provides both outsider and insider security. An outsider (with only p
 forge ciphertexts. The sender cannot read messages sent to other receivers (insider confidentiality), and the receiver
 cannot forge messages from the sender (insider authenticity).
 
-The integration of confidentiality and authenticity provides strong guarantees than generic composition methods. Unlike
-`EtS` (Encrypt-then-Sign), the signature covers all protocol inputs including the ECDH shared secret, not just the
-ciphertext. An adversary cannot replace the signature without knowing the shared secret, providing non-malleability and
-CMT-4 security. Unlike `StE` (Sign-then-Encrypt), both parties' public keys and shared secret are in the protocol state,
-preventing re-encryption attacks. Security reduces to the discrete logarithm problem and the duplex's
+The integration of confidentiality and authenticity provides stronger guarantees than generic composition methods.
+Unlike `EtS` (Encrypt-then-Sign), the signature covers all protocol inputs including the ECDH shared secret, not just
+the ciphertext. An adversary cannot replace the signature without knowing the shared secret, providing non-malleability
+and CMT-4 security. Unlike `StE` (Sign-then-Encrypt), both parties' public keys and shared secret are in the protocol
+state, preventing re-encryption attacks. Security reduces to the discrete logarithm problem and the duplex's
 indifferentiability from a random oracle.
 
 ### Mutually Authenticated Handshake
@@ -1973,6 +1973,6 @@ by different users) is similarly bounded by the birthday limit on the output len
 ### Simplification Through Unification
 
 Collapsing hash functions, MACs, KDFs, stream ciphers, and AEADs into a single duplex construction eliminates the API
-boundaries and state-synchronization overhead of multi-primitive designs. A designer need only verify correct sequencing
-of protocol operations--the duplex provides the rest.
+boundaries and state-synchronization overhead of multi-primitive designs. A designer needs only to verify the correct
+sequencing of protocol operations--the duplex provides the rest.
 

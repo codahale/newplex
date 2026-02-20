@@ -214,8 +214,7 @@ func FuzzReceiveMessage(f *testing.F) {
 	drbg := testdata.New("newplex adratchet fuzz")
 	dA, _ := drbg.KeyPair()
 	_, qB := drbg.KeyPair()
-	p := newplex.NewProtocol("fuzz")
-	alice := adratchet.NewInitiator(&p, dA, qB)
+	alice := adratchet.NewInitiator(new(newplex.NewProtocol("fuzz")), dA, qB)
 
 	for range 10 {
 		f.Add(drbg.Data(128))

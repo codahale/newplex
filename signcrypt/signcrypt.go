@@ -39,8 +39,8 @@ func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand
 	// Mask the message.
 	ciphertext := receiver.Mask("message", qE.Bytes(), message)
 
-	// Mask the commitment point. This a) provides signer confidentiality unless the verifier has both the signer's
-	// public key and the message and b) makes the protocol's state dependent on the commitment.
+	// Mask the commitment point. This provides signer confidentiality (unless the verifier has both the signer's
+	// public key and the message) and makes the protocol's state dependent on the commitment.
 	sig := receiver.Mask("commitment", ciphertext, r.Bytes())
 
 	// Derive a challenge scalar from the signer's public key, the message, and the commitment point.

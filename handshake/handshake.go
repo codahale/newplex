@@ -31,7 +31,7 @@ const (
 // ErrInvalidHandshake is returned when some aspect of the handshake is cryptographically invalid.
 var ErrInvalidHandshake = errors.New("newplex/handshake: invalid handshake")
 
-// InitiatorFinish is a callback which accepts a payload from a responder and completes the handshake, returning a pair
+// InitiatorFinish is a callback that accepts a payload from a responder and completes the handshake, returning a pair
 // of keyed protocols for sending and receiving, plus the responder's static public key.
 type InitiatorFinish = func(in []byte) (send, recv *newplex.Protocol, qRS *ristretto255.Element, out []byte, err error)
 
@@ -106,7 +106,7 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 	return finish, request, nil
 }
 
-// ResponderFinish is a callback which accepts a payload from an initiator and completes the handshake, returning a pair
+// ResponderFinish is a callback that accepts a payload from an initiator and completes the handshake, returning a pair
 // of keyed protocols for sending and receiving, plus the initiator's static public key.
 type ResponderFinish = func(confirmation []byte) (send, recv *newplex.Protocol, qIS *ristretto255.Element, err error)
 
