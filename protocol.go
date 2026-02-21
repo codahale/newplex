@@ -150,7 +150,8 @@ func (p *Protocol) Seal(label string, dst, plaintext []byte) []byte {
 
 // Open updates the protocol's state with the given label and plaintext length, then uses the state to decrypt the given
 // ciphertext, verifying the final TagSize bytes as an authentication tag. If the ciphertext is authentic, it appends
-// the ciphertext to dst and returns the resulting slice; otherwise, ErrInvalidCiphertext is returned.
+// the plaintext to dst and returns the resulting slice. Returns ErrInvalidCiphertext if the ciphertext is not
+// authentic.
 //
 // To reuse ciphertext's storage for the decrypted output, use ciphertext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap ciphertext.
