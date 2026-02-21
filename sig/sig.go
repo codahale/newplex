@@ -25,6 +25,8 @@ func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader)
 	if err != nil {
 		return nil, err
 	}
+	// Close() error is explicitly ignored here because MixWriter.Close() only returns an error
+	// if the underlying writer returns an error, and io.Discard never returns errors.
 	_ = w.Close()
 
 	// Fork the protocol into prover/verifier roles and mix both the signer's private key and the provided random data
@@ -70,6 +72,8 @@ func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reade
 	if err != nil {
 		return false, err
 	}
+	// Close() error is explicitly ignored here because MixWriter.Close() only returns an error
+	// if the underlying writer returns an error, and io.Discard never returns errors.
 	_ = w.Close()
 
 	// Fork the protocol, keeping only the verifier.
