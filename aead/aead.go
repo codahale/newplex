@@ -9,6 +9,9 @@ import (
 )
 
 // New returns a new cipher.AEAD instance which uses the given domain string and key.
+//
+// Panics if nonceSize is less than 16 bytes. A minimum of 16 bytes is required to ensure
+// sufficient uniqueness and security for the nonce values.
 func New(domain string, key []byte, nonceSize int) cipher.AEAD {
 	if nonceSize < 16 {
 		panic("newplex/aead: nonce size must be at least 16 bytes")
@@ -34,6 +37,11 @@ func (a *aead) Overhead() int {
 	return newplex.TagSize
 }
 
+// Seal encrypts and authenticates plaintext, authenticates the additional data and appends
+// the result to dst, returning the updated slice.
+//
+// Panics if len(nonce) != a.NonceSize(). The cipher.AEAD interface requires exact nonce sizes
+// to prevent misuse that could compromise security.
 func (a *aead) Seal(dst, nonce, plaintext, additionalData []byte) []byte {
 	if len(nonce) != a.NonceSize() {
 		panic("newplex/aead: invalid nonce size")
@@ -45,6 +53,11 @@ func (a *aead) Seal(dst, nonce, plaintext, additionalData []byte) []byte {
 	return p.Seal("message", dst, plaintext)
 }
 
+// Open decrypts and authenticates ciphertext, authenticates the additional data and, if successful,
+// appends the resulting plaintext to dst, returning the updated slice.
+//
+// Panics if len(nonce) != a.NonceSize(). The cipher.AEAD interface requires exact nonce sizes
+// to prevent misuse that could compromise security.
 func (a *aead) Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, error) {
 	if len(nonce) != a.NonceSize() {
 		panic("newplex/aead: invalid nonce size")
