@@ -1,3 +1,9 @@
+// Package duplex implements a cryptographic duplex construction using the Simpira-1024 permutation.
+//
+// This package provides the core duplex state management for the Newplex cryptographic framework. It implements a
+// sponge-like construction with a 1024-bit state, 256-bit capacity, and 752-bit rate, offering 128-bit security against
+// generic attacks. The duplex supports absorption, squeezing, encryption/decryption operations, and includes
+// STROBE-like framing for domain separation.
 package duplex
 
 import (
