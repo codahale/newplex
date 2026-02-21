@@ -648,8 +648,8 @@ require state persistence or branching.
 cannot recover past inputs or outputs by inverting the permutation.
 
 `Ratchet` invokes `Permute`, then zeros the first 32 bytes of the rate and advances `rateIdx` past them. The 32-byte
-depth matches the 256-bit capacity: an attacker with the post-ratchet state cannot invert the permutation without the
-missing `c` bits, which requires `2**256` work (the cost of full state recovery).
+size matches the 256-bit capacity: an attacker with the post-ratchet state must guess the 256 zeroed rate bits to invert
+the permutation, requiring `2**256` work.
 
 ```text
 function Ratchet():
@@ -877,7 +877,8 @@ Unlike `Derive` and `Seal`, `Mask` does not require the plaintext length in adva
 > To ensure integrity in streaming contexts, `Mask` must be followed by an operation that authenticates the entire
 > transcript (e.g., `Derive` or `Seal`).
 
-`Mask` inherits the security properties of [`Encrypt`](#encryptdecrypt):
+`Mask` inherits the security properties of [`Encrypt`](#encryptdecrypt), which reduce to the duplex's PRF security
+(advantage bounded by `N**2 / 2**256` for `N` queries to the underlying permutation):
 
 * It offers IND-EAV security if the duplex state is secret.
 * It offers IND-CPA security if the duplex state is probabilistic (e.g., includes a nonce).
@@ -931,7 +932,9 @@ Because `Seal` depends on the plaintext length, it is unsuitable for streaming. 
 ##### Cryptographic Properties
 
 * `Seal` and `Open` provide IND-CCA2 security (confidentiality and integrity), given a probabilistic protocol state
-  (e.g., includes a nonce).
+  (e.g., includes a nonce). This reduces to the duplex's PRF security: the keystream is indistinguishable from random
+  (IND-CPA), and the 16-byte tag provides INT-CTXT with forgery probability bounded by `2**(-128) + N**2 / 2**256`
+  for `N` queries to the underlying permutation.
 * The tag is derived from the duplex state after all preceding operations, so `Seal` commits to the entire session
   context (CMT-4). A ciphertext-tag pair cannot be validly decrypted under a different key, nonce, associated data, or
   protocol state, preventing partitioning oracle and context-confusion attacks.
@@ -1060,8 +1063,9 @@ The MAC scheme is evaluated in the keyed duplex model: the adversary cannot acce
 inputs and observe outputs.
 
 [As established](#assumptions), the keyed duplex acts as a secure PRF. A secure PRF satisfies both EUF-CMA and SUF-CMA
-because its output is indistinguishable from random. The forgery probability is bounded by `2**(-n)` (guessing an
-`n`-bit tag) plus the PRF distinguishing advantage (`N**2 / 2**256` for `N` queries).
+because its output is indistinguishable from random. The forgery probability for a `t`-byte tag is bounded by
+`2**(-(t*8))` (guessing the tag) plus the PRF distinguishing advantage (`N**2 / 2**256` for `N` queries to the
+underlying permutation). For the 16-byte tag used here, this yields `2**(-128) + N**2 / 2**256`.
 
 The `key` must contain at least 16 bytes (128 bits) of entropy. A 32-byte (256-bit) key is recommended: it does not
 increase the theoretical security bound (128-bit, due to the birthday bound on capacity) but provides a larger margin
@@ -1103,10 +1107,11 @@ Stream cipher security is evaluated with two games:
 
 #### Security Analysis
 
-Evaluated in the keyed duplex model. The keyed duplex acts as a secure PRF, and PRF output XORed with plaintext
-approximates a one-time pad. For IND-EAV, the ciphertext is indistinguishable from random. IND-CPA holds when a unique
-nonce ensures each keystream is independent. The adversary's advantage is bounded by the PRF distinguishing advantage
-(`N**2 / 2**256` for `N` queries), yielding 128-bit security.
+Evaluated in the keyed duplex model. Absorbing the key populates the capacity with secret entropy; absorbing the nonce
+makes the state probabilistic. The duplex then acts as a secure PRF, and `Mask` XORs plaintext with the PRF output (the
+rate), approximating a one-time pad. For IND-EAV, the ciphertext is indistinguishable from random because the keystream
+is a PRF output. IND-CPA holds when a unique nonce ensures each keystream is independent. The adversary's distinguishing
+advantage is bounded by `N**2 / 2**256` for `N` queries to the underlying permutation, yielding 128-bit security.
 
 ### Authenticated Encryption with Associated Data (AEAD)
 
@@ -1143,10 +1148,15 @@ AEAD security is evaluated with two games:
 
 #### Security Analysis
 
-Evaluated in the keyed duplex model. Absorbing the key, nonce, and associated data before producing output makes the
-initial state unpredictable. The synchronized state provides both confidentiality (stream cipher) and integrity (rolling
-MAC). IND-CCA2 follows because the construction provides INT-CTXT: any ciphertext manipulation causes the tag to
-mismatch. INT-CTXT combined with IND-CPA implies IND-CCA2.
+Evaluated in the keyed duplex model. Absorbing the key populates the capacity with secret entropy; absorbing the nonce
+and associated data makes the state probabilistic and context-specific. The duplex acts as a PRF, so the `Seal` keystream
+is indistinguishable from random (IND-CPA).
+
+IND-CCA2 follows from INT-CTXT: `Seal` permutes the state after encrypting the plaintext, making the 16-byte tag a PRF
+of the entire ciphertext and preceding transcript. Any ciphertext modification produces a divergent state, so the
+expected tag changes. The probability of forging a valid tag is bounded by `2**(-128)` (guessing 16 bytes) plus the PRF
+distinguishing advantage (`N**2 / 2**256` for `N` queries to the underlying permutation). INT-CTXT combined with IND-CPA
+implies IND-CCA2.
 
 CMT-4 follows from the duplex's collision resistance: the full context (key, nonce, associated data) is absorbed before
 any output. Producing a duplicate `(C, T)` pair from different `(K, N, AD, M)` tuples requires an inner-state collision,
@@ -1297,15 +1307,16 @@ notions apply:
 
 #### Security Analysis
 
-Evaluated in the keyed duplex model. Security reduces to the PRF and collision resistance of the duplex, bounded by the
-256-bit capacity.
+Evaluated in the keyed duplex model. Security reduces to the PRF security of the duplex (advantage bounded by
+`N**2 / 2**256` for `N` queries to the underlying permutation) and the collision resistance of the 256-bit capacity.
 
-The stateful duplex provides OAE1: initialized with a secret key and unique nonce, every `Seal` absorbs the plaintext
-and mutates state, so block `i`'s tag is bound to all preceding blocks. This chain provides block IND-CCA2 security,
-detecting reordering, replay, duplication, or dropping.
+The stateful duplex provides OAE1: initialized with a secret key and unique nonce, each `Seal` absorbs the plaintext
+and mutates state, so block `i`'s 16-byte tag is a PRF of the entire preceding transcript. Per-block forgery probability
+is bounded by `2**(-128) + N**2 / 2**256`. Reordering, replay, duplication, or dropping of blocks causes tag
+verification to fail because the receiver's state diverges from the sender's.
 
 For OAE2, the two-step sealing (length header then block) authenticates chunk boundaries. Boundary manipulation causes
-the header authentication to fail.
+the header tag verification to fail.
 
 Termination validity follows from the mandatory zero-length final block. If the stream is truncated, the receiver never
 receives the termination block and reports a decryption error.
@@ -1584,9 +1595,12 @@ function Verify(Q, signature, message):
 The continuous duplex state binds the message and signer's public key to the challenge scalar, resisting
 context-confusion and malleability attacks without rigid serialization formats.
 
-Security reduces to the discrete logarithm problem and the duplex's indifferentiability from a random oracle. `Fork`
-isolates the prover's secret from the public transcript: the challenge scalar is derived from the unified transcript
-(signer identity, message, commitment), achieving sUF-CMA. The `verifier` branch mirrors the state a third-party
+Security reduces to the discrete logarithm problem in the Ristretto255 group and the duplex's indifferentiability from a
+random oracle (advantage bounded by `N**2 / 2**256`). The `Derive` call in the `verifier` branch acts as a random oracle
+for the Fiat-Shamir transform: the challenge scalar is derived from the full transcript (signer identity, message,
+commitment). `Fork` isolates the prover's secret from the public transcript. This achieves sUF-CMA security in the
+random oracle model: the prime-order Ristretto255 group ensures each `(R, s)` pair is unique for a given challenge, and
+forging any valid pair requires solving a discrete logarithm. The `verifier` branch mirrors the state a third-party
 verifier constructs, ensuring synchronization.
 
 ### Hybrid Public Key Encryption (HPKE)
@@ -1634,9 +1648,11 @@ function HPKEOpen(dR, QS, ciphertext):
 Standard HPKE (e.g., RFC 9180) requires three algorithms: KEM, KDF, and DEM. Newplex replaces this composite
 structure. The `Mix` operations map to the [RO-KDF][n-KDFs] construction, absorbing the public keys and shared secrets.
 
-Because all inputs (including sender and receiver identities) are absorbed into the transcript, the context is CMT-4
-committing. Any modification to the keys or ciphertext produces a divergent state, so `Open` fails, providing IND-CCA2
-security without a separate DEM or MAC.
+Security reduces to the Gap Diffie-Hellman assumption in the Ristretto255 group and the duplex's PRF security (advantage
+bounded by `N**2 / 2**256`). Absorbing both ECDH shared secrets makes the duplex state secret and probabilistic; `Seal`
+then provides IND-CCA2 with forgery probability bounded by `2**(-128) + N**2 / 2**256` (see [Seal](#sealopen)). Because
+all inputs (including sender and receiver identities) are absorbed into the transcript, the context is CMT-4 committing.
+Any modification to the keys or ciphertext produces a divergent state, so `Open` fails.
 
 ### Signcryption
 
@@ -1736,8 +1752,10 @@ The integration of confidentiality and authenticity provides stronger guarantees
 Unlike `EtS` (Encrypt-then-Sign), the signature covers all protocol inputs including the ECDH shared secret, not just
 the ciphertext. An adversary cannot replace the signature without knowing the shared secret, providing non-malleability
 and CMT-4 security. Unlike `StE` (Sign-then-Encrypt), both parties' public keys and shared secret are in the protocol
-state, preventing re-encryption attacks. Security reduces to the discrete logarithm problem and the duplex's
-indifferentiability from a random oracle.
+state, preventing re-encryption attacks. Security reduces to the discrete logarithm problem in the Ristretto255 group
+and the duplex's indifferentiability from a random oracle (advantage bounded by `N**2 / 2**256`). Confidentiality
+reduces to the duplex's PRF security after absorbing the ECDH shared secret; authenticity reduces to the Fiat-Shamir
+transform in the random oracle model.
 
 ### Mutually Authenticated Handshake
 
@@ -1945,8 +1963,9 @@ security reduces to the duplex bounds:
   collision resistance up to `min(2**128, 2**((n*8)/2))` and preimage resistance up to `min(2**256, 2**(n*8))` for an
   `n`-byte output.
 * **Keyed schemes** (e.g., MAC, Stream Cipher, AEAD, Streaming AE) inherit the duplex's PRF security. Unforgeability,
-  IND-CPA, and IND-CCA2 are bounded by the PRF distinguishing advantage plus the probability of guessing the tag or
-  keystream, yielding 128-bit security for 16-byte tags and keys with at least 128 bits of entropy.
+  IND-CPA, and IND-CCA2 are bounded by the PRF distinguishing advantage (`N**2 / 2**256` for `N` queries to the
+  underlying permutation) plus the probability of guessing the tag (`2**(-(t*8))` for a `t`-byte tag), yielding 128-bit
+  security for 16-byte tags and keys with at least 128 bits of entropy.
 * **Composite schemes** (e.g., SIV, Signatures, HPKE, Signcryption, Handshakes, PAKE, VRF, OPRF) combine duplex
   reductions with standard cryptographic assumptions (e.g., the discrete logarithm problem, the SIV composition theorem,
   or the Fiat-Shamir transform in the random oracle model). In each case, the symmetric component of the security proof
