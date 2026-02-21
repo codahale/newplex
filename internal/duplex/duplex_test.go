@@ -56,6 +56,91 @@ func TestDuplex_AbsorbLEB128(t *testing.T) {
 	}
 }
 
+func TestDuplex_AbsorbHeader(t *testing.T) {
+	t.Run("fast path - fits in rate", func(t *testing.T) {
+		var d State
+		d.AbsorbHeader(0x01, "test")
+		// Verify it used the fast path by checking state
+		// Frame(0) + op(1) + "test"(4) + Frame(1) + op|0x80(1) = 7 bytes, frameIdx at position 6
+		if d.frameIdx != 7 {
+			t.Errorf("frameIdx = %d, want 7", d.frameIdx)
+		}
+		if d.rateIdx != 8 {
+			t.Errorf("rateIdx = %d, want 8", d.rateIdx)
+		}
+	})
+
+	t.Run("slow path - near rate boundary", func(t *testing.T) {
+		var d State
+		// Fill the state close to rate boundary
+		d.rateIdx = maxRateIdx - 5
+		d.AbsorbHeader(0x02, "longer-label-test")
+		// Should have triggered permutation and reset
+		if d.rateIdx == maxRateIdx-5 {
+			t.Error("AbsorbHeader didn't handle rate boundary correctly")
+		}
+	})
+
+	t.Run("empty label", func(t *testing.T) {
+		var d State
+		d.AbsorbHeader(0x03, "")
+		if d.frameIdx != 3 {
+			t.Errorf("frameIdx = %d, want 3", d.frameIdx)
+		}
+		if d.rateIdx != 4 {
+			t.Errorf("rateIdx = %d, want 4", d.rateIdx)
+		}
+	})
+
+	t.Run("triggers slow path", func(t *testing.T) {
+		var d State
+		// Set up state so the header won't fit in the remaining rate, triggering the slow path
+		d.rateIdx = maxRateIdx - 3 // Only 3 bytes left, but the header needs at least 4
+		d.AbsorbHeader(0x04, "test")
+		// The slow path should have been used, triggering permutation(s)
+		// Just verify the operation completed successfully
+		if d.frameIdx == 0 && d.rateIdx == maxRateIdx-3 {
+			t.Error("AbsorbHeader should have modified the state")
+		}
+	})
+
+	t.Run("multiple headers", func(t *testing.T) {
+		var d State
+		d.AbsorbHeader(0x01, "first")
+		initial := d.rateIdx
+		d.AbsorbHeader(0x02, "second")
+		if d.rateIdx <= initial {
+			t.Error("Second AbsorbHeader should advance rateIdx")
+		}
+	})
+
+	t.Run("at rate boundary", func(t *testing.T) {
+		var d State
+		d.rateIdx = maxRateIdx - 1
+		oldState := d.state
+		d.AbsorbByte(0xAA)
+		// Should absorb and then trigger permutation
+		if d.rateIdx != 0 {
+			t.Errorf("rateIdx = %d, want 0 after permutation", d.rateIdx)
+		}
+		// State should have changed due to permutation
+		if d.state == oldState {
+			t.Error("State should have changed after permutation")
+		}
+	})
+
+	t.Run("multiple bytes crossing boundary", func(t *testing.T) {
+		var d State
+		d.rateIdx = maxRateIdx - 2
+		d.AbsorbByte(0x11)
+		d.AbsorbByte(0x22) // This should trigger permutation
+		d.AbsorbByte(0x33)
+		if d.rateIdx != 1 {
+			t.Errorf("rateIdx = %d, want 1 after crossing boundary", d.rateIdx)
+		}
+	})
+}
+
 func TestDuplex_Absorb(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		if got, want := debugDuplex(new(exampleDuplex())), "0_10_0102030405060708090a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"; got != want {
