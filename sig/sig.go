@@ -48,7 +48,7 @@ func Sign(domain string, d *ristretto255.Scalar, rand []byte, message io.Reader)
 	// Derive a challenge scalar from the verifier.
 	c, _ := ristretto255.NewScalar().SetUniformBytes(verifier.Derive("challenge", nil, 64))
 
-	// Calculate the proof scalar s = d * c + k.
+	// Calculate the proof scalar s = k + d*c.
 	s := ristretto255.NewScalar().Multiply(d, c)
 	s = s.Add(s, k)
 	return append(rOut, s.Bytes()...), nil
@@ -91,9 +91,8 @@ func Verify(domain string, q *ristretto255.Element, sig []byte, message io.Reade
 		return false, nil
 	}
 
-	// Calculate the expected commitment point: [s]G - [c']Q
-	negC := ristretto255.NewScalar().Negate(c)
-	expectedR := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(negC, q, s)
+	// Calculate the expected commitment point: R' = [s]G + [-c']Q
+	expectedR := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(ristretto255.NewScalar().Negate(c), q, s)
 
 	// If the received and expected commitment points are equal (as compared in their encoded forms), the signature is
 	// valid.
