@@ -904,6 +904,8 @@ function Seal(label, plaintext):
   return ciphertext || tag
 
 function Open(label, input):
+  if |input| < 16:
+    return ErrInvalidCiphertext
   ciphertext, receivedTag = input[:|input|-16], input[|input|-16:]
   duplex.Frame()
   duplex.Absorb([OP_AUTH_CRYPT | F_META])
