@@ -1737,8 +1737,8 @@ function SigncryptOpen(dR, QS, payload):
   // Calculate the expected commitment point.
   expectedR = [s]G - [expectedC]QS
 
-  // The signature is valid if the calculated point matches the received point.
-  if ElementEncode(expectedR) != encR:
+  // CONST: The signature is valid if the calculated point matches the received point.
+  if !CT_EQ(ElementEncode(expectedR), encR):
     return ErrInvalidCiphertext
 
   return message

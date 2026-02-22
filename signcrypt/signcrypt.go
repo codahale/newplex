@@ -2,7 +2,7 @@
 package signcrypt
 
 import (
-	"bytes"
+	"crypto/subtle"
 
 	"github.com/codahale/newplex"
 	"github.com/gtank/ristretto255"
@@ -95,8 +95,9 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 	// Calculate the expected commitment point: [s]G - [r']Q
 	expectedR := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(ristretto255.NewScalar().Negate(expectedC), qS, s)
 
-	// If the received and expected commitment points are equal (as compared in encoded form), the signature is valid.
-	if !bytes.Equal(receivedR, expectedR.Bytes()) {
+	// If the received and expected commitment points are equal (as compared in their encoded forms), the signature is
+	// valid.
+	if subtle.ConstantTimeCompare(receivedR, expectedR.Bytes()) == 0 {
 		return nil, newplex.ErrInvalidCiphertext
 	}
 
