@@ -144,7 +144,8 @@ graph TD
 1. **Permutation Layer ([Simpira-1024](#the-simpira-1024-permutation)):** A fixed-length, high-performance
    transformation of a 1024-bit state using hardware-accelerated AES instructions.
 2. **Duplex Layer ([The Duplex Construction](#the-duplex-construction)):** Manages the 1024-bit state, partitioned into
-   a 768-bit rate and a 256-bit capacity. Handles data absorption, pseudorandom squeezing, and internal framing.
+   a 768-bit rate (752-bit effective rate) and a 256-bit capacity. Handles data absorption, pseudorandom squeezing, and
+   internal framing.
 3. **Protocol Layer ([The Protocol Framework](#the-protocol-framework)):** Wraps duplex operations in a strict grammar
    of opcodes and labels, ensuring unique transcript decodability and full context commitment (CMT-4).
 4. **Scheme Layer ([Basic](#basic-schemes) & [Complex](#complex-schemes) Schemes):** Composes protocol operations into
