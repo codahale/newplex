@@ -1985,14 +1985,26 @@ security reduces to the duplex bounds:
 The single-user bounds extend to the multi-user setting via the standard hybrid argument: the adversary's advantage
 against `U` users is at most `U` times the single-user advantage.
 
-For keyed schemes, the multi-user PRF distinguishing advantage becomes `U * N**2 / 2**256`, where `N` is the total
-number of queries across all users. For practical deployments (e.g., `U = 2**32` users each making `N = 2**48`
-queries), this yields an advantage of `2**32 * 2**96 / 2**256 = 2**(-128)`, preserving the 128-bit security target.
+For keyed schemes, the multi-user PRF distinguishing advantage becomes `U * N**2 / 2**256`, where `N` is the
+per-user query count. The following table illustrates how the bound degrades with increasing query volume
+for `U = 2**32` users:
 
-Keys with at least 256 bits of entropy are recommended for multi-user deployments. With 128-bit keys, the multi-target
-key search advantage is `U / 2**128`, which degrades to `2**(-96)` for `2**32` users--still safe but with a reduced
-margin. A 256-bit key ensures that multi-target key search is bounded by `U / 2**256`, which remains negligible for any
-practical number of users.
+| Per-User Queries (`N`) | `N**2`   | Multi-User Advantage                  | Effective Security |
+|------------------------|----------|---------------------------------------|--------------------|
+| `2**40` (~1 trillion)  | `2**80`  | `2**32 * 2**80 / 2**256 = 2**(-144)`  | 144 bits           |
+| `2**48`                | `2**96`  | `2**32 * 2**96 / 2**256 = 2**(-128)`  | 128 bits           |
+| `2**56`                | `2**112` | `2**32 * 2**112 / 2**256 = 2**(-112)` | 112 bits           |
+| `2**64`                | `2**128` | `2**32 * 2**128 / 2**256 = 2**(-96)`  | 96 bits            |
+
+At `N = 2**48` per user (281 trillion permutation calls), the bound meets the 128-bit target exactly, leaving
+no margin. At `N = 2**64` per user, the advantage degrades to `2**(-96)`--still safe, but noticeably below
+the nominal 128-bit level. Deployments expecting very high per-user query volumes should account for this
+degradation.
+
+Keys with at least 256 bits of entropy are recommended for multi-user deployments. With 128-bit keys, the
+multi-target key search advantage is `U / 2**128`, which degrades to `2**(-96)` for `2**32` users--still
+safe but with a reduced margin. A 256-bit key ensures that multi-target key search is bounded by
+`U / 2**256`, which remains negligible for any practical number of users.
 
 For unkeyed schemes (e.g., Message Digest), the collision resistance bound of `2**128` is a property of the output
 space and is unaffected by the number of users. Multi-collision resistance (finding collisions among digests produced
