@@ -403,7 +403,9 @@ a "frame" (a group of related duplex operations) and absorbs this index into the
 * **Operational Boundaries:** Distinguishes between different sequences of duplex operations within a single permutation
   block and across block boundaries.
 * **Streamability:** Framing is handled as data is processed, requiring no prior knowledge of the total data length.
-* **Space Efficiency:** Only two reserved bytes of the rate are needed: one for padding and one for framing metadata.
+* **Space Efficiency:** Only two bytes at the end of the rate are held in reserve from user operations: byte `95` always
+  receives the final `0x80` padding bit, and byte `94` serves as the fallback position for the frame
+  index when the rate is completely full.
 
 By treating session semantics--the sequence and size of every operation--as data bound to the state, Newplex combines
 metadata and raw data in a single process without risking concatenation attacks.
@@ -411,17 +413,17 @@ metadata and raw data in a single process without risking concatenation attacks.
 ### Constants
 
 Newplex is built on a 1024-bit permutation (`b=1024`) with a 256-bit capacity (`c=256`), leaving a rate of 768 bits (96
-bytes). The final two bytes of the rate are reserved for metadata, giving an effective user data rate of 94 bytes. This
-ensures every permutation block is cryptographically delimited and padded without reducing security below 128 bits.
+bytes). The final two bytes of the rate are not accessible to user operations (`Absorb`, `Squeeze`, `Encrypt`,
+`Decrypt`), giving an effective user data rate of 94 bytes. This ensures every permutation block is cryptographically
+delimited and padded without reducing security below 128 bits.
 
 The following constants are defined:
 
-| Constant       | Value | Description                                                                                               |
-|----------------|-------|-----------------------------------------------------------------------------------------------------------|
-| MAX_RATE_IDX   | 94    | The upper bound of the effective rate. This represents the total bytes available for user data per block. |
-| FRAME_BYTE_IDX | 94    | The byte index reserved for absorbing the frame index.                                                    |
-| PAD_BYTE_IDX   | 95    | The byte index reserved for the final padding bit (`0x80`).                                               |
-| CAPACITY_BYTES | 32    | The size of the capacity in bytes (`c/8`).                                                                |
+| Constant       | Value | Description                                                                                                |
+|----------------|-------|------------------------------------------------------------------------------------------------------------|
+| MAX_RATE_IDX   | 94    | The upper bound of the effective rate and the fallback position for the frame index when the rate is full. |
+| PAD_BYTE_IDX   | 95    | The byte index reserved for the final padding bit (`0x80`).                                                |
+| CAPACITY_BYTES | 32    | The size of the capacity in bytes (`c/8`).                                                                 |
 
 ### Variables And State Layout
 
@@ -442,8 +444,8 @@ title Duplex State (128 bytes)
 ```
 
 1. **Effective Rate:** The first 94 bytes (indices `0..93`). This area is used for user input and output.
-2. **Reserved Metadata:** The 95th byte (index `94`) is reserved for framing, and the 96th byte (index `95`) is
-   reserved for padding.
+2. **Reserved Metadata:** The 95th byte (index `94`) is the fallback position for the frame index when the rate is full;
+   the 96th byte (index `95`) always receives the final padding bit.
 3. **Capacity:** The final 32 bytes (indices `96..127`). This segment is never directly modified by user input or
    exposed in the output.
 
@@ -572,8 +574,8 @@ function Frame():
 
 #### `Permute`
 
-`Permute` finalizes a block by injecting framing metadata and padding into the reserved rate bytes, then transforming
-the state with the permutation `f`.
+`Permute` finalizes a block by absorbing the framing metadata at the current rate position, absorbing the final padding
+bit at `PAD_BYTE_IDX`, and then transforming the state with the permutation `f`.
 
 It operates in three phases: (1) XOR the current `frameIdx` into the next rate byte (which may be `FRAME_BYTE_IDX` if
 the rate is full); (2) apply `pad10*1` padding; (3) run Simpira-1024 on the full state and reset `rateIdx` and
@@ -599,7 +601,7 @@ function Permute():
 ### Worked Example: Domain Separation through Framing
 
 To illustrate how framing prevents concatenation attacks, consider a "Tiny-Newplex" with an effective rate of four bytes
-(indices `0..3`) and two reserved bytes (index `4` for framing, index `5` for padding).
+(indices `0..3`) and two reserved bytes (index `4` as the fallback frame position, index `5` for padding).
 
 Compare two operation sequences: `Absorb(0xCA); Absorb(0xFE)` and `Absorb(0xCA); Frame(); Absorb(0xFE)`.
 
