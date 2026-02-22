@@ -92,6 +92,9 @@ func (d *State) AbsorbHeader(op byte, label string) {
 		d.state[R+3+n] ^= op | 0x80   // Op|0x80
 		d.frameIdx = R + 3 + n
 		d.rateIdx = R + headerLen
+		if d.rateIdx == maxRateIdx {
+			d.Permute()
+		}
 		return
 	}
 
