@@ -1153,7 +1153,8 @@ AEAD security is evaluated with two games:
 #### Security Analysis
 
 Evaluated in the keyed duplex model. Absorbing the key populates the capacity with secret entropy; absorbing the nonce
-and associated data makes the state probabilistic and context-specific. The duplex acts as a PRF, so the `Seal` keystream
+and associated data makes the state probabilistic and context-specific. The duplex acts as a PRF, so the `Seal`
+keystream
 is indistinguishable from random (IND-CPA).
 
 IND-CCA2 follows from INT-CTXT: `Seal` permutes the state after encrypting the plaintext, making the 16-byte tag a PRF
@@ -1530,6 +1531,8 @@ The following notations are used throughout this section:
 * `ScalarEncode(x)` denotes the canonical encoding of scalar `x` as a byte string; `ScalarDecode(b)` denotes the
   canonical decoding of byte string `b` as a scalar, potentially returning an error if `b` is malformed.
 * `Receive()` denotes a blocking IO call reading a message; `Send(x)` denotes a blocking IO call sending a message `x`.
+* `ECDH(d, Q)` denotes the calculation of `[d]Q` while checking that `Q` is not equal to the identity element. If `Q` is
+  equal to the identity element, the function implicitly aborts.
 
 ### Digital Signature
 
@@ -1626,8 +1629,8 @@ function HPKESeal(dS, QR, plaintext):
   protocol.Mix("sender", ElementEncode([dS]G))
   protocol.Mix("receiver", ElementEncode(QR))
   protocol.Mix("ephemeral", ElementEncode(QE))
-  protocol.Mix("ephemeral ecdh", ElementEncode([dE]QR))
-  protocol.Mix("static ecdh", ElementEncode([dS]QR))
+  protocol.Mix("ephemeral ecdh", ElementEncode(ECDH(dE, QR))
+  protocol.Mix("static ecdh", ElementEncode(ECDH(dS, QR))
 
   // Seal the payload and prepend the unencrypted ephemeral public key.
   return ElementEncode(QE) || protocol.Seal("message", plaintext)
@@ -1643,8 +1646,8 @@ function HPKEOpen(dR, QS, ciphertext):
   protocol.Mix("sender", ElementEncode(QS))
   protocol.Mix("receiver", ElementEncode([dR]G))
   protocol.Mix("ephemeral", ciphertext[:32])
-  protocol.Mix("ephemeral ecdh", ElementEncode([dR]QE))
-  protocol.Mix("static ecdh", ElementEncode([dR]QS))
+  protocol.Mix("ephemeral ecdh", ElementEncode(ECDH(dR, QE))
+  protocol.Mix("static ecdh", ElementEncode(ECDH(dR, QS))
 
   // Open the payload.
   return protocol.Open("message", ciphertext[32:])
@@ -1690,7 +1693,7 @@ function SigncryptSeal(dS, QR, message):
 
   // The receiver branch acts as the shared transcript, absorbing the public ephemeral key and the ECDH shared secret.
   receiver.Mix("ephemeral", ElementEncode(QE))
-  receiver.Mix("ecdh", ElementEncode([dE]QR))
+  receiver.Mix("ecdh", ElementEncode(ECDH(dE, QR))
 
   // Mask the message for confidentiality.
   ciphertext = receiver.Mask("message", message)
@@ -1724,7 +1727,7 @@ function SigncryptOpen(dR, QS, payload):
   receiver.Mix("ephemeral", encQE)
 
   // Mix the ECDH shared secret.
-  receiver.Mix("ecdh", ElementEncode([dR]QE))
+  receiver.Mix("ecdh", ElementEncode(ECDH(dR, QE))
 
   // Unmask the message, the commitment point, and the proof scalar.
   message = receiver.Unmask("message", payload[:|payload|-64])
