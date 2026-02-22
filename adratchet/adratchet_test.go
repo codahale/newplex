@@ -24,10 +24,10 @@ func Example() {
 	p.Mix("shared key", []byte("ok then"))
 
 	// Alice sets up an asynchronous double ratchet for the initiator role.
-	a := adratchet.NewInitiator(p, dA, qB)
+	a := adratchet.NewInitiator(p.Clone(), dA, qB)
 
 	// Bea sets up an asynchronous double ratchet for the responder role.
-	b := adratchet.NewResponder(p, dB, qA)
+	b := adratchet.NewResponder(p.Clone(), dB, qA)
 
 	// Alice sends Bea a message.
 	msgA := a.SendMessage([]byte("this is my first message"))
@@ -63,8 +63,8 @@ func TestState_ReceiveMessage(t *testing.T) {
 	p.Mix("shared key", []byte("secret"))
 
 	t.Run("out of order", func(t *testing.T) {
-		alice := adratchet.NewInitiator(p, dA, qB)
-		bea := adratchet.NewResponder(p, dB, qA)
+		alice := adratchet.NewInitiator(p.Clone(), dA, qB)
+		bea := adratchet.NewResponder(p.Clone(), dB, qA)
 
 		// Alice sends 5 messages.
 		msgs := make([][]byte, 5)
@@ -86,8 +86,8 @@ func TestState_ReceiveMessage(t *testing.T) {
 	})
 
 	t.Run("DH ratchet", func(t *testing.T) {
-		alice := adratchet.NewInitiator(p, dA, qB)
-		bea := adratchet.NewResponder(p, dB, qA)
+		alice := adratchet.NewInitiator(p.Clone(), dA, qB)
+		bea := adratchet.NewResponder(p.Clone(), dB, qA)
 
 		// Alice sends msg 1.
 		msg1 := alice.SendMessage([]byte("msg1"))
@@ -129,8 +129,8 @@ func TestState_ReceiveMessage(t *testing.T) {
 	})
 
 	t.Run("invalid message", func(t *testing.T) {
-		alice := adratchet.NewInitiator(p, dA, qB)
-		bea := adratchet.NewResponder(p, dB, qA)
+		alice := adratchet.NewInitiator(p.Clone(), dA, qB)
+		bea := adratchet.NewResponder(p.Clone(), dB, qA)
 
 		msg := alice.SendMessage([]byte("hello"))
 		msg[len(msg)-1] ^= 0xff // Corrupt the tag
@@ -141,15 +141,15 @@ func TestState_ReceiveMessage(t *testing.T) {
 	})
 
 	t.Run("too short", func(t *testing.T) {
-		bea := adratchet.NewResponder(p, dB, qA)
+		bea := adratchet.NewResponder(p.Clone(), dB, qA)
 		if _, err := bea.ReceiveMessage([]byte("too short")); err == nil {
 			t.Error("expected error for too short message, got none")
 		}
 	})
 
 	t.Run("already received", func(t *testing.T) {
-		alice := adratchet.NewInitiator(p, dA, qB)
-		bea := adratchet.NewResponder(p, dB, qA)
+		alice := adratchet.NewInitiator(p.Clone(), dA, qB)
+		bea := adratchet.NewResponder(p.Clone(), dB, qA)
 
 		msg := alice.SendMessage([]byte("hello"))
 		if _, err := bea.ReceiveMessage(msg); err != nil {
@@ -162,8 +162,8 @@ func TestState_ReceiveMessage(t *testing.T) {
 	})
 
 	t.Run("gap too large", func(t *testing.T) {
-		alice := adratchet.NewInitiator(p, dA, qB)
-		bea := adratchet.NewResponder(p, dB, qA)
+		alice := adratchet.NewInitiator(p.Clone(), dA, qB)
+		bea := adratchet.NewResponder(p.Clone(), dB, qA)
 
 		var msg []byte
 		for range 1002 {
@@ -176,8 +176,8 @@ func TestState_ReceiveMessage(t *testing.T) {
 	})
 
 	t.Run("invalid public key", func(t *testing.T) {
-		alice := adratchet.NewInitiator(p, dA, qB)
-		bea := adratchet.NewResponder(p, dB, qA)
+		alice := adratchet.NewInitiator(p.Clone(), dA, qB)
+		bea := adratchet.NewResponder(p.Clone(), dB, qA)
 
 		msg := alice.SendMessage([]byte("hello"))
 		// Ristretto255 points are 32 bytes, and the highest bit must be 0 for canonical encoding.
@@ -189,8 +189,8 @@ func TestState_ReceiveMessage(t *testing.T) {
 	})
 
 	t.Run("new key gap too large", func(t *testing.T) {
-		alice := adratchet.NewInitiator(p, dA, qB)
-		bea := adratchet.NewResponder(p, dB, qA)
+		alice := adratchet.NewInitiator(p.Clone(), dA, qB)
+		bea := adratchet.NewResponder(p.Clone(), dB, qA)
 
 		// Alice sends many messages under the first key.
 		for range 1001 {
