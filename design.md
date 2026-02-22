@@ -234,6 +234,9 @@ noted, all operations act on arrays of 8-bit bytes.
   that the last byte of the encoding must not be `0x00` (unless the integer is `0`, encoded as `0x00`), and the unused
   bits in the final byte must be `0`. For example, `1` **must** be coded as `[0x01]` and not `[0x81, 0x00]`.
 
+> [!NOTE]
+> LEB128 is only used to _encode_ values. It is never used to _decode_ data.
+
 ##### Conventions
 
 The following notations are used throughout this document:
