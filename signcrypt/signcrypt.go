@@ -46,7 +46,7 @@ func Seal(domain string, dS *ristretto255.Scalar, qR *ristretto255.Element, rand
 	// Derive a challenge scalar from the signer's public key, the message, and the commitment point.
 	c, _ := ristretto255.NewScalar().SetUniformBytes(receiver.Derive("challenge", nil, 64))
 
-	// Calculate the proof scalar s = d * c + k and mask it.
+	// Calculate the proof scalar s = k + d*c and mask it.
 	s := ristretto255.NewScalar().Multiply(dS, c)
 	s = s.Add(s, k)
 	return receiver.Mask("proof", sig, s.Bytes())
@@ -92,8 +92,9 @@ func Open(domain string, dR *ristretto255.Scalar, qS *ristretto255.Element, ciph
 		return nil, newplex.ErrInvalidCiphertext
 	}
 
-	// Calculate the expected commitment point: [s]G - [r']Q
-	expectedR := ristretto255.NewIdentityElement().VarTimeDoubleScalarBaseMult(ristretto255.NewScalar().Negate(expectedC), qS, s)
+	// Calculate the expected commitment point: R' = [s]G + [-c']Q
+	expectedR := ristretto255.NewIdentityElement().ScalarBaseMult(s)
+	expectedR.Add(expectedR, ristretto255.NewIdentityElement().ScalarMult(ristretto255.NewScalar().Negate(expectedC), qS))
 
 	// If the received and expected commitment points are equal (as compared in their encoded forms), the signature is
 	// valid.
