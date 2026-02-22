@@ -1735,7 +1735,7 @@ function SigncryptOpen(dR, QS, payload):
   if s == ErrInvalidScalar:
     return ErrInvalidCiphertext
 
-  // Calculate the expected commitment point.
+  // CONST: Calculate the expected commitment point in constant-time.
   expectedR = [s]G + [-expectedC]QS
 
   // CONST: The signature is valid if the calculated point matches the received point.
