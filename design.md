@@ -495,11 +495,15 @@ function Squeeze(n):
   output = []
   for _ in 0..n:
     output = output || state[rateIdx]
+    state[rateIdx] = 0x00
     rateIdx += 1
     if rateIdx == MAX_RATE_IDX:
       Permute()
   return output
 ```
+
+> [!NOTE]
+> The used portion of the duplex's rate is overwritten with zeros to provide forward secrecy.
 
 #### `Encrypt`/`Decrypt`
 

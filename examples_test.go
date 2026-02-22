@@ -28,9 +28,9 @@ func Example() {
 
 	// Output:
 	// Derive('third', 8) = 78176ca0f97f7ba2
-	// Mask('fourth', 'this is an example') = 80cd38afcb97a84c4577fde975d8e4e30941
-	// Seal('fifth', 'this is an example') = 33411a91842e1554f77fa05c2a38cb17b40a276ebbada7bd3c09f3578ab113d87386
-	// Derive('sixth', 8) = 9e747d8af98ff6be
+	// Mask('fourth', 'this is an example') = 02a181698f527c7818039cad5e65dc714655
+	// Seal('fifth', 'this is an example') = ec9d04766b7fabc40ae93a5b6e950c5bf411faa962577543750b1ef7a4258e5e866f
+	// Derive('sixth', 8) = aa743b650db5458c
 }
 
 func ExampleProtocol_mac() {

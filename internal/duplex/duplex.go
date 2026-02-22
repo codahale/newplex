@@ -138,14 +138,15 @@ func (d *State) Frame() {
 	d.frameIdx = d.rateIdx
 }
 
-// Squeeze fills the given slice with data from the duplex's state, running the permutation as the state becomes
-// exhausted.
+// Squeeze fills the given slice with data from the duplex's state and zeros out the portion of the duplex's state which
+// was returned, running the permutation as the state becomes exhausted.
 //
 // Multiple Squeeze calls are effectively the same thing as a single Squeeze call with concatenated outputs.
 func (d *State) Squeeze(out []byte) {
 	for len(out) > 0 {
 		remain := min(len(out), maxRateIdx-d.rateIdx)
 		copy(out[:remain], d.state[d.rateIdx:d.rateIdx+remain])
+		clear(d.state[d.rateIdx : d.rateIdx+remain])
 		d.rateIdx += remain
 		if d.rateIdx == maxRateIdx {
 			d.Permute()

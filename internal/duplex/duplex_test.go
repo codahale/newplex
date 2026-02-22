@@ -170,7 +170,7 @@ func TestDuplex_Squeeze(t *testing.T) {
 		out := make([]byte, 10)
 		d.Squeeze(out)
 
-		if got, want := debugDuplex(&d), "0_10_d768fa7909cf75f1d1dbfedbc27b2bd0912bb283ec8f5ff7ecb89400d98a083201a3d3ff76087915a51326ef181801bd5c7c2f4685eb3a4839be3b392b8632465f6b184743d9bff9ad923e16f45f486bf04664ed1d9ad186abc39d35456ad0f32f72f740b12330460259c73e0e3bf908cdd6b1b09af91884e04595998c89e6df"; got != want {
+		if got, want := debugDuplex(&d), "0_10_00000000000000000000fedbc27b2bd0912bb283ec8f5ff7ecb89400d98a083201a3d3ff76087915a51326ef181801bd5c7c2f4685eb3a4839be3b392b8632465f6b184743d9bff9ad923e16f45f486bf04664ed1d9ad186abc39d35456ad0f32f72f740b12330460259c73e0e3bf908cdd6b1b09af91884e04595998c89e6df"; got != want {
 			t.Errorf("state = %s, want = %s", got, want)
 		}
 
@@ -186,7 +186,7 @@ func TestDuplex_Squeeze(t *testing.T) {
 		out := make([]byte, 2000)
 		d.Squeeze(out)
 
-		if got, want := debugDuplex(&d), "0_26_ba6fce95189d9ab473df173085129cc31c5bcaee3fac1ff754366c43769d0e70f41a7a8f378cdd5df04d9ed74f21a06410240c558582742112dbf09249db29ec710f14ec86d411ad55bfbd1781523574161587c332d27fa474cf377051d5ef8e99f9846046063e43882d747c16ec4242169080d9b2d6e3f1facec4f3422c95b8"; got != want {
+		if got, want := debugDuplex(&d), "0_26_0000000000000000000000000000000000000000000000000000756674276016c338bd18fafb8cf4f9982b6c80c4708631ba1cd77feb8be5aafbda0aaa3f3e65ed088008483fee3b4f96dca4b14018d15d202c63353e7a9ce0b23d85abd36c9ad81e8b411699b89bde67f083bf60369d4acf7c5e167f188e8f967960a07339a0"; got != want {
 			t.Errorf("state = %s, want = %s", got, want)
 		}
 
