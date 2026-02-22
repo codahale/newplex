@@ -19,7 +19,7 @@ func ExampleHash() {
 	hash := mhf.Hash(domain, cost, salt, password, nil, n)
 	fmt.Printf("hash = %x\n", hash)
 	// Output:
-	// hash = 696747c1f98f894f7283f1fa4ad591d68cd30984a362f6df2b58a7ef7e2ad3f2
+	// hash = 2dc38ce5986d6607c01f30b7a7c4138e77b918e5525e435e46d9e060db786252
 }
 
 func TestHash(t *testing.T) {
