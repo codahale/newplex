@@ -1386,6 +1386,7 @@ function MemoryHardHash(domain, cost, salt, password, n):
   for v in 1..staticNodes-1:
     p1, p2 = staticParents(id.Clone(), gratesCols, v)
     h = dd.Clone()
+    h.Mix("node", LEB128(v))
     if p1 >= 0:
       h.Mix("required", blocks[p1])
     if p2 >= 0:

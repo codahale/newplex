@@ -51,6 +51,7 @@ func Hash(domain string, cost uint8, salt, password, dst []byte, n int) []byte {
 	for v := 1; v < staticNodes; v++ {
 		p1, p2 := staticParents(id.Clone(), gratesCols, v)
 		h := dd.Clone()
+		h.Mix("node", binary.AppendUvarint(nil, uint64(v)))
 		if p1 >= 0 {
 			h.Mix("required", blocks[p1][:])
 		}
