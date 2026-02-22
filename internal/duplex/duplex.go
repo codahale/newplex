@@ -73,8 +73,32 @@ func (d *State) AbsorbLEB128(x uint64) {
 }
 
 // AbsorbHeader absorbs the common protocol operation header pattern:
-// Frame + AbsorbByte(op) + AbsorbString(label) + Frame + AbsorbByte(op|0x80)
+//
+//	Frame + AbsorbByte(op) + Absorb(label) + Frame + AbsorbByte(op|0x80)
+//
 // in a single pass, avoiding per-byte overflow checks when the header fits within the remaining rate.
+//
+// The fast path inlines the two Frame() calls and their associated absorptions. Given a starting rateIdx of R, the
+// layout within the rate is:
+//
+//	state[R]       ^= frameIdx    // First Frame(): absorb the old frameIdx
+//	state[R+1]     ^= op          // AbsorbByte(op): absorb the metadata opcode
+//	state[R+2..R+2+n) ^= label    // Absorb(label): absorb the label bytes
+//	state[R+2+n]   ^= R+1         // Second Frame(): absorb the new frameIdx
+//	                              //   (frameIdx was set to R+1 after the first
+//	                              //   Frame absorbed the old value at R, then
+//	                              //   the opcode byte advanced rateIdx to R+1,
+//	                              //   so Frame() records R+1 as the start of
+//	                              //   the metadata frame)
+//	state[R+3+n]   ^= op | 0x80  // AbsorbByte(op|0x80): absorb the data opcode
+//
+// After the fast path:
+//
+//	frameIdx = R + 3 + n   (start of the data frame, i.e., the position after
+//	                        the second Frame's AbsorbByte advanced rateIdx)
+//	rateIdx  = R + 4 + n   (= R + headerLen, ready for the operation's payload)
+//
+// This is equivalent to the slow path but avoids five separate boundary checks.
 func (d *State) AbsorbHeader(op byte, label string) {
 	n := len(label)
 	headerLen := 4 + n // frame byte + op + label + frame byte + op|0x80
