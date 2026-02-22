@@ -953,12 +953,15 @@ Because `Seal` depends on the plaintext length, it is unsuitable for streaming. 
 
 #### `Fork`
 
-`Fork` accepts a label and branch values, returning independent cloned child protocols that have each absorbed their
-respective branch value.
+`Fork` accepts a label and branch values, returning up to 255 independent cloned child protocols that have each absorbed
+a branch-specific ID and their respective branch value. It additionally updates the root protocol with a root-specific
+update, ensuring later operations are distinct.
 
 ```text
 function Fork(label, ...values):
+  // Create up to 255 branches.
   branches = []
+  id = 1
   for value in values:
     branch = duplex.Clone()
     branch.Frame()
@@ -966,8 +969,17 @@ function Fork(label, ...values):
     branch.Absorb(label)
     branch.Frame()
     branch.Absorb([OP_FORK | F_DATA])
+    branch.Absorb(I2OSP(id, 1))
     branch.Absorb(value)
     branches = branches || [branch]
+  
+  protocol.Frame()
+  protocol.Absorb([OP_FORK | F_META])
+  protocol.Absorb(label)
+  protocol.Frame()
+  protocol.Absorb([OP_FORK | F_DATA])
+  protocol.Absorb([0x00])
+    
   return branches
 ```
 

@@ -95,7 +95,7 @@ func Initiate(domain string, dIS *ristretto255.Scalar, rand io.Reader) (finish I
 
 		// Ratchet and fork the protocol into recv and send clones.
 		p.Ratchet("handshake")
-		send, recv = p.Fork("sender", []byte("initiator"), []byte("responder"))
+		recv, send = p.Fork("sender", []byte("responder"), []byte("initiator"))
 
 		// Return the forked protocols and the confirmation.
 		return send, recv, qRS, confirmation, nil

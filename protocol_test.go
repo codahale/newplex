@@ -72,7 +72,14 @@ func TestProtocol_Clear(t *testing.T) {
 
 func TestProtocol_Fork(t *testing.T) {
 	p := newplex.NewProtocol("fork")
+	orig := p.Clone()
 	l, r := p.Fork("side", []byte("l"), []byte("r"))
+
+	t.Run("pre-fork vs post-fork", func(t *testing.T) {
+		if got, want := orig.Equal(p), 0; got != want {
+			t.Errorf("Equal() = %v, want = %v (pre-fork parent same as post-fork parent)", got, want)
+		}
+	})
 
 	t.Run("left vs parent", func(t *testing.T) {
 		if got, want := p.Equal(l), 0; got != want {
@@ -92,16 +99,20 @@ func TestProtocol_Fork(t *testing.T) {
 		}
 	})
 
-	t.Run("commutativity", func(t *testing.T) {
-		leftA, rightA := p.Fork("example", []byte("A"), []byte("B"))
-		leftB, rightB := p.Fork("example", []byte("B"), []byte("A"))
+	t.Run("position-specific", func(t *testing.T) {
+		p2 := newplex.NewProtocol("fork")
+		p3 := p2.Clone()
 
-		if got, want := leftA.String(), rightB.String(); got != want {
-			t.Errorf("leftA.String() = %s, rightB.String() = %s", got, want)
+		leftA, rightA := p2.Fork("example", []byte("A"), []byte("B"))
+		leftB, rightB := p3.Fork("example", []byte("B"), []byte("A"))
+
+		// Swapping values should NOT produce the same branches, because branch IDs are position-specific.
+		if got, want := leftA.Equal(rightB), 0; got != want {
+			t.Errorf("leftA should differ from rightB when values are swapped")
 		}
 
-		if got, want := rightA.String(), leftB.String(); got != want {
-			t.Errorf("rightA.String() = %s, leftB.String() = %s", got, want)
+		if got, want := rightA.Equal(leftB), 0; got != want {
+			t.Errorf("rightA should differ from leftB when values are swapped")
 		}
 	})
 }

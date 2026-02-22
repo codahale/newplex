@@ -186,16 +186,28 @@ func (p *Protocol) Open(label string, dst, ciphertextAndTag []byte) ([]byte, err
 	return ret, nil
 }
 
-// ForkN returns N copies of the receiver, with each branch having absorbed the branch-specific value.
+// ForkN returns N copies of the receiver, with each branch having absorbed the branch-specific value. The receiver is
+// updated with a root-specific branch ID.
+//
+// Panics if the number of branches is greater than 255.
 func (p *Protocol) ForkN(label string, values ...[]byte) []*Protocol {
+	if len(values) > 255 {
+		panic("newplex: cannot fork >255 branches")
+	}
+
 	p.checkState()
 	branches := make([]*Protocol, len(values))
 	for i := range branches {
 		clone := p.Clone()
 		clone.duplex.AbsorbHeader(opFork, label)
+		clone.duplex.AbsorbByte(byte(i))
 		clone.duplex.Absorb(values[i])
 		branches[i] = clone
 	}
+
+	p.duplex.AbsorbHeader(opFork, label)
+	p.duplex.AbsorbByte(0)
+
 	return branches
 }
 
