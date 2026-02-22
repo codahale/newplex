@@ -971,6 +971,12 @@ Divergent branches are useful
 for [bidirectional communication](#mutually-authenticated-handshake), [Fiat-Shamir transforms](#digital-signature), and
 non-linear data flows (e.g., [SIV](#deterministic-authenticated-encryption-siv)).
 
+> [!NOTE]
+> Because each branch absorbs a distinct value after cloning, the resulting duplex transcripts diverge. By the duplex's
+> PRF security, the branches are computationally independent: no adversary making fewer than `2**128` queries can
+> correlate the outputs of one branch with those of another. This property is used in the SIV and signature schemes,
+> where `Fork` provides the functional equivalent of deriving independent subkeys.
+ 
 #### `Ratchet`
 
 `Ratchet` accepts an operation label and irreversibly modifies the protocol's state, preventing rollback attacks and
