@@ -282,8 +282,8 @@ func VerifyShare(domain string, verifyingShare, groupKey *ristretto255.Element, 
 }
 
 // computeBindingFactors derives a binding factor for each participant from the unified transcript. Because the
-// commitments are sorted by identifier (a total ordering), binding factors are derived sequentially from the same
-// protocol state rather than cloning per participant.
+// commitments are sorted by identifier (a total ordering), binding factors are derived independently using the same
+// protocol state via cloning to align with the FROST security proof.
 func computeBindingFactors(domain string, groupKey *ristretto255.Element, message []byte, commitments []Commitment) (map[uint16]*ristretto255.Scalar, error) {
 	p := newplex.NewProtocol(domain)
 	p.Mix("frost-binding", groupKey.Bytes())
