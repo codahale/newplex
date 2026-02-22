@@ -1883,8 +1883,9 @@ function ComputeBindingFactors(domain, groupKey, message, commitments):
   // Derive binding factors sequentially from the same state.
   factors = {}
   for (id, _, _) in commitments:
-    protocol.Mix("binding-participant", I2OSP(id, 2))
-    factors[id] = ScalarReduce(protocol.Derive("binding-factor", 64))
+    c = protocol.Clone()
+    c.Mix("binding-participant", I2OSP(id, 2))
+    factors[id] = ScalarReduce(c.Derive("binding-factor", 64))
   return factors
 ```
 

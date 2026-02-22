@@ -299,8 +299,9 @@ func computeBindingFactors(domain string, groupKey *ristretto255.Element, messag
 
 	factors := make(map[uint16]*ristretto255.Scalar, len(commitments))
 	for _, c := range commitments {
-		p.Mix("binding-participant", binary.BigEndian.AppendUint16(nil, c.Identifier))
-		rho, _ := ristretto255.NewScalar().SetUniformBytes(p.Derive("binding-factor", nil, 64))
+		bp := p.Clone()
+		bp.Mix("binding-participant", binary.BigEndian.AppendUint16(nil, c.Identifier))
+		rho, _ := ristretto255.NewScalar().SetUniformBytes(bp.Derive("binding-factor", nil, 64))
 		factors[c.Identifier] = rho
 	}
 
