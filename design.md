@@ -1561,7 +1561,7 @@ function Sign(d, message):
   c = ScalarReduce(verifier.Derive("challenge", 64))
   
   // Calculate the proof scalar.
-  s = (d * c) + k
+  s = k + d*c
   
   // The signature is the encoded commitment point and the proof scalar.
   return ElementEncode(R) || ScalarEncode(s)
@@ -1579,7 +1579,7 @@ function Verify(Q, signature, message):
   
   // The verifier absorbs the public commitment and regenerates the challenge scalar.
   verifier.Mix("commitment", receivedR)
-  c = ScalarReduce(verifier.Derive("challenge", 64))
+  expectedC = ScalarReduce(verifier.Derive("challenge", 64))
   
   // Decode the proof scalar.
   s = ScalarDecode(signature[32:])
@@ -1587,7 +1587,7 @@ function Verify(Q, signature, message):
     return false
     
   // Calculate the expected commitment point.
-  expectedR = [s]G - [c]Q
+  expectedR = [s]G + [-expectedC]Q
   
   // The signature is valid if the calculated point matches the provided point.
   return ElementEncode(expectedR) == receivedR
@@ -1698,7 +1698,7 @@ function SigncryptSeal(dS, QR, message):
   c = ScalarReduce(receiver.Derive("challenge", 64))
 
   // Calculate the proof scalar and mask it.
-  s = (dS * c) + k
+  s = k + dS*c
   encS = receiver.Mask("proof", ScalarEncode(s))
   
   return ElementEncode(QE) || ciphertext || encR || encS
@@ -1736,7 +1736,7 @@ function SigncryptOpen(dR, QS, payload):
     return ErrInvalidCiphertext
 
   // Calculate the expected commitment point.
-  expectedR = [s]G - [expectedC]QS
+  expectedR = [s]G + [-expectedC]QS
 
   // CONST: The signature is valid if the calculated point matches the received point.
   if !CT_EQ(ElementEncode(expectedR), encR):
