@@ -241,10 +241,8 @@ noted, all operations act on arrays of 8-bit bytes.
 * **LEB128**: Variable-length integers are encoded using the unsigned Little Endian Base 128 (LEB128) format. To ensure
   unique encoding (malleability resistance), implementations **must** use the canonically short encoding. This means
   that the last byte of the encoding must not be `0x00` (unless the integer is `0`, encoded as `0x00`), and the unused
-  bits in the final byte must be `0`. For example, `1` **must** be coded as `[0x01]` and not `[0x81, 0x00]`.
-
-> [!NOTE]
-> LEB128 is only used to _encode_ values. It is never used to _decode_ data.
+  bits in the final byte must be `0`. For example, `1` **must** be coded as `[0x01]` and not `[0x81, 0x00]`. As LEB128
+  is only used to encode data, the possibility of non-canonical encodings does not introduce malleability issues.
 
 ##### Conventions
 
