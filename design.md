@@ -898,7 +898,10 @@ Unlike `Derive` and `Seal`, `Mask` does not require the plaintext length in adva
 
 * It offers IND-EAV security if the duplex state is secret.
 * It offers IND-CPA security if the duplex state is probabilistic (e.g., includes a nonce).
-* The resulting protocol state is dependent on the plaintext given to or returned by the operation.
+* The resulting protocol state is dependent on the ciphertext. On the sender side (`Mask`), the ciphertext is a
+  deterministic function of the plaintext, so state depends on the plaintext indirectly. On the receiver side
+  (`Unmask`), the state depends on the received ciphertext directly, which may differ from what the sender produced if
+  the ciphertext was modified in transit.
 
 #### `Seal`/`Open`
 
