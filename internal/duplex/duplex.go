@@ -123,19 +123,20 @@ func (d *State) AbsorbHeader(op byte, label string) {
 	}
 
 	// Slow path: use individual operations for cases near the rate boundary.
-	d.Frame()
-	d.AbsorbByte(op)
+	d.Frame(op)
 	d.Absorb([]byte(label))
-	d.Frame()
-	d.AbsorbByte(op | 0x80)
+	d.Frame(op | 0x80)
 }
 
-// Frame absorbs the current frame index and updates the frame index to be the current rate index.
-func (d *State) Frame() {
+// Frame absorbs the current frame index, updates the frame index to be the current rate index, and absorbs the given
+// identifier byte.
+func (d *State) Frame(id byte) {
 	// Absorb the previous frame index.
 	d.AbsorbByte(byte(d.frameIdx))
 	// Record the current frame index.
 	d.frameIdx = d.rateIdx
+	// Absorb the identifier byte.
+	d.AbsorbByte(id)
 }
 
 // Squeeze fills the given slice with data from the duplex's state and zeros out the portion of the duplex's state which

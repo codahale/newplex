@@ -39,7 +39,7 @@
       * [`Permute`](#permute)
     * [Worked Example: Domain Separation through Framing](#worked-example-domain-separation-through-framing)
       * [Sequence A: `Absorb(0xCA); Absorb(0xFE)`](#sequence-a-absorb0xca-absorb0xfe)
-      * [Sequence B: `Absorb(0xCA); Frame(); Absorb(0xFE)`](#sequence-b-absorb0xca-frame-absorb0xfe)
+      * [Sequence B: `Absorb(0xCA); Frame(0x01); Absorb(0xFE)`](#sequence-b-absorb0xca-frame0x01-absorb0xfe)
     * [State Operations](#state-operations)
       * [`Ratchet`](#ratchet)
       * [`Clone`](#clone)
@@ -106,7 +106,7 @@
       * [Proof Strategy](#proof-strategy)
       * [Step 1: Unambiguous Block Delimitation](#step-1-unambiguous-block-delimitation)
       * [Step 2: Deterministic Metadata Extraction](#step-2-deterministic-metadata-extraction)
-      * [Step 3: Recursive Frame Chain Resolution](#step-3-recursive-frame-chain-resolution)
+      * [Step 3: Stateful Stream Parsing and Recursive Frame Resolution](#step-3-stateful-stream-parsing-and-recursive-frame-resolution)
       * [Step 4: Data Identification and Sequence Reconstruction](#step-4-data-identification-and-sequence-reconstruction)
       * [Step 5: Global Sequence Concatenation](#step-5-global-sequence-concatenation)
       * [Conclusion](#conclusion)
@@ -586,13 +586,15 @@ the state is cryptographically bound to the sequence of operations.
 #### `Frame`
 
 `Frame` provides domain separation by grouping related duplex operations into a logical unit. It absorbs the `frameIdx`
-(start of the previous frame) into the state, then sets `frameIdx` to the current `rateIdx` (start of the new frame).
-Even if two different operation sequences involve the same raw data, the internal states diverge based on framing.
+(start of the previous frame) into the state, sets `frameIdx` to the current `rateIdx` (start of the new frame), and
+absorbs the given identifier byte `id`. Even if two different operation sequences involve the same raw data, the
+internal states diverge based on framing.
 
 ```text
-function Frame():
+function Frame(id):
   Absorb(I2OSP(frameIdx, 1)) // 0 <= frameIdx <= MAX_RATE_IDX, always a single byte
   frameIdx = rateIdx
+  Absorb(I2OSP(id, 1))       // absorb the identifier byte
 ```
 
 #### `Permute`
@@ -619,16 +621,15 @@ function Permute():
 >
 > * The first bit of padding (the `1`) is the least-significant bit of the byte at `state[rateIdx]`.
 > * The last bit of padding (the final `1`) is the most-significant bit of the byte at `state[95]`.
-> * In practice, this means XORing `0x01` at the current position and `0x80` at the end of the rate.
-> * If the current position _is_ the end of the rate (i.e. `rateIdx=95` after framing), this means XORing the padding
-> byte with `0x81`.
+> * In practice, this means XORing `0x01` at the current position and `0x80` at the end of the rate, potentially at the
+    same byte.
 
 ### Worked Example: Domain Separation through Framing
 
-To illustrate how framing prevents concatenation attacks, consider a "Tiny-Newplex" with an effective rate of four bytes
-(indices `0..3`) and two reserved bytes (index `4` as the fallback frame position, index `5` for padding).
+To illustrate how framing prevents concatenation attacks, consider a "Tiny-Newplex" with an effective rate of six bytes
+(indices `0..5`).
 
-Compare two operation sequences: `Absorb(0xCA); Absorb(0xFE)` and `Absorb(0xCA); Frame(); Absorb(0xFE)`.
+Compare two operation sequences: `Absorb(0xCA); Absorb(0xFE)` and `Absorb(0xCA); Frame(0x01); Absorb(0xFE)`.
 
 #### Sequence A: `Absorb(0xCA); Absorb(0xFE)`
 
@@ -639,30 +640,23 @@ Both `Absorb` operations occur within a single frame (a single semantic unit, e.
 | initial state  | `0x00` | `0x00` | `0x00` | `0x00` | `0x00` | `0x00` | `0`       | `0`        |
 | `Absorb(0xCA)` | `0xCA` | `0x00` | `0x00` | `0x00` | `0x00` | `0x00` | `1`       | `0`        |
 | `Absorb(0xFE)` | `0xCA` | `0xFE` | `0x00` | `0x00` | `0x00` | `0x00` | `2`       | `0`        |
-| framed state   | `0xCA` | `0xFE` | `0x00` | `0x00` | `0x00` | `0x00` |           |            |
-| padded state   | `0xCA` | `0xFE` | `0x00` | `0x01` | `0x00` | `0x80` |           |            |
 
-The final input to the permutation is `[0xCA, 0xFE, 0x00, 0x01, 0x00, 0x80]`.
+#### Sequence B: `Absorb(0xCA); Frame(0x01); Absorb(0xFE)`
 
-#### Sequence B: `Absorb(0xCA); Frame(); Absorb(0xFE)`
-
-`Frame()` is called between the `Absorb` operations, signaling different logical units (e.g., a key byte and a value
+`Frame(0x01)` is called between the `Absorb` operations, signaling different logical units (e.g., a key byte and a value
 byte).
 
 |                | `S[0]` | `S[1]` | `S[2]` | `S[3]` | `S[4]` | `S[5]` | `rateIdx` | `frameIdx` |
 |----------------|--------|--------|--------|--------|--------|--------|-----------|------------|
 | initial state  | `0x00` | `0x00` | `0x00` | `0x00` | `0x00` | `0x00` | `0`       | `0`        |
 | `Absorb(0xCA)` | `0xCA` | `0x00` | `0x00` | `0x00` | `0x00` | `0x00` | `1`       | `0`        |
-| `Frame()`      | `0xCA` | `0x00` | `0x00` | `0x00` | `0x00` | `0x00` | `2`       | `2`        |
-| `Absorb(0xFE)` | `0xCA` | `0x00` | `0xFE` | `0x00` | `0x00` | `0x00` | `3`       | `2`        |
-| framed state   | `0xCA` | `0x00` | `0xFE` | `0x02` | `0x00` | `0x00` |           |            |
-| padded state   | `0xCA` | `0x00` | `0xFE` | `0x02` | `0x01` | `0x80` |           |            |
+| `Frame(0x01)`  | `0xCA` | `0x00` | `0x01` | `0x00` | `0x00` | `0x00` | `3`       | `2`        |
+| `Absorb(0xFE)` | `0xCA` | `0x00` | `0x01` | `0xFE` | `0x00` | `0x00` | `4`       | `2`        |
 
-The final input to the permutation is `[0xCA, 0x00, 0xFE, 0x02, 0x01, 0x80]`.
-
-Both sequences process the same bytes (`[0xCA, 0xFE]`), but the permutation inputs differ. In Sequence A, the data
-occupies contiguous indices and the frame metadata is zero. In Sequence B, `Frame` absorbed the previous `frameIdx` and
-shifted the absorption position of `0xFE`. The duplex state captures not just the data but also its framing structure.
+Both sequences process the same bytes (`[0xCA, 0xFE]`), but the states diverge. In Sequence A, the data occupies
+contiguous indices and the frame metadata is zero. In Sequence B, `Frame(0x01)` absorbed the previous `frameIdx` (`0x00`
+at `S[1]`), recorded the new frame start, and absorbed the identifier byte (`0x01` at `S[2]`), shifting `0xFE` to
+`S[3]`. The duplex state captures not just the data but also its framing structure.
 
 ### State Operations
 
@@ -732,18 +726,18 @@ has a unique base operation code (opcode).
 Every operation uses two phases: a metadata frame and a data frame. The duplex `Frame` provides low-level delimitation;
 the protocol framework uses these phases to distinguish cryptographic intent (metadata) from the primary payload (data).
 
-In the metadata frame, the protocol absorbs the base opcode (high bit cleared) and a domain separation label. In the
-data frame, it absorbs the modified opcode (high bit set) before executing the operation's primary logic.
+In the metadata frame, the protocol frames the base opcode (high bit cleared) and absorbs a domain separation label. In
+the data frame, it frames the modified opcode (high bit set) before executing the operation's primary logic.
 
 ```mermaid
 flowchart LR
     subgraph Metadata ["Metadata Frame"]
         direction LR
-        M1["Frame()"] --> M2["Absorb Opcode (Meta)"] --> M3["Absorb Label"]
+        M1["Frame(Opcode)"] --> M2["Absorb Label"]
     end
     subgraph Data ["Data Frame"]
         direction LR
-        D1["Frame()"] --> D2["Absorb Opcode (Data)"] --> D3["Operation Logic"]
+        D1["Frame(Opcode | 0x80)"] --> D2["Operation Logic"]
     end
     Metadata --> Data
 ```
@@ -781,11 +775,9 @@ two-frame structure:
 
 ```text
 function Init(domain):
-  duplex.Frame()
-  duplex.Absorb([OP_INIT | F_META])
+  duplex.Frame(OP_INIT | F_META)
   duplex.Absorb(domain)
-  duplex.Frame()
-  duplex.Absorb([OP_INIT | F_DATA])
+  duplex.Frame(OP_INIT | F_DATA)
 ```
 
 Unlike other operations, it does not modify the duplex state in the data frame.
@@ -805,11 +797,9 @@ for both secret and public data. During its data frame, it absorbs the input.
 
 ```text
 function Mix(label, input):
-  duplex.Frame()
-  duplex.Absorb([OP_MIX | F_META])
+  duplex.Frame(OP_MIX | F_META)
   duplex.Absorb(label)
-  duplex.Frame()
-  duplex.Absorb([OP_MIX | F_DATA])
+  duplex.Frame(OP_MIX | F_DATA)
   duplex.Absorb(input)
 ```
 
@@ -823,18 +813,17 @@ preceding transcript, the operation label, and the requested output length.
 
 ```text
 function Derive(label, n):
-  duplex.Frame()
-  duplex.Absorb([OP_DERIVE | F_META])
+  duplex.Frame(OP_DERIVE | F_META)
   duplex.Absorb(label)
-  duplex.Frame()
-  duplex.Absorb([OP_DERIVE | F_DATA])
+  duplex.Frame(OP_DERIVE | F_DATA)
   duplex.Absorb(LEB128(n))
   duplex.Permute()
   return duplex.Squeeze(n)
 ```
 
-`Derive` absorbs the opcode and label in the metadata frame. In the data frame, it absorbs the output length (LEB128
-encoded) and permutes the state, ensuring pseudorandomness and dependence on the output length, then squeezes `n` bytes.
+`Derive` frames the opcode and absorbs the label in the metadata frame. In the data frame, it absorbs the output
+length (LEB128 encoded) and permutes the state, ensuring pseudorandomness and dependence on the output length, then
+squeezes `n` bytes.
 
 ##### Random Oracle
 
@@ -873,26 +862,22 @@ leave the protocol state dependent on the plaintext.
 
 ```text
 function Mask(label, plaintext):
-  duplex.Frame()
-  duplex.Absorb([OP_CRYPT | F_META])
+  duplex.Frame(OP_CRYPT | F_META)
   duplex.Absorb(label)
-  duplex.Frame()
-  duplex.Absorb([OP_CRYPT | F_DATA])
+  duplex.Frame(OP_CRYPT | F_DATA)
   duplex.Permute()
   return duplex.Encrypt(plaintext)
 
 function Unmask(label, ciphertext):
-  duplex.Frame()
-  duplex.Absorb([OP_CRYPT | F_META])
+  duplex.Frame(OP_CRYPT | F_META)
   duplex.Absorb(label)
-  duplex.Frame()
-  duplex.Absorb([OP_CRYPT | F_DATA])
+  duplex.Frame(OP_CRYPT | F_DATA)
   duplex.Permute()
   return duplex.Decrypt(ciphertext)
 ```
 
-`Mask` absorbs the opcode and label in the metadata frame. In the data frame, it permutes the state, then calls
-[`Encrypt`](#encryptdecrypt) to XOR the plaintext with the state, producing ciphertext and updating the state.
+`Mask` frames the opcode and absorbs the label in the metadata frame. In the data frame, it permutes the state, then
+calls [`Encrypt`](#encryptdecrypt) to XOR the plaintext with the state, producing ciphertext and updating the state.
 `Unmask` is identical but calls [`Decrypt`](#encryptdecrypt).
 
 Unlike `Derive` and `Seal`, `Mask` does not require the plaintext length in advance and is suitable for streaming.
@@ -924,11 +909,9 @@ error if invalid.
 
 ```text
 function Seal(label, plaintext):
-  duplex.Frame()
-  duplex.Absorb([OP_AUTH_CRYPT | F_META])
+  duplex.Frame(OP_AUTH_CRYPT | F_META)
   duplex.Absorb(label)
-  duplex.Frame()
-  duplex.Absorb([OP_AUTH_CRYPT | F_DATA])
+  duplex.Frame(OP_AUTH_CRYPT | F_DATA)
   duplex.Absorb(LEB128(|plaintext|))
   duplex.Permute()
   ciphertext = duplex.Encrypt(plaintext)
@@ -940,11 +923,9 @@ function Open(label, input):
   if |input| < 16:
     return ErrInvalidCiphertext
   ciphertext, receivedTag = input[:|input|-16], input[|input|-16:]
-  duplex.Frame()
-  duplex.Absorb([OP_AUTH_CRYPT | F_META])
+  duplex.Frame(OP_AUTH_CRYPT | F_META)
   duplex.Absorb(label)
-  duplex.Frame()
-  duplex.Absorb([OP_AUTH_CRYPT | F_DATA])
+  duplex.Frame(OP_AUTH_CRYPT | F_DATA)
   duplex.Absorb(LEB128(|ciphertext|))
   duplex.Permute()
   plaintext = duplex.Decrypt(ciphertext)
@@ -955,9 +936,9 @@ function Open(label, input):
   return plaintext
 ```
 
-`Seal` absorbs the opcode and label in the metadata frame. In the data frame, it absorbs the plaintext length (LEB128
-encoded) and permutes the state. It then encrypts the plaintext, permutes again to enforce plaintext dependency, and
-squeezes a 16-byte tag.
+`Seal` frames the opcode and absorbs the label in the metadata frame. In the data frame, it absorbs the plaintext
+length (LEB128 encoded) and permutes the state. It then encrypts the plaintext, permutes again to enforce plaintext
+dependency, and squeezes a 16-byte tag.
 
 `Open` is identical but decrypts and compares the received tag to the expected tag using constant-time comparison.
 
@@ -995,21 +976,17 @@ function Fork(label, ...values):
   id = 1
   for value in values:
     branch = duplex.Clone()
-    branch.Frame()
-    branch.Absorb([OP_FORK | F_META])
+    branch.Frame(OP_FORK | F_META)
     branch.Absorb(label)
-    branch.Frame()
-    branch.Absorb([OP_FORK | F_DATA])
+    branch.Frame(OP_FORK | F_DATA)
     branch.Absorb(I2OSP(id, 1))
     branch.Absorb(value)
     branches = branches || [branch]
     id = id + 1
   
-  protocol.Frame()
-  protocol.Absorb([OP_FORK | F_META])
+  protocol.Frame(OP_FORK | F_META)
   protocol.Absorb(label)
-  protocol.Frame()
-  protocol.Absorb([OP_FORK | F_DATA])
+  protocol.Frame(OP_FORK | F_DATA)
   protocol.Absorb([0x00])
     
   return branches
@@ -1032,11 +1009,9 @@ establishing forward secrecy.
 
 ```text
 function Ratchet(label):
-  duplex.Frame()
-  duplex.Absorb([OP_RATCHET | F_META])
+  duplex.Frame(OP_RATCHET | F_META)
   duplex.Absorb(label)
-  duplex.Frame()
-  duplex.Absorb([OP_RATCHET | F_DATA])
+  duplex.Frame(OP_RATCHET | F_DATA)
   duplex.Ratchet()
 ```
 
@@ -2105,106 +2080,127 @@ Below is a formal proof of injectivity for the Newplex framing mechanism.
 
 #### Theorem
 
-Let $S$ be the set of all valid finite sequences of user operations, where an operation is either $\text{Absorb}(b)$ for
-a byte $b$ or $\text{Frame}()$. Let $P$ be the sequence of fixed-length inputs provided to the permutation $f$. The
-mapping $M : S \to P$ generated by the Newplex construction is injective.
+Let $S$ be the set of all valid finite sequences of user operations, where an operation is either `Absorb(b)` for
+a byte `b` or `Frame(id)` for an identifier byte `id`. Let $P$ be the sequence of fixed-length inputs provided to
+the permutation $f$. The mapping $M : S \to P$ generated by the Newplex construction is injective.
 
 #### Proof Strategy
 
-To prove that $M(A) = M(B) \implies A = B$, we will construct a deterministic inverse function $M^{-1}:P \to S$.
-If every sequence of permutation blocks $P$ can be unambiguously parsed back into exactly one sequence of
-operations $S$, the mapping is injective.
+To prove that $M(A) = M(B) \implies A = B$, we will construct a deterministic inverse function $M^{-1}:P \to S$. Because
+raw duplex block boundaries can be ambiguous when the rate is exactly full, blocks cannot be parsed entirely
+independently in reverse. Instead, $M^{-1}$ operates as a stateful stream parser across the entire sequence of
+permutation blocks. By analyzing the structural metadata left by `Frame(id)` and correctly resolving state across block
+boundaries when the rate is saturated, the parser guarantees a unique and correct reconstruction of the original
+operation sequence.
 
 Because $f$ is a permutation (and therefore bijective), any post-permutation state can be inverted to recover the
 corresponding pre-permutation state. The inverse function $M^{-1}$ exploits this: given the sequence of
 post-permutation states produced by the construction, it applies $f^{-1}$ to each one to obtain the pre-permutation
 rate blocks--the XOR inputs assembled before each call to $f$. The parsing steps below operate on these recovered
-pre-permutation blocks, from which the original operation sequence is unambiguously reconstructed.
+pre-permutation blocks to unambiguously reconstruct the original operation sequence.
 
 #### Step 1: Unambiguous Block Delimitation
 
 Let the sequence of permutation inputs be $P = (B_1, B_2, \dots, B_n)$. Each block is exactly 128 bytes, with the first
 96 bytes constituting the rate $R$.
 
-By definition of the $\text{pad10*1}$ padding rule applied in $\text{Permute}()$:
+By definition of the `pad10*1` padding rule applied in `Permute()`:
 
-1. $R[95]$ always contains the terminal padding bit $0\text{x}80$.
-2. There exists a unique index $p \le 94$ containing the initial padding byte $0\text{x}01$. Because the state is
-   initialized to zero and only updated sequentially, $p$ is the highest index in $R[0 \dots 94]$ modified during the
-   padding phase.
+1. $R[95]$ always contains the terminal padding bit `0x80`.
+2. There exists a unique index $p \le 94$ containing the initial padding byte `0x01`. Because the state is initialized
+   to zero and only updated sequentially, $p$ is the highest index in $R[0 \dots 94]$ modified during the padding phase.
 
-For any block $B_i$, the exact number of bytes consumed by operations prior to $\text{Permute}()$ is strictly defined
+For any block $B_i$, the exact number of bytes consumed by operations prior to `Permute()` is strictly defined
 as $L = p - 1$. The bytes $R[0 \dots L]$ contain all data and framing metadata for that block.
 
 #### Step 2: Deterministic Metadata Extraction
 
-The $\text{Permute}()$ function enforces the following operation order before applying the padding byte at index $p$:
+The `Permute()` function enforces the following operation order before applying the padding byte at index $p$:
 
 $$R[L] = R[L] \oplus frameIdx$$
 
-Because user operations ($\text{Absorb}()$, $\text{Squeeze}()$, $\text{Encrypt}()$, $\text{Decrypt}()$)
-trigger $\text{Permute}()$ when $\text{rateIdx}$ reaches $94$, the maximum user-writable index within a block is $93$.
-Index $L$ (which equals $\text{rateIdx}$ at the time of $\text{Permute}()$, and is at most 94) has therefore not been
-written to by any user operation during this block. In the pre-permutation XOR input, its base value is $0\text{x}00$
-(from the all-zero initial state for the first block, or from the reset to zero that occurs conceptually when we
-consider each block's XOR contributions independently). The byte at $R[L]$ in the pre-permutation input therefore
-strictly equals the terminal frame index for the block. Let $F_{terminal} = R[L]$.
+Because user operations (`Absorb()`, `Squeeze()`, `Encrypt()`, `Decrypt()`) trigger `Permute()` when `rateIdx`
+reaches `94`, the maximum user-writable index within a block is `93`. Index $L$ (which equals `rateIdx` at the time of
+`Permute()`, and is at most `94`) has therefore not been written to by any user operation during this block. In the
+pre-permutation XOR input, its base value is `0x00` (from the all-zero initial state for the first block, or from the
+reset to zero that occurs conceptually when we consider each block's XOR contributions independently). The byte
+at $R[L]$ in the pre-permutation input therefore strictly equals the terminal frame index for the block.
+Let $F_{terminal} = R[L]$.
 
-#### Step 3: Recursive Frame Chain Resolution
+#### Step 3: Stateful Stream Parsing and Recursive Frame Resolution
 
-Within any block $B_i$, the operations can be reconstructed in reverse order by tracing the $\text{frameIdx}$ values. We
-define a recursive parsing algorithm starting with $F_{current} = F_{terminal}$:
+Within any block $B_i$, the operations can be reconstructed in reverse order by tracing the `frameIdx`values, starting
+with $F_{current} = F_{terminal}$.
 
-1. **Base Case:** If $F_{current} == 0$, there are no preceding $\text{Frame}()$ operations in the remaining unparsed
-   segment of the block $R[0 \dots L-1]$. All remaining bytes are strictly the result of $\text{Absorb}(b)$ operations.
-2. **Recursive Step:** If $F_{current} > 0$, a $\text{Frame}()$ operation occurred.
+**The Core Invariant:** A `Frame(id)` operation is defined as sequentially executing:
 
-* By definition, $\text{Frame}()$ absorbs the *previous* $\text{frameIdx}$ as a single byte at the
-  current $\text{rateIdx}$, then updates $\text{frameIdx}$ to $\text{rateIdx}+1$.
+1. `Absorb(frameIdx)`
+2. `frameIdx = rateIdx`
+3. `Absorb(id)`
 
-* Therefore, the byte representing the preceding $\text{frameIdx}$ is located exactly at $R[F_{current}-1]$.
-* We log a $\text{Frame}()$ operation at position $F_{current}-1$.
-* We update $F_{current} = R[F_{current}-1]$ and repeat the evaluation.
+This means every `Frame(id)` operation always emits *exactly two bytes* into the stream: the previous frame
+index, followed immediately by the identifier byte.
 
-Because $F_{current}$ strictly decreases with each recursive step (a frame must encompass at least zero bytes of data,
-meaning $\text{rateIdx}$ always advances), this chain is guaranteed to terminate at $0$.
+**Parsing Algorithm for $B_i$:**
+While parsing backward from $L-1$:
+
+1. If $F_{current} == 0$, no preceding `Frame(id)` operations occurred in the remaining unparsed segment. Any
+   remaining bytes are `Absorb(b)` operations.
+2. If $F_{current} > 0$, a `Frame(id)` operation occurred.
+  - The boundary of this frame is at index $F_{current}$.
+  - The first byte of the `Frame` operation (the previous `frameIdx`) is located at $R[F_{current}-2]$.
+  - The second byte of the `Frame` operation (the identifier `id`) is located at $R[F_{current}-1]$.
+  - We log a `Frame(id)` with $id = R[F_{current}-1]$, update $F_{current} = R[F_{current}-2]$, and continue
+    parsing from $F_{current}-2$.
+
+**Resolving Boundary Ambiguity:**
+If $F_{terminal} == L$ and $L == 94$, the block is fully saturated, and the terminal frame index points exactly to the
+padding byte boundary. This state resolves unambiguously due to the strict backwards-tracing properties of the
+`frameIdx` chain. The stateful parser resolves ambiguities automatically by tracing the `frameIdx` chain backwards from
+the end of the global sequence.
+
+Because the parser resolves the `frameIdx` chain backwards, it definitively tracks which indices act as frame boundaries
+*before* evaluating the content of those boundaries. If a backwards-traced $F_{current}$ lands exactly on the boundary
+index (e.g., index `94` of block $B_i$, conceptually index `0` of block $B_{i+1}$ from the parser's continuous stream
+perspective), the parser knows definitively that a `Frame(id)` occurred crossing that boundary, and the
+identifier byte is the first byte of $B_{i+1}$. If the backwards-traced $F_{current}$ skips over the boundary, no frame
+occurred there, and any bytes are parsed as standard `Absorb` operations.
 
 #### Step 4: Data Identification and Sequence Reconstruction
 
-Once the set of all indices containing framing metadata is identified for $B_i$:
+Once the set of all indices containing framing metadata is identified across all blocks:
 
-1. Any index $k \in \{0, \dots, L-1\}$ that is not in the set of framing metadata indices contains user data.
-2. The exact sequence of operations for $B_i$ is reconstructed by iterating $k$ from $0$ to $L-1$:
-
-* If $k$ is a metadata index, emit $\text{Frame}()$.
-* If $k$ is a data index, emit $\text{Absorb}(R[k])$.
+1. Any index not part of a frame boundary contains user data emitted via `Absorb(b)`.
+2. Any index identified as a frame boundary emits `Frame(id)`, consuming the identifier byte `id`.
 
 #### Step 5: Global Sequence Concatenation
 
-The protocol guarantees that $\text{rateIdx}=0$ and $\text{frameIdx}=0$ at the beginning of every block $B_i$.
-Therefore, the state machine has no memory of structural metadata across block boundaries.
-
-Because each block $B_i$ can be deterministically and independently parsed into a distinct subsequence of
-operations $S_i$, the global sequence of operations is exactly the concatenation:
-
-$$S = S_1 \parallel S_2 \parallel \dots \parallel S_n$$
+The duplex guarantees that $\text{rateIdx}=0$ and $\text{frameIdx}=0$ at the beginning of the very first block. By
+resolving the $F_{current}$ pointers backward across all $n$ blocks, the state machine flawlessly connects boundaries.
+The global sequence of operations $S$ is uniquely defined.
 
 #### Conclusion
 
-Since the mapping $P$ from $S$ to relies entirely on fixed padding rules and deterministic backward resolution of state
-variables, there exists exactly one valid inverse for any permutation sequence generated by the construction. Therefore,
-no two distinct operation sequences can produce the same sequence of permutation inputs. The framing mechanism is
+Because every `Frame(id)` operation mathematically commits its position into the state's `frameIdx` chain, and
+because that chain can be deterministically resolved backwards from the end of any valid sequence, the parser can
+unambiguously identify the exact locations of all `Frame(id)` operations, even across fully saturated block
+boundaries.
+
+Since the locations of all frames are known, the exact parameters (`id`) of those frames and the exact values of all
+interleaving `Absorb` operations are deterministically extracted from the pre-permutation inputs. Thus, there exists
+exactly one valid inverse for any permutation sequence generated by the construction.
+
+No two distinct duplex operation sequences can produce the same sequence of permutation inputs. The framing mechanism is
 strictly injective.
 
-Although the theorem's domain is limited to $\text{Absorb}$ and $\text{Frame}$ operations, this is sufficient for the
-framework's domain separation and transcript uniqueness guarantees. Every protocol operation—$\text{Mix}$,
-$\text{Derive}$, $\text{Mask}$, $\text{Seal}$, $\text{Fork}$, $\text{Ratchet}$—begins with a two-frame header that
-absorbs a unique opcode and a caller-supplied label before executing any operation-specific logic. Operations that
-destroy state information ($\text{Squeeze}$ inside $\text{Derive}$ and $\text{Seal}$; zeroing inside $\text{Ratchet}$)
-occur strictly *after* these identifying absorptions. By the time any non-invertible step executes, the permutation
-input sequence has already diverged from that of any operation with a different opcode, label, or preceding transcript.
-The injectivity of the $\text{Absorb}$/$\text{Frame}$ encoding therefore guarantees that distinct protocol transcripts
-produce distinct sequences of permutation inputs, which is the property the security reductions require.
+Although the theorem's domain is limited to `Absorb` and `Frame` operations, this is sufficient for the framework's
+domain separation and transcript uniqueness guarantees. Every protocol operation--`Mix`, `Derive`, `Mask`, `Seal`,
+`Fork`, `Ratchet`--begins with a two-frame header that absorbs a unique opcode and a caller-supplied label before
+executing any operation-specific logic. Operations that destroy state information (`Squeeze` inside `Derive` and `Seal`;
+zeroing inside `Ratchet`) occur strictly *after* these identifying absorptions. By the time any non-invertible step
+executes, the permutation input sequence has already diverged from that of any operation with a different opcode, label,
+or preceding transcript. The injectivity of the `Absorb`/`Frame` encoding therefore guarantees that distinct protocol
+transcripts produce distinct sequences of permutation inputs, which is the property the security reductions require.
 
 Consequently, two protocol sessions whose operation sequences differ in any way—different operation types, different
 labels, different absorbed data, or different ordering—are guaranteed to feed distinct inputs to the permutation at the
