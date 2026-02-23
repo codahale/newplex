@@ -973,6 +973,8 @@ update, ensuring later operations are distinct.
 
 ```text
 function Fork(label, ...values):
+  if |values| > 255:
+    return ErrTooManyBranches  // Branch IDs must fit in a single byte.
   // Create up to 255 branches.
   branches = []
   id = 1
