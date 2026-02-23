@@ -319,6 +319,14 @@ of the Simpira v2 family:
 | **Simpira v2 b=6** | 768-bit  | 15          | Impossible Differential | 9             | [Liu et al. (2022)](https://journal_xdxb.xidian.edu.cn/zh/article/doi/10.19665/j.issn1001-2400.2022.05.023/) |
 | **Simpira v2 b=8** | 1024-bit | 18          | None                    | N/A           |                                                                                                              |
 
+> [!WARNING]
+> Simpira-1024 (`b=8`) has received significantly less cryptanalytic scrutiny than Keccak. Every smaller Simpira v2
+> variant that has been studied has yielded reduced-round attacks (9–11 rounds broken out of 15–21), but no published
+> cryptanalysis exists for `b=8`. The 18-round count provides a margin over the best reduced-round results on smaller
+> variants (the best known attack reaches 11 of 15 rounds for `b=4`, giving an approximate 64% margin), but the absence
+> of attacks on `b=8` reflects a lack of study rather than a proof of strength. Users requiring the highest level of
+> cryptanalytic confidence should consider instantiating the framework with `Keccak-f[1600]` or `Keccak-p[1600,12]`.
+
 ### Rationale
 
 Simpira-1024 is selected for performance and architectural consistency.
@@ -340,9 +348,8 @@ Simpira provides a high baseline speed on both platforms.
 Using standard AES intrinsics yields compact implementations compared to software-only permutations. A C implementation
 using Intel intrinsics is about 30 lines; an optimized AMD64 assembly version is about 250 lines.
 
-Simpira has received less cryptanalytic scrutiny than Keccak, but results on reduced-round variants suggest an adequate
-security margin. The design is modular and can be instantiated with `Keccak-f[1600]` or `Keccak-p[1600,12]` if
-additional margin or embedded device performance is preferred.
+As noted, the design is modular and can be instantiated with `Keccak-f[1600]` or `Keccak-p[1600,12]` if additional
+cryptanalytic margin or embedded device performance is preferred.
 
 ## The Duplex Construction
 
