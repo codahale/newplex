@@ -1270,28 +1270,27 @@ repeats.
 `Seal` and `Open` require the plaintext length in advance, enforcing the principle of never revealing unauthenticated
 plaintext. This is impractical for continuous streams or large files exceeding available memory.
 
-This streaming scheme, inspired by the [STREAM] construction, breaks plaintext into independently sealed blocks, ending
-with a zero-length block to signal stream completion. The continuous protocol state binds each block's tag to all
-preceding blocks, preventing reordering or truncation.
-
-[STREAM]: https://eprint.iacr.org/2015/189.pdf
+This streaming scheme breaks plaintext into independently sealed blocks, ending with a zero-length block to signal
+stream completion. The continuous protocol state binds each block's tag to all preceding blocks, preventing reordering
+or truncation.
 
 Because decrypted data is yielded incrementally, implementers **must** treat intermediate plaintext as provisional until
 the final termination block is opened and verified.
 
 ```text
-function AEStreamSend(key, nonce, pt, blockLen):
+function AEStreamSend(key, nonce, pt):
   protocol.Init("com.example.aestream")
   protocol.Mix("key", key)
   protocol.Mix("nonce", nonce)
   ct = []
   while |pt| > 0:
+    blockLen = min(|pt|, 65535)
     block, pt = pt[:blockLen], pt[blockLen:]             // Read a block of plaintext.
-    cheader = protocol.Seal("header", I2OSP(|block|, 3)) // Seal the big-endian 3-byte block length header.
+    cheader = protocol.Mask("header", I2OSP(|block|, 2)) // Seal the big-endian 2-byte block length header.
     cblock = protocol.Seal("block", block)               // Seal the block itself.
     protocol.Ratchet("block")                            // Ratchet the protocol state for forward secrecy.
     ct = ct || cheader || cblock                         // Append the sealed header and block to the ciphertext.
-  ct = ct || protocol.Seal("header", I2OSP(0, 3))        // Append a header with a zero length.
+  ct = ct || protocol.Seal("header", I2OSP(0, 2))        // Append a header with a zero length.
   ct = ct || protocol.Seal("block", [])                  // Append an empty block.
   protocol.Ratchet("block")                              // Ratchet the protocol state for forward secrecy.
   return ct
@@ -1302,11 +1301,9 @@ function AEStreamRecv(key, nonce, ct):
   protocol.Mix("nonce", nonce)
   pt = []
   while |ct| > 0:
-    cheader, ct = ct[:3+16], ct[3+16:]              // Read a sealed header from the ciphertext.
-    header = protocol.Open("header", cheader)       // Open the sealed header.
-    if header == ErrInvalidCiphertext:              // Return an error if the header is invalid.
-      return ErrInvalidCiphertext
-    blockLen = OSP2I(header, 3)                     // Decode the header as an unsigned 3-byte big-endian integer.
+    cheader, ct = ct[:2], ct[2:]                    // Read a masked header from the ciphertext.
+    header = protocol.Unmask("header", cheader)     // Unmask the masked header.
+    blockLen = OSP2I(header, 2)                     // Decode the header as an unsigned 2-byte big-endian integer.
     cblock, ct = ct[:blockLen+16], ct[blockLen+16:] // Read a sealed block from the ciphertext.
     block = protocol.Open("block", cblock)          // Open the sealed block.
     protocol.Ratchet("block")                       // Ratchet the protocol state for forward secrecy.
@@ -1319,38 +1316,66 @@ function AEStreamRecv(key, nonce, ct):
 ```
 
 > [!NOTE]
-> The use of a 3-byte big-endian integer (`I2OSP(|block|, 3)`) for the sealed header limits the maximum size of an
-> individual block to `2**(24-1)` bytes, or exactly 16 MiB. This provides a balance between efficiency and protection
+> The use of a 2-byte big-endian integer (`I2OSP(|block|, 2)`) for the sealed header limits the maximum size of an
+> individual block to `2**(16-1)` bytes, or exactly 16 KiB. This provides a balance between efficiency and protection
 > against memory-exhaustion attacks.
 
 #### Cryptographic Properties
 
-Streaming AE extends standard AEAD games for incremental, multi-block data with stateful oracles. Three security
-notions apply:
+Streaming authenticated encryption security is evaluated with the following notions:
 
-* **OAE1/OAE2 (Online Authenticated Encryption):** OAE1 ensures confidentiality and authenticity in a single pass
-  without knowing the total length, given unique nonces. OAE2 adds boundary-hiding and limits the amount of length
-  information which can be leaked to observers.
-* **Block IND-CCA2 / Stateful Decryption:** Each block maintains indistinguishability and integrity. The stateful
-  decryption oracle detects reordering, replay, duplication, or dropping of blocks.
-* **Termination Validity:** The stream end must be cryptographically signaled. Truncation causes the receiver to never
-  receive the termination block, allowing it to recognize the stream as incomplete.
+* **Stateful Confidentiality (IND-sfCCA):** The adversary interacts with a stateful encryption oracle and a stateful
+  decryption oracle. They submit messages and must distinguish real ciphertexts from random, even while adaptively
+  querying the decryption oracle on ciphertexts of their choice (excluding challenge ciphertexts). The stateful variant
+  requires that both oracles maintain synchronized sequence counters, so the adversary must submit queries in order.
+* **Stateful Integrity (INT-sfCTXT):** The adversary has access to a stateful encryption oracle and must produce a
+  ciphertext segment that the stateful decryption oracle accepts but that was not output by the encryption oracle at
+  that position in the stream. The stateful framing (each block's tag depends on all prior state) means forgeries must
+  target a specific stream position.
+* **Boundary-Hiding Authenticated Encryption (BHAE):** The adversary must distinguish between encryptions of two
+  plaintexts of equal total length but different block boundary positions. A scheme is BHAE-secure if the ciphertext
+  reveals nothing about how the plaintext was segmented into blocks.
+* **~~Length-Hiding Authenticated Encryption (LHAE)~~:** LHAE requires that ciphertexts reveal nothing about the length
+  of individual plaintext segments. This scheme does **not** achieve LHAE: each block's ciphertext length is
+  `2 + |block| + 16` (masked header plus sealed block), so an observer can determine the exact length of each plaintext
+  block from the ciphertext. Only the header *value* is hidden by `Mask`; the per-block ciphertext size is not padded.
+* **Denial-of-Service Resistance (DOS-sfCFA):** The adversary submits a corrupted ciphertext stream and wins if the
+  decryption oracle processes a large amount of data before detecting the forgery. A scheme is DOS-sfCFA-secure if the
+  receiver can detect tampering after reading at most one block of unauthenticated data.
 
 #### Security Analysis
 
-Evaluated in the keyed duplex model. Security reduces to the PRF security of the duplex (advantage bounded by
-`N**2 / 2**256` for `N` queries to the underlying permutation) and the collision resistance of the 256-bit capacity.
+Evaluated in the keyed duplex model. Absorbing the key populates the capacity with secret entropy; absorbing the nonce
+makes the state probabilistic.
 
-The stateful duplex provides OAE1: initialized with a secret key and unique nonce, each `Seal` absorbs the plaintext
-and mutates state, so block `i`'s 16-byte tag is a PRF of the entire preceding transcript. Per-block forgery probability
-is bounded by `2**(-128) + N**2 / 2**256`. Reordering, replay, duplication, or dropping of blocks causes tag
-verification to fail because the receiver's state diverges from the sender's.
+**IND-sfCCA.** Each block is encrypted with `Seal`, which XORs the plaintext with a PRF-derived keystream and appends a
+16-byte tag. The protocol state evolves after each block via `Ratchet`, so the keystream for block `i` is a PRF of the
+key, nonce, and all preceding plaintext blocks. An adversary with a decryption oracle gains no advantage because each
+`Open` call either rejects (tag mismatch) or advances the state identically to the sender. The distinguishing advantage
+is bounded by `N**2 / 2**256` for `N` queries to the underlying permutation.
 
-For OAE2, the two-step sealing (length header then block) authenticates chunk boundaries. Boundary manipulation causes
-the header tag verification to fail.
+**INT-sfCTXT.** The tag for block `i` is a PRF of the cumulative transcript through block `i`. Modifying, reordering,
+or truncating any block changes the protocol state, causing all subsequent tags to diverge. The termination sentinel (a
+sealed zero-length header followed by a sealed empty block) is itself authenticated; omitting it causes `AEStreamRecv`
+to return `ErrInvalidCiphertext`. The forgery probability for any single block is bounded by `2**(-128)` plus the PRF
+distinguishing advantage.
 
-Termination validity follows from the mandatory zero-length final block. If the stream is truncated, the receiver never
-receives the termination block and reports a decryption error.
+**BHAE.** Block headers are encrypted with `Mask`, which XORs the 2-byte length with PRF output. The masked header is
+indistinguishable from random, so an observer cannot determine where one block ends and the next begins without the key.
+Two plaintexts of equal total length but different segmentations produce ciphertext streams of equal total length with
+identically distributed bytes, because each header-block pair contributes `2 + |block| + 16` bytes regardless of the
+boundary position, and all bytes are PRF-masked or PRF-sealed.
+
+**Not LHAE.** Although header values are masked, the ciphertext length of each segment is `2 + |block| + 16`, which is
+a deterministic function of the plaintext block length. An observer who knows the scheme's framing can parse the
+ciphertext into segments and recover each block's exact length. Achieving LHAE would require padding all blocks to a
+uniform size, which this scheme intentionally avoids to minimize bandwidth overhead.
+
+**DOS-sfCFA.** The receiver reads exactly `2 + blockLen + 16` bytes per block before verifying the tag via `Open`. If
+the tag check fails, decryption halts immediately. The maximum amount of unauthenticated plaintext the receiver can
+buffer before detecting a forgery is one block (at most 65,535 bytes). The 16 KiB practical block limit further bounds
+the damage. Header corruption is detected at the next `Open` call because the wrong `blockLen` causes a tag mismatch,
+so the receiver never processes more than one block of attacker-controlled data before aborting.
 
 ### Memory-Hard Hash Function
 

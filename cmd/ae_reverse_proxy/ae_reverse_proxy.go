@@ -84,8 +84,8 @@ func main() {
 			}
 			log.Info("handshake established", "pk", hex.EncodeToString(qIS.Bytes()))
 
-			r := aestream.NewReader(recv, conn, aestream.MaxBlockSize)
-			w := aestream.NewWriter(send, conn, aestream.MaxBlockSize)
+			r := aestream.NewReader(recv, conn)
+			w := aestream.NewWriter(send, conn)
 			defer func() {
 				log.Info("closing aestream")
 				err = w.Close()

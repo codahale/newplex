@@ -94,8 +94,8 @@ func main() {
 				return
 			}
 
-			r := aestream.NewReader(recv, client, aestream.MaxBlockSize)
-			w := aestream.NewWriter(send, client, aestream.MaxBlockSize)
+			r := aestream.NewReader(recv, client)
+			w := aestream.NewWriter(send, client)
 			defer func() {
 				log.Info("closing aestream")
 				err = w.Close()
