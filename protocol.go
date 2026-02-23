@@ -200,7 +200,7 @@ func (p *Protocol) ForkN(label string, values ...[]byte) []*Protocol {
 	for i := range branches {
 		clone := p.Clone()
 		clone.duplex.AbsorbHeader(opFork, label)
-		clone.duplex.AbsorbByte(byte(i))
+		clone.duplex.AbsorbByte(byte(i + 1))
 		clone.duplex.Absorb(values[i])
 		branches[i] = clone
 	}
