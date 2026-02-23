@@ -933,6 +933,7 @@ function Open(label, input):
   duplex.Permute()
   expectedTag = duplex.Squeeze(16)
   if !CT_EQ(expectedTag, receivedTag): // CONST: do not leak information about expectedTag
+    plaintext = [0x00] * |plaintext|  // Zero provisional plaintext before returning error.
     return ErrInvalidCiphertext
   return plaintext
 ```
