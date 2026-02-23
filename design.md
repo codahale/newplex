@@ -2083,6 +2083,12 @@ no margin. At `N = 2**64` per user, the advantage degrades to `2**(-96)`--still 
 the nominal 128-bit level. Deployments expecting very high per-user query volumes should account for this
 degradation.
 
+These are *upper bounds* derived from a generic birthday-style analysis. They represent the worst-case advantage
+an adversary could achieve; the actual advantage may be significantly lower. A bound of exactly `2**(-128)` does
+not mean the scheme is on the verge of failure--it means the proof technique cannot guarantee more than 128 bits
+of security at that query volume. In practice, reaching `2**48` permutation calls per user requires sustained
+throughput far beyond typical deployment scenarios.
+
 Keys with at least 256 bits of entropy are recommended for multi-user deployments. With 128-bit keys, the
 multi-target key search advantage is `U / 2**128`, which degrades to `2**(-96)` for `2**32` users--still
 safe but with a reduced margin. A 256-bit key ensures that multi-target key search is bounded by
