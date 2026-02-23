@@ -606,11 +606,11 @@ the rate is full); (2) apply `pad10*1` padding; (3) run Simpira-1024 on the full
 
 ```text
 function Permute():
-  state[rateIdx] ^= frameIdx  // Absorb framing metadata
+  state[rateIdx] ^= I2OSP(frameIdx, 1)  // Absorb framing metadata byte
   rateIdx += 1
-  state[rateIdx] ^= 0x01      // First bit of pad10*1
-  state[PAD_BYTE_IDX] ^= 0x80 // Last bit of pad10*1 (same byte when rateIdx == PAD_BYTE_IDX)
-  Simpira1024(state)          // Permute state and reset indexes
+  state[rateIdx] ^= 0x01                // First bit of pad10*1
+  state[PAD_BYTE_IDX] ^= 0x80           // Last bit of pad10*1 (same byte when rateIdx == PAD_BYTE_IDX)
+  Simpira1024(state)                    // Permute state and reset indexes
   rateIdx = frameIdx = 0
 ```
 
