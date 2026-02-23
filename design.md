@@ -1322,8 +1322,8 @@ function AEStreamSend(key, nonce, pt):
     cblock = protocol.Seal("block", block)               // Seal the block itself.
     protocol.Ratchet("block")                            // Ratchet the protocol state for forward secrecy.
     ct = ct || cheader || cblock                         // Append the sealed header and block to the ciphertext.
-  ct = ct || protocol.Seal("header", I2OSP(0, 2))        // Append a header with a zero length.
-  ct = ct || protocol.Seal("block", [])                  // Append an empty block.
+  ct = ct || protocol.Mask("header", I2OSP(0, 2))        // Mask a header with a zero length.
+  ct = ct || protocol.Seal("block", [])                  // Seal an empty block.
   protocol.Ratchet("block")                              // Ratchet the protocol state for forward secrecy.
   return ct
 
