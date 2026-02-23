@@ -950,6 +950,14 @@ Because `Seal` depends on the plaintext length, it is unsuitable for streaming. 
 * The tag is derived from the duplex state after all preceding operations, so `Seal` commits to the entire session
   context (CMT-4). A ciphertext-tag pair cannot be validly decrypted under a different key, nonce, associated data, or
   protocol state, preventing partitioning oracle and context-confusion attacks.
+* The 128-bit tag is resilient against multi-attempt online forgery. In protocols that reuse a single static key for
+  many operations, an attacker making `2**q` verification attempts has forgery probability `2**q / 2**128`—still
+  negligible for practical query volumes (e.g., `2**40` attempts yield `2**(-88)`). However, Newplex protocols use
+  stateful session encryption: each `Seal` operation advances the duplex state via `Ratchet` or continued absorption,
+  so every block is effectively authenticated under a distinct derived key. A multi-attempt online forgery requires the
+  attacker to guess the correct tag for a *specific* stream position with a *specific* evolved state, and a failed
+  attempt does not help with subsequent positions. The per-operation forgery probability therefore remains `2**(-128)`
+  regardless of the total number of operations in a session.
 
 #### `Fork`
 
