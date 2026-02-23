@@ -687,6 +687,12 @@ function Ratchet():
   rateIdx = CAPACITY_BYTES
 ```
 
+The conditional `Permute` is an optimization: if `rateIdx == 0`, the state has already been permuted (either at
+initialization or by a preceding operation that filled the rate). In this case, the state is already fully mixed and a
+redundant permutation is unnecessary. The subsequent zeroing of 32 rate bytes is the irreversible step--it erases
+information regardless of whether `Permute` was called, because the capacity already contains entropy from prior
+operations.
+
 Ratcheting the duplex reduces its available rate by 32 bytes for the next block of data.
 
 #### `Clone`
