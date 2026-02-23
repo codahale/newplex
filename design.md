@@ -1003,6 +1003,7 @@ function Fork(label, ...values):
     branch.Absorb(I2OSP(id, 1))
     branch.Absorb(value)
     branches = branches || [branch]
+    id = id + 1
   
   protocol.Frame()
   protocol.Absorb([OP_FORK | F_META])
