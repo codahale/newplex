@@ -2149,11 +2149,12 @@ While parsing backward from $L-1$:
 1. If $F_{current} == 0$, no preceding `Frame(id)` operations occurred in the remaining unparsed segment. Any
    remaining bytes are `Absorb(b)` operations.
 2. If $F_{current} > 0$, a `Frame(id)` operation occurred.
-  - The boundary of this frame is at index $F_{current}$.
-  - The first byte of the `Frame` operation (the previous `frameIdx`) is located at $R[F_{current}-2]$.
-  - The second byte of the `Frame` operation (the identifier `id`) is located at $R[F_{current}-1]$.
-  - We log a `Frame(id)` with $id = R[F_{current}-1]$, update $F_{current} = R[F_{current}-2]$, and continue
-    parsing from $F_{current}-2$.
+
+- The boundary of this frame is at index $F_{current}$.
+- The first byte of the `Frame` operation (the previous `frameIdx`) is located at $R[F_{current}-2]$.
+- The second byte of the `Frame` operation (the identifier `id`) is located at $R[F_{current}-1]$.
+- We log a `Frame(id)` with $id = R[F_{current}-1]$, update $F_{current} = R[F_{current}-2]$, and continue
+  parsing from $F_{current}-2$.
 
 **Resolving Boundary Ambiguity:**
 If $F_{terminal} == L$ and $L == 94$, the block is fully saturated, and the terminal frame index points exactly to the
