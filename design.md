@@ -1408,6 +1408,20 @@ providing stronger resistance against ASIC-enabled attackers who could exploit f
 The construction builds a DAG of `5N` blocks (`N = 2**cost`), where each block's value depends on its parents. Block
 size is 1KiB (aligned with CPU cache lines). Total memory is `5 * 2**(cost+10)` bytes.
 
+> [!NOTE]
+> The `cost` parameter should be chosen based on the deployment context. The following table gives starting
+> recommendations; implementers should benchmark on their target hardware and adjust to meet their latency and memory
+> budget.
+>
+> | Use Case                         | Minimum `cost` | Memory    |
+> |----------------------------------|----------------|-----------|
+> | Interactive login (< 1 second)   | 15             | 160 MiB   |
+> | Key derivation (< 5 seconds)     | 17             | 640 MiB   |
+> | Disk encryption (offline)        | 19             | 2.5 GiB   |
+>
+> A `cost` below 14 (80 MiB) is not recommended for password hashing, as it may not provide sufficient resistance
+> against GPU- or ASIC-based brute-force search.
+
 The DAG is divided into two phases:
 
 * **Phase 1: Static Graph (`3N` nodes).** The first `3N` nodes form an indegree-reduced [EGSample] graph (the union of
@@ -1487,10 +1501,6 @@ function MemoryHardHash(domain, cost, salt, password, n):
   dd.Mix("final", blocks[totalNodes-1])
   return dd.Derive("output", n)
 ```
-
-The exponential `cost` parameter can be determined experimentally by increasing it by `1` until the resulting
-computation exceeds the desired memory or time budget. For online usage (e.g., password hashing), a time budget of ~100
-ms is recommended. For offline usage (e.g., password-based encryption), the use of all available memory is recommended.
 
 #### Graph Routing Operations
 
