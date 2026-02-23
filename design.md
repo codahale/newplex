@@ -1340,7 +1340,7 @@ function AEStreamRecv(key, nonce, ct):
 
 > [!NOTE]
 > The use of a 2-byte big-endian integer (`I2OSP(|block|, 2)`) for the sealed header limits the maximum size of an
-> individual block to `2**(16-1)` bytes, or exactly 16 KiB. This provides a balance between efficiency and protection
+> individual block to `(2**16)-1` bytes, or exactly 16 KiB. This provides a balance between efficiency and protection
 > against memory-exhaustion attacks.
 
 #### Cryptographic Properties
