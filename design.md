@@ -1653,7 +1653,8 @@ function Verify(Q, signature, message):
   if s == ErrInvalidScalar:
     return false
     
-  // Calculate the expected commitment point.
+  // Calculate the expected commitment point. All values here are public, so the use of variable-time routines for this
+  // calculation and the point comparison do not affect the security of the scheme.
   expectedR = [s]G + [-expectedC]Q
   
   // The signature is valid if the calculated point matches the provided point.
