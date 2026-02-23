@@ -1478,6 +1478,10 @@ function MemoryHardHash(domain, cost, salt, password, n):
   return dd.Derive("output", n)
 ```
 
+The exponential `cost` parameter can be determined experimentally by increasing it by `1` until the resulting
+computation exceeds the desired memory or time budget. For online usage (e.g., password hashing), a time budget of ~100
+ms is recommended. For offline usage (e.g., password-based encryption), the use of all available memory is recommended.
+
 #### Graph Routing Operations
 
 The static graph uses helper functions to determine parents for each sub-node:
