@@ -2144,11 +2144,17 @@ $$R[L] = R[L] \oplus frameIdx$$
 
 Because user operations (`Absorb()`, `Squeeze()`, `Encrypt()`, `Decrypt()`) trigger `Permute()` when `rateIdx`
 reaches `94`, the maximum user-writable index within a block is `93`. Index $L$ (which equals `rateIdx` at the time of
-`Permute()`, and is at most `94`) has therefore not been written to by any user operation during this block. In the
-pre-permutation XOR input, its base value is `0x00` (from the all-zero initial state for the first block, or from the
-reset to zero that occurs conceptually when we consider each block's XOR contributions independently). The byte
-at $R[L]$ in the pre-permutation input therefore strictly equals the terminal frame index for the block.
-Let $F_{terminal} = R[L]$.
+`Permute()`, and is at most `94`) has therefore not been written to by any user operation during this block.
+
+To extract the XOR contributions of block $B_i$ in isolation, define the *XOR-delta block* $\Delta_i$ as follows. For
+the first block ($i=1$), the initial state is all zeros, so $\Delta_1 = f^{-1}(\text{post}_1)$. For subsequent blocks
+($i > 1$), the starting state is the previous post-permutation output, so $\Delta_i = \text{post}_{i-1} \oplus
+f^{-1}(\text{post}_i)$. In either case, $\Delta_i$ isolates exactly the bytes XORed into the state during block $i$,
+with a base value of `0x00` at every index not written to by an operation.
+
+Because index $L$ was not written to by any user operation, $\Delta_i[L]$ strictly equals the terminal frame index for
+the block. Let $F_{terminal} = \Delta_i[L]$. The parsing in Steps 3 and 4 operates on $\Delta_i$, not on the raw
+pre-permutation state.
 
 #### Step 3: Stateful Stream Parsing and Recursive Frame Resolution
 
