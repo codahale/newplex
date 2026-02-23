@@ -1384,9 +1384,13 @@ uniform size, which this scheme intentionally avoids to minimize bandwidth overh
 
 **DOS-sfCFA.** The receiver reads exactly `2 + blockLen + 16` bytes per block before verifying the tag via `Open`. If
 the tag check fails, decryption halts immediately. The maximum amount of unauthenticated plaintext the receiver can
-buffer before detecting a forgery is one block (at most 65,535 bytes). The 16 KiB practical block limit further bounds
+buffer before detecting a forgery is one block (at most 65,535 bytes). The 64KiB practical block limit further bounds
 the damage. Header corruption is detected at the next `Open` call because the wrong `blockLen` causes a tag mismatch,
-so the receiver never processes more than one block of attacker-controlled data before aborting.
+so the receiver never processes more than one block of attacker-controlled data before aborting. Implementations should
+note that a corrupted masked header can decode to any `blockLen` up to 65,535, causing an allocation of up to
+`65,535 + 16` bytes before any authentication check. In memory-constrained environments, implementations should use
+streaming reads or cap the allocation to the expected maximum block size rather than blindly allocating `blockLen + 16`
+bytes.
 
 ### Memory-Hard Hash Function
 
