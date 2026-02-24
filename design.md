@@ -2103,7 +2103,9 @@ the 128-bit target despite the large total data volume.
 Keys with at least 256 bits of entropy are recommended for multi-user deployments. With 128-bit keys, the
 multi-target key search advantage is `U / 2**128`, which degrades to `2**(-96)` for `2**32` users--still
 safe but with a reduced margin. A 256-bit key ensures that multi-target key search is bounded by
-`U / 2**256`, which remains negligible for any practical number of users.
+`U / 2**256`, which remains negligible for any practical number of users. Note that larger keys only improve
+resistance to multi-target key search; they do not affect the duplex distinguishing bound `U * B**2 / 2**269`,
+which depends on the permutation width rather than the key length.
 
 For unkeyed schemes (e.g., Message Digest), the collision resistance bound of `2**128` is a property of the output
 space and is unaffected by the number of users. Multi-collision resistance (finding collisions among digests produced
