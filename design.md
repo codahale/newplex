@@ -167,7 +167,7 @@ The following table highlights the key architectural differences between Newplex
 |--------------------|--------------------|--------------------|---------------------|-------------------|
 | **Permutation**    | Simpira-1024       | Keccak-f\[1600\]   | Mixed (e.g. ChaCha) | Xoodoo            |
 | **State Width**    | 1024 bits          | 1600 bits          | 512+ bits           | 384 bits          |
-| **Security Level** | 128-bit            | 128-bit            | 128-bit or 256-bit  | 128-bit           |
+| **Security Level** | 128-bit            | 128-bit or 256-bit | 128-bit or 256-bit  | 128-bit           |
 | **Primary Target** | 64-bit Performance | Embedded/Compact   | Network Handshakes  | Efficient Hashing |
 | **Framing**        | STROBE-style Index | STROBE-style Index | Protocol-specific   | Cyclic Duplex     |
 | **Key Property**   | Flexible/Universal | Flexible/Universal | Composable          | Lightweight       |
