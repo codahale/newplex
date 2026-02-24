@@ -2066,27 +2066,39 @@ security reduces to the duplex bounds:
 The single-user bounds extend to the multi-user setting via the standard hybrid argument: the adversary's advantage
 against `U` users is at most `U` times the single-user advantage.
 
-For keyed schemes, the multi-user PRF distinguishing advantage becomes `U * N**2 / 2**256`, where `N` is the
-per-user query count. The following table illustrates how the bound degrades with increasing query volume
-for `U = 2**32` users:
+For keyed schemes, the multi-user PRF distinguishing advantage is bounded by `U * N**2 / 2**256`, where `N` is the
+per-user permutation count. Each permutation absorbs at most 94 bytes of user data, so a user processing `B` bytes
+invokes at most `ceil(B / 94)` permutations. Substituting `N = B / 94` and noting that `94**2 > 2**13`, the bound
+can be conservatively restated as:
 
-| Per-User Queries (`N`) | `N**2`   | Multi-User Advantage                  | Effective Security |
-|------------------------|----------|---------------------------------------|--------------------|
-| `2**40` (~1 trillion)  | `2**80`  | `2**32 * 2**80 / 2**256 = 2**(-144)`  | 144 bits           |
-| `2**48`                | `2**96`  | `2**32 * 2**96 / 2**256 = 2**(-128)`  | 128 bits           |
-| `2**56`                | `2**112` | `2**32 * 2**112 / 2**256 = 2**(-112)` | 112 bits           |
-| `2**64`                | `2**128` | `2**32 * 2**128 / 2**256 = 2**(-96)`  | 96 bits            |
+    advantage < U * B**2 / 2**269
 
-At `N = 2**48` per user (281 trillion permutation calls), the bound meets the 128-bit target exactly, leaving
-no margin. At `N = 2**64` per user, the advantage degrades to `2**(-96)`--still safe, but noticeably below
-the nominal 128-bit level. Deployments expecting very high per-user query volumes should account for this
-degradation.
+The following table illustrates how the bound degrades with increasing per-user data volume for `U = 2**32` users:
+
+| Per-User Data (`B`) | `B**2`   | Multi-User Advantage                  | Effective Security |
+|---------------------|----------|---------------------------------------|--------------------|
+| `2**40` (1 TiB)     | `2**80`  | `2**32 * 2**80 / 2**269 < 2**(-157)`  | > 157 bits         |
+| `2**48` (256 TiB)   | `2**96`  | `2**32 * 2**96 / 2**269 < 2**(-141)`  | > 141 bits         |
+| `2**56` (64 PiB)    | `2**112` | `2**32 * 2**112 / 2**269 < 2**(-125)` | > 125 bits         |
+| `2**64` (16 EiB)    | `2**128` | `2**32 * 2**128 / 2**269 < 2**(-109)` | > 109 bits         |
+
+At `B = 2**56` per user (64 pebibytes), the bound remains above 125 bits. Even at `B = 2**64` per user
+(16 exbibytes), the advantage stays below `2**(-109)`--well within safe margins. Deployments expecting very high
+per-user data volumes should account for this degradation.
 
 These are *upper bounds* derived from a generic birthday-style analysis. They represent the worst-case advantage
-an adversary could achieve; the actual advantage may be significantly lower. A bound of exactly `2**(-128)` does
-not mean the scheme is on the verge of failure--it means the proof technique cannot guarantee more than 128 bits
-of security at that query volume. In practice, reaching `2**48` permutation calls per user requires sustained
-throughput far beyond typical deployment scenarios.
+an adversary could achieve; the actual advantage may be significantly lower. A bound of `2**(-125)` does
+not mean the scheme is on the verge of failure--it means the proof technique cannot guarantee more than 125 bits
+of security at that data volume. In practice, processing `2**56` bytes per user requires sustained throughput far
+beyond typical deployment scenarios.
+
+The table above assumes a single key processes all `B` bytes. In practice, deployments can reset the per-user byte
+count through key ratcheting (deriving a fresh key from the current duplex state) or session termination (starting a
+new session with an independently generated key). Either technique restarts `B` at zero, so the bound applies
+independently to each interval between ratchets. A user who processes `2**56` bytes total but ratchets every `2**40`
+bytes accumulates at most `2**16` independent intervals, each contributing `2**32 * 2**80 / 2**269 < 2**(-157)` to the
+overall advantage. By the union bound, the aggregate advantage is at most `2**16 * 2**(-157) = 2**(-141)`--well above
+the 128-bit target despite the large total data volume.
 
 Keys with at least 256 bits of entropy are recommended for multi-user deployments. With 128-bit keys, the
 multi-target key search advantage is `U / 2**128`, which degrades to `2**(-96)` for `2**32` users--still
