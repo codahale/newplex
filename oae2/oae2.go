@@ -1,0 +1,261 @@
+// Package oae2 provides an Online Authenticated Encryption (OAE2) stream implementation.
+//
+// OAE2 allows for secure streaming of data with a fixed block size, providing confidentiality, integrity, and
+// authenticity. It protects against truncation, tampering, and block-reordering attacks by using a stateful
+// cryptographic protocol to authenticate each block in sequence.
+package oae2
+
+import (
+	"errors"
+	"io"
+
+	"github.com/codahale/newplex"
+)
+
+// A Writer buffers and encrypts data into discrete blocks, writing them to an underlying io.Writer.
+//
+// It provides OAE2-secure streaming by using a newplex.Protocol to seal each block of data. The stream is finalized
+// when Close is called.
+type Writer struct {
+	p         *newplex.Protocol
+	w         io.Writer
+	blockSize int
+	buf       []byte
+	closed    bool
+	err       error
+}
+
+// NewWriter returns an io.WriteCloser that buffers written data into blocks of the given size.
+//
+// Each block is encrypted and authenticated using the provided protocol. The protocol's prior state must be
+// probabilistic to ensure OAE2 security.
+//
+// The returned io.WriteCloser MUST be closed for the encrypted stream to be valid. The provided newplex.Protocol MUST
+// NOT be used while the writer is open.
+func NewWriter(p *newplex.Protocol, w io.Writer, blockSize int) *Writer {
+	if blockSize < 1 {
+		panic("oae2: block size must be at least 1")
+	}
+	return &Writer{
+		p:         p,
+		w:         w,
+		blockSize: blockSize,
+		buf:       make([]byte, 0, blockSize),
+	}
+}
+
+// Write writes data to the underlying io.Writer in buffered blocks.
+//
+// It encrypts and authenticates full blocks of size blockSize. Partial blocks are buffered until enough data is written
+// or Close is called.
+func (w *Writer) Write(data []byte) (n int, err error) {
+	if w.closed {
+		return 0, errors.New("oae2: Writer closed")
+	}
+	if w.err != nil {
+		return 0, w.err
+	}
+	written := 0
+	for len(data) > 0 {
+		space := w.blockSize - len(w.buf)
+		toCopy := data
+		if len(toCopy) > space {
+			toCopy = toCopy[:space]
+		}
+		w.buf = append(w.buf, toCopy...)
+		data = data[len(toCopy):]
+		written += len(toCopy)
+
+		if len(w.buf) == w.blockSize {
+			if err := w.flushBlock("block"); err != nil {
+				return written, err
+			}
+		}
+	}
+	return written, nil
+}
+
+// Close flushes any remaining buffered data and finalizes the stream.
+//
+// It pads the final block with 0x80 bit padding and encrypts it with the "final" label. This must be called to properly
+// finish the OAE2 stream.
+func (w *Writer) Close() error {
+	if w.closed {
+		return nil
+	}
+	w.closed = true
+
+	if w.err != nil {
+		return w.err
+	}
+	w.buf = append(w.buf, 0x80)
+	for len(w.buf) < w.blockSize {
+		w.buf = append(w.buf, 0x00)
+	}
+
+	return w.flushBlock("final")
+}
+
+func (w *Writer) flushBlock(label string) error {
+	ciphertext := w.p.Seal(label, nil, w.buf)
+	_, err := w.w.Write(ciphertext)
+	if err != nil {
+		w.err = err
+		return err
+	}
+	w.buf = w.buf[:0]
+	return nil
+}
+
+// A Reader transparently reads and authenticates an OAE2-secure stream from an underlying io.Reader.
+//
+// It buffers the decrypted plaintext and returns it as requested, ensuring that any tampering, reordering, or
+// truncation of the underlying ciphertext results in an error.
+type Reader struct {
+	p         *newplex.Protocol
+	r         io.Reader
+	blockSize int
+	buf       []byte // decrypted plaintext ready to be read
+	err       error
+	next      []byte // next ciphertext chunk (pre-allocated, reused)
+	ahead     []byte // lookahead ciphertext chunk (pre-allocated, reused)
+	nextN     int    // valid bytes in next
+	final     bool   // have we read the final block?
+}
+
+// NewReader returns an io.Reader that reads and opens the data sealed by a Writer.
+//
+// The protocol state provided must be exactly synchronized with the protocol state used to initialize the Writer.
+//
+// If the stream has been modified or truncated, a newplex.ErrInvalidCiphertext is returned. The provided
+// newplex.Protocol MUST NOT be used while the reader is open.
+func NewReader(p *newplex.Protocol, r io.Reader, blockSize int) *Reader {
+	if blockSize < 1 {
+		panic("oae2: block size must be at least 1")
+	}
+	cipherLen := blockSize + newplex.TagSize
+	return &Reader{
+		p:         p,
+		r:         r,
+		blockSize: blockSize,
+		next:      make([]byte, cipherLen),
+		ahead:     make([]byte, cipherLen),
+	}
+}
+
+// Read reads and decrypts data from the underlying OAE2 stream.
+//
+// It returns io.EOF when the stream is fully read and authenticated. If the stream is tampered with, truncated, or
+// incorrectly formatted, it returns newplex.ErrInvalidCiphertext.
+func (r *Reader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	if len(r.buf) > 0 {
+		n := copy(p, r.buf)
+		r.buf = r.buf[n:]
+		return n, nil
+	}
+	if r.err != nil {
+		return 0, r.err
+	}
+
+	err := r.fill()
+	if err != nil {
+		r.err = err
+		if len(r.buf) == 0 {
+			return 0, err
+		}
+	}
+
+	if len(r.buf) > 0 {
+		n := copy(p, r.buf)
+		r.buf = r.buf[n:]
+		return n, nil
+	}
+
+	return 0, r.err
+}
+
+func (r *Reader) fill() error {
+	if r.final {
+		return io.EOF
+	}
+
+	cipherLen := r.blockSize + newplex.TagSize
+
+	// Read the current block if we haven't.
+	if r.nextN == 0 {
+		if _, err := io.ReadFull(r.r, r.next[:cipherLen]); err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				return newplex.ErrInvalidCiphertext
+			}
+			return err
+		}
+		r.nextN = cipherLen
+	}
+
+	// Try to read one byte to see if there's more.
+	var peek [1]byte
+	_, err := io.ReadFull(r.r, peek[:])
+	isFinal := false
+	if errors.Is(err, io.EOF) {
+		isFinal = true
+	} else if err != nil {
+		return err
+	}
+
+	if !isFinal {
+		r.ahead[0] = peek[0]
+		if _, err := io.ReadFull(r.r, r.ahead[1:cipherLen]); err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				return newplex.ErrInvalidCiphertext
+			}
+			return err
+		}
+	}
+
+	label := "block"
+	if isFinal {
+		label = "final"
+	}
+
+	plaintext, err := r.p.Open(label, nil, r.next[:r.nextN])
+	if err != nil {
+		return err
+	}
+
+	if isFinal {
+		// remove 0x80 padding
+		idx := -1
+		for i := len(plaintext) - 1; i >= 0; i-- {
+			if plaintext[i] == 0x80 {
+				idx = i
+				break
+			} else if plaintext[i] != 0x00 {
+				return newplex.ErrInvalidCiphertext // Invalid padding
+			}
+		}
+		if idx == -1 {
+			return newplex.ErrInvalidCiphertext
+		}
+		plaintext = plaintext[:idx]
+	}
+
+	r.buf = plaintext
+	if isFinal {
+		r.nextN = 0
+		r.final = true
+	} else {
+		// Swap next and ahead buffers.
+		r.next, r.ahead = r.ahead, r.next
+		r.nextN = cipherLen
+	}
+	return nil
+}
+
+var (
+	_ io.WriteCloser = (*Writer)(nil)
+	_ io.Reader      = (*Reader)(nil)
+)

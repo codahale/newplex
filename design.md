@@ -81,10 +81,13 @@
     * [Streaming Authenticated Encryption](#streaming-authenticated-encryption)
       * [Cryptographic Properties](#cryptographic-properties-7)
       * [Security Analysis](#security-analysis-5)
-    * [Memory-Hard Hash Function](#memory-hard-hash-function)
-      * [Graph Routing Operations](#graph-routing-operations)
+    * [Online Authenticated Encryption (OAE2)](#online-authenticated-encryption-oae2)
       * [Cryptographic Properties](#cryptographic-properties-8)
       * [Security Analysis](#security-analysis-6)
+    * [Memory-Hard Hash Function](#memory-hard-hash-function)
+      * [Graph Routing Operations](#graph-routing-operations)
+      * [Cryptographic Properties](#cryptographic-properties-9)
+      * [Security Analysis](#security-analysis-7)
   * [Complex Schemes](#complex-schemes)
     * [Digital Signature](#digital-signature)
     * [Hybrid Public Key Encryption (HPKE)](#hybrid-public-key-encryption-hpke)
@@ -95,7 +98,7 @@
     * [Verifiable Random Function (VRF)](#verifiable-random-function-vrf)
     * [Oblivious Pseudorandom Function (OPRF) and Verifiable Pseudorandom Function (VOPRF)](#oblivious-pseudorandom-function-oprf-and-verifiable-pseudorandom-function-voprf)
     * [FROST Threshold Signature](#frost-threshold-signature)
-  * [Security Analysis](#security-analysis-7)
+  * [Security Analysis](#security-analysis-8)
     * [Assumptions](#assumptions)
     * [Duplex Security Bounds](#duplex-security-bounds)
     * [Protocol Framework Security](#protocol-framework-security)
@@ -1391,6 +1394,125 @@ note that a corrupted masked header can decode to any `blockLen` up to 65,535, c
 `65,535 + 16` bytes before any authentication check. In memory-constrained environments, implementations should use
 streaming reads or cap the allocation to the expected maximum block size rather than blindly allocating `blockLen + 16`
 bytes.
+
+### Online Authenticated Encryption (OAE2)
+
+Online Authenticated Encryption (OAE2) allows for secure streaming of data with a fixed block size, providing
+confidentiality, integrity, and authenticity. It protects against truncation, tampering, and block-reordering attacks by
+using a stateful cryptographic protocol to authenticate each block in sequence.
+
+Unlike the [streaming authenticated encryption](#streaming-authenticated-encryption) scheme which masks block lengths to
+hide boundaries, OAE2 processes data in fixed-size blocks. Each block is encrypted and authenticated using the `Seal`
+operation. The final block is padded with a `0x80` byte followed by `0x00` bytes to fill the block, and then sealed with
+a distinct `"final"` label to signal the end of the stream, ensuring that truncation is detected.
+
+```text
+function OAE2Send(key, nonce, blockSize, pt):
+  protocol.Init("com.example.oae2")
+  protocol.Mix("key", key)
+  protocol.Mix("nonce", nonce)
+  ct = []
+  
+  while |pt| >= blockSize:
+    block, pt = pt[:blockSize], pt[blockSize:]
+    cblock = protocol.Seal("block", block)
+    ct = ct || cblock
+    
+  // The remaining pt is the final block, which may be empty.
+  // Pad the final block with 0x80 and zeros up to blockSize.
+  paddedBlock = pt || [0x80]
+  while |paddedBlock| < blockSize:
+    paddedBlock = paddedBlock || [0x00]
+    
+  cblock = protocol.Seal("final", paddedBlock)
+  ct = ct || cblock
+  
+  return ct
+
+function OAE2Recv(key, nonce, blockSize, ct):
+  protocol.Init("com.example.oae2")
+  protocol.Mix("key", key)
+  protocol.Mix("nonce", nonce)
+  pt = []
+  
+  while |ct| >= cipherLen:
+    cblock, ct = ct[:blockSize+16], ct[blockSize+16:]
+    isFinal = |ct| == 0
+    label = "block"
+    if isFinal:
+     label = "block"
+    
+    block = protocol.Open(label, cblock)
+    if block == ErrInvalidCiphertext:
+      return ErrInvalidCiphertext
+      
+    if isFinal:
+      // Remove 0x80 padding
+      idx = -1
+      for i in |block|-1 down to 0:
+        if block[i] == 0x80:
+          idx = i
+          break
+        else if block[i] != 0x00:
+          return ErrInvalidCiphertext // Invalid padding
+      if idx == -1:
+        return ErrInvalidCiphertext
+      block = block[:idx]
+
+    pt = pt || block
+    
+  if |ct| > 0:
+    return ErrInvalidCiphertext // Truncated stream
+    
+  return pt
+```
+
+#### Cryptographic Properties
+
+This scheme targets OAE2 security as defined by Hoang et al. (CRYPTO 2015). OAE2 captures the best possible security for
+online authenticated encryption: an adversary interacting with a stateful encryption oracle and a stateful decryption
+oracle cannot distinguish real ciphertexts from ideal ones, cannot forge ciphertext segments, and cannot determine how
+the plaintext was segmented into blocks.
+
+OAE2 security is established via three constituent properties:
+
+* **OAE1 (Online AE):** The combination of stateful confidentiality (IND-sfCCA) and stateful integrity (INT-sfCTXT) for
+  online encryption with fixed-size segments. OAE1 guarantees that each segment's ciphertext is indistinguishable from
+  random and that any modification, reordering, or truncation of segments is detected, but it does not hide segment
+  boundaries.
+* **Boundary Hiding (BHAE):** The ciphertext reveals nothing about how the plaintext was segmented into blocks. This
+  scheme achieves BHAE by padding all blocks (including the final block) to a fixed `blockSize` before sealing, making
+  every ciphertext segment exactly `blockSize + 16` bytes. An observer learns only the total number of blocks.
+* **OAE2 = OAE1 + BHAE:** OAE2 strengthens OAE1 by additionally requiring that segment boundaries are hidden.
+
+#### Security Analysis
+
+Evaluated in the keyed duplex model. Absorbing the key populates the capacity with secret entropy; absorbing the nonce
+makes the state probabilistic.
+
+**IND-sfCCA.** Each block is encrypted with `Seal`, which XORs the plaintext with a PRF-derived keystream and appends a
+16-byte tag. The protocol state evolves after each `Seal`, so the keystream for block `i` is a PRF of the key, nonce,
+and all preceding plaintext blocks. The distinguishing advantage is bounded by `N**2 / 2**256` for `N` queries to the
+underlying permutation.
+
+**INT-sfCTXT.** The tag for block `i` is a PRF of the cumulative transcript through block `i`. Modifying, reordering,
+or truncating any block changes the protocol state, causing all subsequent tags to diverge. The termination sentinel
+uses a distinct `"final"` label instead of the `"block"` label, causing a state divergence if an attacker attempts to
+truncate the stream before the final block. Truncation attacks that drop the final block cause the receiver to peek
+ahead, see EOF after the penultimate block, and attempt to open it with the `"final"` label--but it was sealed with
+`"block"`, so `Open` fails. Mid-block truncation fails at `ReadFull` due to missing data. The forgery probability for
+any single block is bounded by `2**(-128)` plus the PRF distinguishing advantage.
+
+**BHAE.** Every ciphertext segment is exactly `blockSize + 16` bytes. The final plaintext segment is padded with
+`0x80 || 0x00*` to fill the block before sealing, so the ciphertext is a uniform sequence of equal-length chunks. Two
+plaintexts of equal total block count but different byte lengths within the final block produce ciphertext streams of
+identical length and identically distributed bytes, hiding the exact plaintext length up to block-size granularity.
+
+**OAE1.** IND-sfCCA and INT-sfCTXT together establish OAE1 security: each block is encrypted and authenticated online
+with stateful, position-dependent keys, and any tampering is detected.
+
+**OAE2.** OAE1 combined with BHAE establishes OAE2 security. Because all segments have uniform ciphertext length, the
+scheme reveals no information about segment boundaries beyond the total block count.
 
 ### Memory-Hard Hash Function
 

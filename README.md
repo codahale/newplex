@@ -84,6 +84,7 @@ Newplex includes the following cryptographic schemes as sub-packages:
 * [`newplex/handshake`](handshake): Implements a mutually authenticated handshake.
 * [`newplex/hpke`](hpke): Implements a hybrid public-key encryption scheme.
 * [`newplex/mhf`](mhf): Implements the DEGSample data-dependent memory-hard hash function for password hashing.
+* [`newplex/oae2`](oae2): Implements OAE2-secure streaming authenticated encryption with fixed-size blocks.
 * [`newplex/oprf`](oprf): Implements an RFC 9497-style Oblivious Pseudorandom Function (OPRF) and Verifiable OPRF
   (VOPRF).
 * [`newplex/pake`](pake): Implements a CPace-style password-authenticated key exchange (PAKE).
