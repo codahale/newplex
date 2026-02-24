@@ -20,9 +20,9 @@ type Writer struct {
 	p         *newplex.Protocol
 	w         io.Writer
 	blockSize int
-	buf       []byte
-	closed    bool
-	err       error
+	buf       []byte // plaintext accumulator, flushed when it reaches blockSize
+	closed    bool   // true after Close returns, makes Close idempotent
+	err       error  // sticky write error; once set, all further operations fail
 }
 
 // NewWriter returns an io.WriteCloser that buffers written data into blocks of the given size.
@@ -57,6 +57,7 @@ func (w *Writer) Write(data []byte) (n int, err error) {
 	}
 	written := 0
 	for len(data) > 0 {
+		// Fill the buffer up to blockSize.
 		space := w.blockSize - len(w.buf)
 		toCopy := data
 		if len(toCopy) > space {
@@ -66,6 +67,7 @@ func (w *Writer) Write(data []byte) (n int, err error) {
 		data = data[len(toCopy):]
 		written += len(toCopy)
 
+		// Seal and emit each full block as an intermediate "block".
 		if len(w.buf) == w.blockSize {
 			if err := w.flushBlock("block"); err != nil {
 				return written, err
@@ -88,14 +90,14 @@ func (w *Writer) Close() error {
 	if w.err != nil {
 		return w.err
 	}
-	w.buf = append(w.buf, 0x80)
-	for len(w.buf) < w.blockSize {
-		w.buf = append(w.buf, 0x00)
-	}
+	// Apply 0x80 bit padding to encode the plaintext length.
+	w.buf = pad(w.buf, w.blockSize)
 
+	// Seal the padded final block with a distinct label to prevent truncation.
 	return w.flushBlock("final")
 }
 
+// flushBlock seals the buffer with the given label and writes the ciphertext.
 func (w *Writer) flushBlock(label string) error {
 	ciphertext := w.p.Seal(label, nil, w.buf)
 	_, err := w.w.Write(ciphertext)
@@ -115,12 +117,12 @@ type Reader struct {
 	p         *newplex.Protocol
 	r         io.Reader
 	blockSize int
-	buf       []byte // decrypted plaintext ready to be read
+	buf       []byte // decrypted plaintext not yet returned to the caller
 	err       error
-	next      []byte // next ciphertext chunk (pre-allocated, reused)
-	ahead     []byte // lookahead ciphertext chunk (pre-allocated, reused)
-	nextN     int    // valid bytes in next
-	final     bool   // have we read the final block?
+	next      []byte // current ciphertext block buffer (reused across fills)
+	ahead     []byte // one-block-ahead lookahead buffer (swapped with next)
+	nextN     int    // valid bytes in next; 0 means next is empty
+	final     bool   // true after the "final"-labeled block has been opened
 }
 
 // NewReader returns an io.Reader that reads and opens the data sealed by a Writer.
@@ -152,6 +154,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 		return 0, nil
 	}
 
+	// Drain any buffered plaintext before reading more ciphertext.
 	if len(r.buf) > 0 {
 		n := copy(p, r.buf)
 		r.buf = r.buf[n:]
@@ -161,6 +164,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 		return 0, r.err
 	}
 
+	// Decrypt the next block. An error is deferred if plaintext is available.
 	err := r.fill()
 	if err != nil {
 		r.err = err
@@ -178,6 +182,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 	return 0, r.err
 }
 
+// fill decrypts one block from the underlying reader into r.buf.
 func (r *Reader) fill() error {
 	if r.final {
 		return io.EOF
@@ -185,7 +190,7 @@ func (r *Reader) fill() error {
 
 	cipherLen := r.blockSize + newplex.TagSize
 
-	// Read the current block if we haven't.
+	// Bootstrap: read the first ciphertext block on the initial call.
 	if r.nextN == 0 {
 		if _, err := io.ReadFull(r.r, r.next[:cipherLen]); err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
@@ -196,7 +201,8 @@ func (r *Reader) fill() error {
 		r.nextN = cipherLen
 	}
 
-	// Try to read one byte to see if there's more.
+	// Peek one byte ahead to determine if this is the last block. EOF here means no more blocks follow, so the current
+	// block is final.
 	var peek [1]byte
 	_, err := io.ReadFull(r.r, peek[:])
 	isFinal := false
@@ -206,6 +212,7 @@ func (r *Reader) fill() error {
 		return err
 	}
 
+	// Not final: read the rest of the lookahead block. A short read here means the stream was truncated mid-block.
 	if !isFinal {
 		r.ahead[0] = peek[0]
 		if _, err := io.ReadFull(r.r, r.ahead[1:cipherLen]); err != nil {
@@ -216,6 +223,8 @@ func (r *Reader) fill() error {
 		}
 	}
 
+	// Open the current block. The label must match what the writer used; a mismatch (e.g., truncated stream) causes
+	// Open to fail.
 	label := "block"
 	if isFinal {
 		label = "final"
@@ -227,20 +236,12 @@ func (r *Reader) fill() error {
 	}
 
 	if isFinal {
-		// remove 0x80 padding
-		idx := -1
-		for i := len(plaintext) - 1; i >= 0; i-- {
-			if plaintext[i] == 0x80 {
-				idx = i
-				break
-			} else if plaintext[i] != 0x00 {
-				return newplex.ErrInvalidCiphertext // Invalid padding
-			}
-		}
-		if idx == -1 {
+		// Strip 0x80 bit padding: scan backwards past zero bytes to find the 0x80 marker. Any other non-zero byte means
+		// invalid padding.
+		plaintext, err = unpad(plaintext)
+		if err != nil {
 			return newplex.ErrInvalidCiphertext
 		}
-		plaintext = plaintext[:idx]
 	}
 
 	r.buf = plaintext
@@ -248,12 +249,36 @@ func (r *Reader) fill() error {
 		r.nextN = 0
 		r.final = true
 	} else {
-		// Swap next and ahead buffers.
+		// Promote the lookahead block to current for the next call.
 		r.next, r.ahead = r.ahead, r.next
 		r.nextN = cipherLen
 	}
 	return nil
+
 }
+
+// pad appends 0x80 followed by zero bytes to buf until it reaches blockSize.
+func pad(buf []byte, blockSize int) []byte {
+	buf = append(buf, 0x80)
+	if len(buf) < blockSize {
+		buf = append(buf, make([]byte, blockSize-len(buf))...)
+	}
+	return buf
+}
+
+// unpad strips trailing zero bytes and the 0x80 marker, returning the original plaintext.
+func unpad(plaintext []byte) ([]byte, error) {
+	for i := len(plaintext) - 1; i >= 0; i-- {
+		if plaintext[i] == 0x80 {
+			return plaintext[:i], nil
+		} else if plaintext[i] != 0x00 {
+			return nil, errInvalidPadding
+		}
+	}
+	return nil, errInvalidPadding
+}
+
+var errInvalidPadding = errors.New("invalid padding")
 
 var (
 	_ io.WriteCloser = (*Writer)(nil)
