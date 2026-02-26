@@ -150,17 +150,13 @@ func turboShake128(msg []byte, ds byte, outLen int) []byte {
 
 	// Absorb full rate blocks.
 	for len(msg) >= rate {
-		for i := range rate {
-			s[i] ^= msg[i]
-		}
+		xorBytes(s[:rate], s[:rate], msg[:rate])
 		keccak.P1600(&s)
 		msg = msg[rate:]
 	}
 
 	// Absorb remaining bytes + padding.
-	for i, b := range msg {
-		s[i] ^= b
-	}
+	xorBytes(s[:len(msg)], s[:len(msg)], msg)
 	s[len(msg)] ^= ds
 	s[rate-1] ^= 0x80
 	keccak.P1600(&s)
@@ -314,11 +310,8 @@ func sealX2(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 		for lane := range 2 {
 			s := states[lane]
 			base := lane*ChunkSize + off
-			for j := range n {
-				c := pt[base+j] ^ s[j]
-				s[j] = c
-				ct[base+j] = c
-			}
+			xorBytes(ct[base:base+n], pt[base:base+n], s[:n])
+			copy(s[:n], ct[base:base+n])
 		}
 		off += n
 		if off < ChunkSize {
@@ -350,17 +343,16 @@ func openX2(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 
 	states := [2]*[200]byte{&s0, &s1}
 
+	var tmp [blockRate]byte
 	off := 0
 	for off < ChunkSize {
 		n := min(blockRate, ChunkSize-off)
 		for lane := range 2 {
 			s := states[lane]
 			base := lane*ChunkSize + off
-			for j := range n {
-				p := ct[base+j] ^ s[j]
-				s[j] = ct[base+j]
-				pt[base+j] = p
-			}
+			copy(tmp[:n], ct[base:base+n])
+			xorBytes(pt[base:base+n], ct[base:base+n], s[:n])
+			copy(s[:n], tmp[:n])
 		}
 		off += n
 		if off < ChunkSize {
@@ -400,11 +392,8 @@ func sealX4(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 		for lane := range 4 {
 			s := states[lane]
 			base := lane*ChunkSize + off
-			for j := range n {
-				c := pt[base+j] ^ s[j]
-				s[j] = c
-				ct[base+j] = c
-			}
+			xorBytes(ct[base:base+n], pt[base:base+n], s[:n])
+			copy(s[:n], ct[base:base+n])
 		}
 		off += n
 		if off < ChunkSize {
@@ -438,17 +427,16 @@ func openX4(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 
 	states := [4]*[200]byte{&s0, &s1, &s2, &s3}
 
+	var tmp [blockRate]byte
 	off := 0
 	for off < ChunkSize {
 		n := min(blockRate, ChunkSize-off)
 		for lane := range 4 {
 			s := states[lane]
 			base := lane*ChunkSize + off
-			for j := range n {
-				p := ct[base+j] ^ s[j]
-				s[j] = ct[base+j]
-				pt[base+j] = p
-			}
+			copy(tmp[:n], ct[base:base+n])
+			xorBytes(pt[base:base+n], ct[base:base+n], s[:n])
+			copy(s[:n], tmp[:n])
 		}
 		off += n
 		if off < ChunkSize {
