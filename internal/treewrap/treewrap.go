@@ -167,77 +167,58 @@ func lengthEncode(x uint64) []byte {
 	return buf
 }
 
-// leafSponge is a SpongeWrap instance for a single leaf.
-type leafSponge struct {
-	s   [200]byte
-	pos int
-}
-
-func (l *leafSponge) padPermute() {
-	l.s[l.pos] ^= leafDS
-	l.s[rate-1] ^= 0x80
-	keccak.P1600(&l.s)
-	l.pos = 0
-}
-
-func (l *leafSponge) init(key *[KeySize]byte, index uint64) {
-	// Absorb key || LE64(index) = 40 bytes (fits within one rate block).
-	copy(l.s[:KeySize], key[:])
-	binary.LittleEndian.PutUint64(l.s[KeySize:KeySize+8], index)
-	l.pos = KeySize + 8
-	l.padPermute()
-}
-
-func (l *leafSponge) encrypt(pt, ct []byte) {
-	for len(pt) > 0 {
-		n := min(blockRate-l.pos, len(pt))
-		mem.XOR(ct[:n], pt[:n], l.s[l.pos:l.pos+n])
-		copy(l.s[l.pos:l.pos+n], ct[:n])
-		l.pos += n
-		pt = pt[n:]
-		ct = ct[n:]
-		if l.pos == blockRate && len(pt) > 0 {
-			l.padPermute()
-		}
-	}
-}
-
-func (l *leafSponge) decrypt(ct, pt []byte) {
-	var tmp [blockRate]byte
-	for len(ct) > 0 {
-		n := min(blockRate-l.pos, len(ct))
-		// Save ciphertext so we can handle aliased ct/pt.
-		copy(tmp[:n], ct[:n])
-		mem.XOR(pt[:n], ct[:n], l.s[l.pos:l.pos+n])
-		copy(l.s[l.pos:l.pos+n], tmp[:n])
-		l.pos += n
-		ct = ct[n:]
-		pt = pt[n:]
-		if l.pos == blockRate && len(ct) > 0 {
-			l.padPermute()
-		}
-	}
-}
-
-func (l *leafSponge) chainValue() []byte {
-	l.padPermute()
-	cv := make([]byte, cvSize)
-	copy(cv, l.s[:cvSize])
-	return cv
-}
-
 func sealX1(key *[KeySize]byte, index uint64, pt, ct, cvBuf []byte) {
-	var l leafSponge
-	l.init(key, index)
-	l.encrypt(pt, ct)
-	copy(cvBuf, l.chainValue())
+	var s [200]byte
+	leafPad(&s, key, index)
+	keccak.P1600(&s)
+
+	chunkLen := len(pt)
+	off := 0
+	for off < chunkLen {
+		n := min(blockRate, chunkLen-off)
+		mem.XOR(ct[off:off+n], pt[off:off+n], s[:n])
+		copy(s[:n], ct[off:off+n])
+		off += n
+		if off < chunkLen {
+			s[blockRate] ^= leafDS
+			s[rate-1] ^= 0x80
+			keccak.P1600(&s)
+		}
+	}
+
+	pos := finalPos(chunkLen)
+	s[pos] ^= leafDS
+	s[rate-1] ^= 0x80
+	keccak.P1600(&s)
+	copy(cvBuf, s[:cvSize])
 }
 
 func openX1(key *[KeySize]byte, index uint64, ct, pt, cvBuf []byte) {
-	var l leafSponge
-	l.init(key, index)
-	l.decrypt(ct, pt)
-	copy(cvBuf, l.chainValue())
+	var s [200]byte
+	leafPad(&s, key, index)
+	keccak.P1600(&s)
+
+	var tmp [blockRate]byte
+	chunkLen := len(ct)
+	off := 0
+	for off < chunkLen {
+		n := min(blockRate, chunkLen-off)
+		copy(tmp[:n], ct[off:off+n])
+		mem.XOR(pt[off:off+n], ct[off:off+n], s[:n])
+		copy(s[:n], tmp[:n])
+		off += n
+		if off < chunkLen {
+			s[blockRate] ^= leafDS
+			s[rate-1] ^= 0x80
+			keccak.P1600(&s)
+		}
+	}
+
+	pos := finalPos(chunkLen)
+	s[pos] ^= leafDS
+	s[rate-1] ^= 0x80
+	keccak.P1600(&s)
+	copy(cvBuf, s[:cvSize])
 }
 
 // leafPad prepares a Keccak state for a leaf sponge init (absorb key || LE64(index)
