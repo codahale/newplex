@@ -3,6 +3,7 @@ module github.com/codahale/newplex
 go 1.26
 
 require (
+	github.com/codahale/permutation-city v0.0.0-20260226044530-f037d057d539
 	github.com/gtank/ristretto255 v0.2.0
 	github.com/trailofbits/go-fuzz-utils v0.0.0-20250830184917-b61e672bc9ed
 )
