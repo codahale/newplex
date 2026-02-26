@@ -160,6 +160,63 @@ func TestSum(t *testing.T) {
 	}
 }
 
+func TestHasher(t *testing.T) {
+	for _, tc := range testVectors {
+		t.Run(tc.name, func(t *testing.T) {
+			h := New(tc.ds)
+			_, _ = h.Write(tc.msg)
+			got := make([]byte, tc.outLen)
+			_, _ = h.Read(got)
+			want := hexDecode(tc.want)
+
+			if tc.last32 {
+				got = got[len(got)-32:]
+			}
+
+			if !equal(got, want) {
+				t.Errorf("got  %x\nwant %x", got, want)
+			}
+		})
+	}
+}
+
+func TestHasherIncremental(t *testing.T) {
+	// Write in various chunk sizes and verify output matches Sum.
+	for _, chunkSize := range []int{1, 7, 13, 64, 168, 169, 256} {
+		msg := ptn(4913)
+		h := New(0x1F)
+		for i := 0; i < len(msg); i += chunkSize {
+			end := min(i+chunkSize, len(msg))
+			_, _ = h.Write(msg[i:end])
+		}
+		got := make([]byte, 32)
+		_, _ = h.Read(got)
+		want := Sum(msg, 0x1F, 32)
+		if !equal(got, want) {
+			t.Errorf("chunkSize=%d: got %x, want %x", chunkSize, got, want)
+		}
+	}
+}
+
+func TestHasherIncrementalRead(t *testing.T) {
+	// Read in various chunk sizes and verify output matches Sum.
+	want := Sum(nil, 0x1F, 10032)
+
+	for _, chunkSize := range []int{1, 7, 32, 168, 169, 500} {
+		h := New(0x1F)
+		var got []byte
+		buf := make([]byte, chunkSize)
+		for len(got) < 10032 {
+			n := min(chunkSize, 10032-len(got))
+			_, _ = h.Read(buf[:n])
+			got = append(got, buf[:n]...)
+		}
+		if !equal(got, want) {
+			t.Errorf("chunkSize=%d: output mismatch", chunkSize)
+		}
+	}
+}
+
 func equal(a, b []byte) bool {
 	if len(a) != len(b) {
 		return false

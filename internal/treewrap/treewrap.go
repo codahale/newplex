@@ -46,31 +46,36 @@ func Seal(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]by
 	n := max(1, (len(plaintext)+ChunkSize-1)/ChunkSize)
 
 	ret, ciphertext := mem.SliceForAppend(dst, len(plaintext))
-	cvs := make([]byte, n*cvSize)
+	h := turboshake.New(tagDS)
+	var cvBuf [4 * cvSize]byte
+	cvCount := 0
 
 	fullChunks := len(plaintext) / ChunkSize
 	idx := 0
 
 	for idx+4 <= fullChunks {
 		off := idx * ChunkSize
-		sealX4(key, uint64(idx), plaintext[off:off+4*ChunkSize], ciphertext[off:off+4*ChunkSize], cvs[idx*cvSize:])
+		sealX4(key, uint64(idx), plaintext[off:off+4*ChunkSize], ciphertext[off:off+4*ChunkSize], cvBuf[:])
+		feedCVs(h, cvBuf[:4*cvSize], &cvCount)
 		idx += 4
 	}
 
 	for idx+2 <= fullChunks {
 		off := idx * ChunkSize
-		sealX2(key, uint64(idx), plaintext[off:off+2*ChunkSize], ciphertext[off:off+2*ChunkSize], cvs[idx*cvSize:])
+		sealX2(key, uint64(idx), plaintext[off:off+2*ChunkSize], ciphertext[off:off+2*ChunkSize], cvBuf[:2*cvSize])
+		feedCVs(h, cvBuf[:2*cvSize], &cvCount)
 		idx += 2
 	}
 
 	for idx < n {
 		off := idx * ChunkSize
 		end := min(off+ChunkSize, len(plaintext))
-		sealX1(key, uint64(idx), plaintext[off:end], ciphertext[off:end], cvs[idx*cvSize:(idx+1)*cvSize])
+		sealX1(key, uint64(idx), plaintext[off:end], ciphertext[off:end], cvBuf[:cvSize])
+		feedCVs(h, cvBuf[:cvSize], &cvCount)
 		idx++
 	}
 
-	return ret, computeTag(cvs, n)
+	return ret, finalizeTag(h, n)
 }
 
 // Open decrypts ciphertext, appends the plaintext to dst, and returns the resulting slice along with the expected
@@ -83,52 +88,60 @@ func Open(dst []byte, key *[KeySize]byte, ciphertext []byte) ([]byte, [TagSize]b
 	n := max(1, (len(ciphertext)+ChunkSize-1)/ChunkSize)
 
 	ret, plaintext := mem.SliceForAppend(dst, len(ciphertext))
-	cvs := make([]byte, n*cvSize)
+	h := turboshake.New(tagDS)
+	var cvBuf [4 * cvSize]byte
+	cvCount := 0
 
 	fullChunks := len(ciphertext) / ChunkSize
 	idx := 0
 
 	for idx+4 <= fullChunks {
 		off := idx * ChunkSize
-		openX4(key, uint64(idx), ciphertext[off:off+4*ChunkSize], plaintext[off:off+4*ChunkSize], cvs[idx*cvSize:])
+		openX4(key, uint64(idx), ciphertext[off:off+4*ChunkSize], plaintext[off:off+4*ChunkSize], cvBuf[:])
+		feedCVs(h, cvBuf[:4*cvSize], &cvCount)
 		idx += 4
 	}
 
 	for idx+2 <= fullChunks {
 		off := idx * ChunkSize
-		openX2(key, uint64(idx), ciphertext[off:off+2*ChunkSize], plaintext[off:off+2*ChunkSize], cvs[idx*cvSize:])
+		openX2(key, uint64(idx), ciphertext[off:off+2*ChunkSize], plaintext[off:off+2*ChunkSize], cvBuf[:2*cvSize])
+		feedCVs(h, cvBuf[:2*cvSize], &cvCount)
 		idx += 2
 	}
 
 	for idx < n {
 		off := idx * ChunkSize
 		end := min(off+ChunkSize, len(ciphertext))
-		openX1(key, uint64(idx), ciphertext[off:end], plaintext[off:end], cvs[idx*cvSize:(idx+1)*cvSize])
+		openX1(key, uint64(idx), ciphertext[off:end], plaintext[off:end], cvBuf[:cvSize])
+		feedCVs(h, cvBuf[:cvSize], &cvCount)
 		idx++
 	}
 
-	return ret, computeTag(cvs, n)
+	return ret, finalizeTag(h, n)
 }
 
-// computeTag builds the KangarooTwelve final node structure and computes the tag.
-func computeTag(cvs []byte, n int) [TagSize]byte {
-	le := lengthEncode(uint64(n - 1))
-	totalLen := cvSize + 8 + cvSize*(n-1) + len(le) + 2
+// kt12Marker is the 8-byte KangarooTwelve marker written after cv[0].
+var kt12Marker = [8]byte{0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
-	input := make([]byte, 0, totalLen)
-	input = append(input, cvs[:cvSize]...)                                // cv[0]
-	input = append(input, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) // KT12 marker
-	for i := 1; i < n; i++ {
-		input = append(input, cvs[i*cvSize:(i+1)*cvSize]...) // cv[1]..cv[n-1]
+// feedCVs writes chain values into the hasher with KT12 final-node framing.
+// After the first CV, it inserts the KT12 marker. cvCount tracks how many
+// CVs have been written so far.
+func feedCVs(h *turboshake.Hasher, cvs []byte, cvCount *int) {
+	for len(cvs) >= cvSize {
+		_, _ = h.Write(cvs[:cvSize])
+		cvs = cvs[cvSize:]
+		*cvCount++
+		if *cvCount == 1 {
+			_, _ = h.Write(kt12Marker[:])
+		}
 	}
-	input = append(input, le...)      // length_encode(n-1)
-	input = append(input, 0xFF, 0xFF) // terminator
+}
 
-	result := turboshake.Sum(input, tagDS, TagSize)
-
-	var tag [TagSize]byte
-	copy(tag[:], result)
-
+// finalizeTag writes the KT12 terminator and squeezes the tag.
+func finalizeTag(h *turboshake.Hasher, n int) (tag [TagSize]byte) {
+	_, _ = h.Write(lengthEncode(uint64(n - 1)))
+	_, _ = h.Write([]byte{0xFF, 0xFF})
+	_, _ = h.Read(tag[:])
 	return tag
 }
 
