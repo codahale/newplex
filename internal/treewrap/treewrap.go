@@ -167,60 +167,6 @@ func lengthEncode(x uint64) []byte {
 	return buf
 }
 
-func sealX1(key *[KeySize]byte, index uint64, pt, ct, cvBuf []byte) {
-	var s [200]byte
-	leafPad(&s, key, index)
-	keccak.P1600(&s)
-
-	chunkLen := len(pt)
-	off := 0
-	for off < chunkLen {
-		n := min(blockRate, chunkLen-off)
-		mem.XOR(ct[off:off+n], pt[off:off+n], s[:n])
-		copy(s[:n], ct[off:off+n])
-		off += n
-		if off < chunkLen {
-			s[blockRate] ^= leafDS
-			s[rate-1] ^= 0x80
-			keccak.P1600(&s)
-		}
-	}
-
-	pos := finalPos(chunkLen)
-	s[pos] ^= leafDS
-	s[rate-1] ^= 0x80
-	keccak.P1600(&s)
-	copy(cvBuf, s[:cvSize])
-}
-
-func openX1(key *[KeySize]byte, index uint64, ct, pt, cvBuf []byte) {
-	var s [200]byte
-	leafPad(&s, key, index)
-	keccak.P1600(&s)
-
-	var tmp [blockRate]byte
-	chunkLen := len(ct)
-	off := 0
-	for off < chunkLen {
-		n := min(blockRate, chunkLen-off)
-		copy(tmp[:n], ct[off:off+n])
-		mem.XOR(pt[off:off+n], ct[off:off+n], s[:n])
-		copy(s[:n], tmp[:n])
-		off += n
-		if off < chunkLen {
-			s[blockRate] ^= leafDS
-			s[rate-1] ^= 0x80
-			keccak.P1600(&s)
-		}
-	}
-
-	pos := finalPos(chunkLen)
-	s[pos] ^= leafDS
-	s[rate-1] ^= 0x80
-	keccak.P1600(&s)
-	copy(cvBuf, s[:cvSize])
-}
-
 // leafPad prepares a Keccak state for a leaf sponge init (absorb key || LE64(index)
 // and apply padding). The caller must invoke the permutation.
 func leafPad(s *[200]byte, key *[KeySize]byte, index uint64) {
@@ -242,84 +188,87 @@ func finalPos(chunkLen int) int {
 	return p
 }
 
+// sealChunks performs SpongeWrap encryption across one or more parallel lanes.
+// Each lane processes chunkLen bytes of plaintext. The perm function must permute
+// all lane states in parallel.
+func sealChunks(states [4]*[200]byte, lanes, chunkLen int, pt, ct, cvBuf []byte, perm func()) {
+	off := 0
+	for off < chunkLen {
+		n := min(blockRate, chunkLen-off)
+		for lane := range lanes {
+			base := lane*ChunkSize + off
+			mem.XOR(ct[base:base+n], pt[base:base+n], states[lane][:n])
+			copy(states[lane][:n], ct[base:base+n])
+		}
+		off += n
+		if off < chunkLen {
+			for i := range lanes {
+				states[i][blockRate] ^= leafDS
+				states[i][rate-1] ^= 0x80
+			}
+			perm()
+		}
+	}
+
+	pos := finalPos(chunkLen)
+	for i := range lanes {
+		states[i][pos] ^= leafDS
+		states[i][rate-1] ^= 0x80
+	}
+	perm()
+	for i := range lanes {
+		copy(cvBuf[i*cvSize:(i+1)*cvSize], states[i][:cvSize])
+	}
+}
+
+// openChunks performs SpongeWrap decryption across one or more parallel lanes.
+// Each lane processes chunkLen bytes of ciphertext. The perm function must permute
+// all lane states in parallel.
+func openChunks(states [4]*[200]byte, lanes, chunkLen int, ct, pt, cvBuf []byte, perm func()) {
+	var tmp [blockRate]byte
+	off := 0
+	for off < chunkLen {
+		n := min(blockRate, chunkLen-off)
+		for lane := range lanes {
+			base := lane*ChunkSize + off
+			copy(tmp[:n], ct[base:base+n])
+			mem.XOR(pt[base:base+n], ct[base:base+n], states[lane][:n])
+			copy(states[lane][:n], tmp[:n])
+		}
+		off += n
+		if off < chunkLen {
+			for i := range lanes {
+				states[i][blockRate] ^= leafDS
+				states[i][rate-1] ^= 0x80
+			}
+			perm()
+		}
+	}
+
+	pos := finalPos(chunkLen)
+	for i := range lanes {
+		states[i][pos] ^= leafDS
+		states[i][rate-1] ^= 0x80
+	}
+	perm()
+	for i := range lanes {
+		copy(cvBuf[i*cvSize:(i+1)*cvSize], states[i][:cvSize])
+	}
+}
+
+func sealX1(key *[KeySize]byte, index uint64, pt, ct, cvBuf []byte) {
+	var s0 [200]byte
+	leafPad(&s0, key, index)
+	keccak.P1600(&s0)
+	sealChunks([4]*[200]byte{&s0}, 1, len(pt), pt, ct, cvBuf, func() { keccak.P1600(&s0) })
+}
+
 func sealX2(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 	var s0, s1 [200]byte
 	leafPad(&s0, key, baseIndex)
 	leafPad(&s1, key, baseIndex+1)
 	keccak.P1600x2(&s0, &s1)
-
-	states := [2]*[200]byte{&s0, &s1}
-
-	off := 0
-	for off < ChunkSize {
-		n := min(blockRate, ChunkSize-off)
-		for lane := range 2 {
-			s := states[lane]
-			base := lane*ChunkSize + off
-			mem.XOR(ct[base:base+n], pt[base:base+n], s[:n])
-			copy(s[:n], ct[base:base+n])
-		}
-		off += n
-		if off < ChunkSize {
-			for _, s := range states {
-				s[blockRate] ^= leafDS
-				s[rate-1] ^= 0x80
-			}
-			keccak.P1600x2(&s0, &s1)
-		}
-	}
-
-	pos := finalPos(ChunkSize)
-	for _, s := range states {
-		s[pos] ^= leafDS
-		s[rate-1] ^= 0x80
-	}
-	keccak.P1600x2(&s0, &s1)
-
-	for i, s := range states {
-		copy(cvBuf[i*cvSize:(i+1)*cvSize], s[:cvSize])
-	}
-}
-
-func openX2(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
-	var s0, s1 [200]byte
-	leafPad(&s0, key, baseIndex)
-	leafPad(&s1, key, baseIndex+1)
-	keccak.P1600x2(&s0, &s1)
-
-	states := [2]*[200]byte{&s0, &s1}
-
-	var tmp [blockRate]byte
-	off := 0
-	for off < ChunkSize {
-		n := min(blockRate, ChunkSize-off)
-		for lane := range 2 {
-			s := states[lane]
-			base := lane*ChunkSize + off
-			copy(tmp[:n], ct[base:base+n])
-			mem.XOR(pt[base:base+n], ct[base:base+n], s[:n])
-			copy(s[:n], tmp[:n])
-		}
-		off += n
-		if off < ChunkSize {
-			for _, s := range states {
-				s[blockRate] ^= leafDS
-				s[rate-1] ^= 0x80
-			}
-			keccak.P1600x2(&s0, &s1)
-		}
-	}
-
-	pos := finalPos(ChunkSize)
-	for _, s := range states {
-		s[pos] ^= leafDS
-		s[rate-1] ^= 0x80
-	}
-	keccak.P1600x2(&s0, &s1)
-
-	for i, s := range states {
-		copy(cvBuf[i*cvSize:(i+1)*cvSize], s[:cvSize])
-	}
+	sealChunks([4]*[200]byte{&s0, &s1}, 2, ChunkSize, pt, ct, cvBuf, func() { keccak.P1600x2(&s0, &s1) })
 }
 
 func sealX4(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
@@ -329,38 +278,22 @@ func sealX4(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 	leafPad(&s2, key, baseIndex+2)
 	leafPad(&s3, key, baseIndex+3)
 	keccak.P1600x4(&s0, &s1, &s2, &s3)
+	sealChunks([4]*[200]byte{&s0, &s1, &s2, &s3}, 4, ChunkSize, pt, ct, cvBuf, func() { keccak.P1600x4(&s0, &s1, &s2, &s3) })
+}
 
-	states := [4]*[200]byte{&s0, &s1, &s2, &s3}
+func openX1(key *[KeySize]byte, index uint64, ct, pt, cvBuf []byte) {
+	var s0 [200]byte
+	leafPad(&s0, key, index)
+	keccak.P1600(&s0)
+	openChunks([4]*[200]byte{&s0}, 1, len(ct), ct, pt, cvBuf, func() { keccak.P1600(&s0) })
+}
 
-	off := 0
-	for off < ChunkSize {
-		n := min(blockRate, ChunkSize-off)
-		for lane := range 4 {
-			s := states[lane]
-			base := lane*ChunkSize + off
-			mem.XOR(ct[base:base+n], pt[base:base+n], s[:n])
-			copy(s[:n], ct[base:base+n])
-		}
-		off += n
-		if off < ChunkSize {
-			for _, s := range states {
-				s[blockRate] ^= leafDS
-				s[rate-1] ^= 0x80
-			}
-			keccak.P1600x4(&s0, &s1, &s2, &s3)
-		}
-	}
-
-	pos := finalPos(ChunkSize)
-	for _, s := range states {
-		s[pos] ^= leafDS
-		s[rate-1] ^= 0x80
-	}
-	keccak.P1600x4(&s0, &s1, &s2, &s3)
-
-	for i, s := range states {
-		copy(cvBuf[i*cvSize:(i+1)*cvSize], s[:cvSize])
-	}
+func openX2(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
+	var s0, s1 [200]byte
+	leafPad(&s0, key, baseIndex)
+	leafPad(&s1, key, baseIndex+1)
+	keccak.P1600x2(&s0, &s1)
+	openChunks([4]*[200]byte{&s0, &s1}, 2, ChunkSize, ct, pt, cvBuf, func() { keccak.P1600x2(&s0, &s1) })
 }
 
 func openX4(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
@@ -370,38 +303,5 @@ func openX4(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 	leafPad(&s2, key, baseIndex+2)
 	leafPad(&s3, key, baseIndex+3)
 	keccak.P1600x4(&s0, &s1, &s2, &s3)
-
-	states := [4]*[200]byte{&s0, &s1, &s2, &s3}
-
-	var tmp [blockRate]byte
-	off := 0
-	for off < ChunkSize {
-		n := min(blockRate, ChunkSize-off)
-		for lane := range 4 {
-			s := states[lane]
-			base := lane*ChunkSize + off
-			copy(tmp[:n], ct[base:base+n])
-			mem.XOR(pt[base:base+n], ct[base:base+n], s[:n])
-			copy(s[:n], tmp[:n])
-		}
-		off += n
-		if off < ChunkSize {
-			for _, s := range states {
-				s[blockRate] ^= leafDS
-				s[rate-1] ^= 0x80
-			}
-			keccak.P1600x4(&s0, &s1, &s2, &s3)
-		}
-	}
-
-	pos := finalPos(ChunkSize)
-	for _, s := range states {
-		s[pos] ^= leafDS
-		s[rate-1] ^= 0x80
-	}
-	keccak.P1600x4(&s0, &s1, &s2, &s3)
-
-	for i, s := range states {
-		copy(cvBuf[i*cvSize:(i+1)*cvSize], s[:cvSize])
-	}
+	openChunks([4]*[200]byte{&s0, &s1, &s2, &s3}, 4, ChunkSize, ct, pt, cvBuf, func() { keccak.P1600x4(&s0, &s1, &s2, &s3) })
 }
