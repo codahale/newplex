@@ -13,10 +13,10 @@
 package treewrap
 
 import (
-	"crypto/subtle"
 	"encoding/binary"
-	"slices"
 
+	"github.com/codahale/newplex/internal/mem"
+	"github.com/codahale/newplex/internal/turboshake"
 	"github.com/codahale/permutation-city/keccak"
 )
 
@@ -45,7 +45,7 @@ const (
 func Seal(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]byte) {
 	n := max(1, (len(plaintext)+ChunkSize-1)/ChunkSize)
 
-	ret, ciphertext := sliceForAppend(dst, len(plaintext))
+	ret, ciphertext := mem.SliceForAppend(dst, len(plaintext))
 	cvs := make([]byte, n*cvSize)
 
 	fullChunks := len(plaintext) / ChunkSize
@@ -82,7 +82,7 @@ func Seal(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]by
 func Open(dst []byte, key *[KeySize]byte, ciphertext []byte) ([]byte, [TagSize]byte) {
 	n := max(1, (len(ciphertext)+ChunkSize-1)/ChunkSize)
 
-	ret, plaintext := sliceForAppend(dst, len(ciphertext))
+	ret, plaintext := mem.SliceForAppend(dst, len(ciphertext))
 	cvs := make([]byte, n*cvSize)
 
 	fullChunks := len(ciphertext) / ChunkSize
@@ -124,36 +124,12 @@ func computeTag(cvs []byte, n int) [TagSize]byte {
 	input = append(input, le...)      // length_encode(n-1)
 	input = append(input, 0xFF, 0xFF) // terminator
 
-	result := turboShake128(input, tagDS, TagSize)
+	result := turboshake.Sum(input, tagDS, TagSize)
 
 	var tag [TagSize]byte
 	copy(tag[:], result)
 
 	return tag
-}
-
-// turboShake128 computes TurboSHAKE128(msg, ds, outLen).
-func turboShake128(msg []byte, ds byte, outLen int) []byte {
-	var s [200]byte
-
-	// Absorb full rate blocks.
-	for len(msg) >= rate {
-		xorBytes(s[:rate], s[:rate], msg[:rate])
-		keccak.P1600(&s)
-		msg = msg[rate:]
-	}
-
-	// Absorb remaining bytes + padding.
-	xorBytes(s[:len(msg)], s[:len(msg)], msg)
-	s[len(msg)] ^= ds
-	s[rate-1] ^= 0x80
-	keccak.P1600(&s)
-
-	// Squeeze (outLen ≤ rate for our use case).
-	out := make([]byte, outLen)
-	copy(out, s[:outLen])
-
-	return out
 }
 
 // lengthEncode encodes x as in KangarooTwelve: big-endian with no leading zeros,
@@ -176,18 +152,6 @@ func lengthEncode(x uint64) []byte {
 	buf[n] = byte(n)
 
 	return buf
-}
-
-// xorBytes XORs a and b into dst. Uses subtle.XORBytes for slices larger than
-// 16 bytes (which benefits from SIMD) and a scalar loop for small slices.
-func xorBytes(dst, a, b []byte) {
-	if len(dst) > 16 {
-		subtle.XORBytes(dst, a, b)
-	} else {
-		for i := range dst {
-			dst[i] = a[i] ^ b[i]
-		}
-	}
 }
 
 // leafSponge is a SpongeWrap instance for a single leaf.
@@ -214,7 +178,7 @@ func (l *leafSponge) init(key *[KeySize]byte, index uint64) {
 func (l *leafSponge) encrypt(pt, ct []byte) {
 	for len(pt) > 0 {
 		n := min(blockRate-l.pos, len(pt))
-		xorBytes(ct[:n], pt[:n], l.s[l.pos:l.pos+n])
+		mem.XOR(ct[:n], pt[:n], l.s[l.pos:l.pos+n])
 		copy(l.s[l.pos:l.pos+n], ct[:n])
 		l.pos += n
 		pt = pt[n:]
@@ -231,7 +195,7 @@ func (l *leafSponge) decrypt(ct, pt []byte) {
 		n := min(blockRate-l.pos, len(ct))
 		// Save ciphertext so we can handle aliased ct/pt.
 		copy(tmp[:n], ct[:n])
-		xorBytes(pt[:n], ct[:n], l.s[l.pos:l.pos+n])
+		mem.XOR(pt[:n], ct[:n], l.s[l.pos:l.pos+n])
 		copy(l.s[l.pos:l.pos+n], tmp[:n])
 		l.pos += n
 		ct = ct[n:]
@@ -298,7 +262,7 @@ func sealX2(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 		for lane := range 2 {
 			s := states[lane]
 			base := lane*ChunkSize + off
-			xorBytes(ct[base:base+n], pt[base:base+n], s[:n])
+			mem.XOR(ct[base:base+n], pt[base:base+n], s[:n])
 			copy(s[:n], ct[base:base+n])
 		}
 		off += n
@@ -339,7 +303,7 @@ func openX2(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 			s := states[lane]
 			base := lane*ChunkSize + off
 			copy(tmp[:n], ct[base:base+n])
-			xorBytes(pt[base:base+n], ct[base:base+n], s[:n])
+			mem.XOR(pt[base:base+n], ct[base:base+n], s[:n])
 			copy(s[:n], tmp[:n])
 		}
 		off += n
@@ -380,7 +344,7 @@ func sealX4(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 		for lane := range 4 {
 			s := states[lane]
 			base := lane*ChunkSize + off
-			xorBytes(ct[base:base+n], pt[base:base+n], s[:n])
+			mem.XOR(ct[base:base+n], pt[base:base+n], s[:n])
 			copy(s[:n], ct[base:base+n])
 		}
 		off += n
@@ -423,7 +387,7 @@ func openX4(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 			s := states[lane]
 			base := lane*ChunkSize + off
 			copy(tmp[:n], ct[base:base+n])
-			xorBytes(pt[base:base+n], ct[base:base+n], s[:n])
+			mem.XOR(pt[base:base+n], ct[base:base+n], s[:n])
 			copy(s[:n], tmp[:n])
 		}
 		off += n
@@ -446,15 +410,4 @@ func openX4(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 	for i, s := range states {
 		copy(cvBuf[i*cvSize:(i+1)*cvSize], s[:cvSize])
 	}
-}
-
-// sliceForAppend takes a slice and a requested number of bytes. It returns a
-// slice with the contents of the given slice followed by that many bytes and a
-// second slice that aliases into it and contains only the extra bytes. If the
-// original slice has sufficient capacity, then no allocation is performed.
-func sliceForAppend(in []byte, n int) (head, tail []byte) {
-	head = slices.Grow(in, n)
-	head = head[:len(in)+n]
-	tail = head[len(in):]
-	return head, tail
 }
