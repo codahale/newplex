@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"testing"
-
-	"github.com/codahale/permutation-city/keccak"
 )
 
 func testSeed() *[SeedSize]byte {
@@ -102,7 +100,6 @@ func TestGenerateX4MatchesX1(t *testing.T) {
 }
 
 func BenchmarkGenerate(b *testing.B) {
-	b.Logf("Keccak lanes = %v", keccak.Lanes)
 	seed := testSeed()
 
 	//for i := 0; i <= 8*1024; i += 128 {

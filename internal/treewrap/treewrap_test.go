@@ -6,8 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
-
-	"github.com/codahale/permutation-city/keccak"
 )
 
 func testKey() *[KeySize]byte {
@@ -358,7 +356,6 @@ func TestSealVectors(t *testing.T) {
 }
 
 func BenchmarkSeal(b *testing.B) {
-	b.Logf("Keccak lanes = %v", keccak.Lanes)
 	key := testKey()
 
 	benchmarks := []struct {
