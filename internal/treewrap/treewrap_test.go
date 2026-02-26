@@ -2,6 +2,7 @@ package treewrap
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"testing"
@@ -45,7 +46,7 @@ func TestSealOpen(t *testing.T) {
 				pt[i] = byte(i)
 			}
 
-			ct, tag := Seal(nil, key, pt)
+			ct, sealTag := Seal(nil, key, pt)
 
 			if len(ct) != len(pt) {
 				t.Fatalf("ciphertext length %d, want %d", len(ct), len(pt))
@@ -55,9 +56,10 @@ func TestSealOpen(t *testing.T) {
 				t.Error("ciphertext equals plaintext")
 			}
 
-			got, err := Open(nil, key, ct, &tag)
-			if err != nil {
-				t.Fatalf("Open failed: %v", err)
+			got, openTag := Open(nil, key, ct)
+
+			if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) != 1 {
+				t.Fatal("Open tag does not match Seal tag")
 			}
 
 			if !bytes.Equal(got, pt) {
@@ -95,12 +97,13 @@ func TestSealOpenInPlace(t *testing.T) {
 			copy(orig, pt)
 
 			// In-place seal: reuse pt's storage.
-			ct, tag := Seal(pt[:0], key, pt)
+			ct, sealTag := Seal(pt[:0], key, pt)
 
 			// In-place open: reuse ct's storage.
-			got, err := Open(ct[:0], key, ct, &tag)
-			if err != nil {
-				t.Fatalf("Open failed: %v", err)
+			got, openTag := Open(ct[:0], key, ct)
+
+			if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) != 1 {
+				t.Fatal("Open tag does not match Seal tag")
 			}
 
 			if !bytes.Equal(got, orig) {
@@ -110,22 +113,23 @@ func TestSealOpenInPlace(t *testing.T) {
 	}
 }
 
-func TestOpenTagFailure(t *testing.T) {
+func TestOpenTagMismatch(t *testing.T) {
 	key := testKey()
 	pt := []byte("hello world")
 
-	ct, tag := Seal(nil, key, pt)
+	_, sealTag := Seal(nil, key, pt)
 
-	// Flip a bit in the tag.
-	badTag := tag
-	badTag[0] ^= 1
-
-	got, err := Open(nil, key, ct, &badTag)
-	if err != ErrInvalidCiphertext {
-		t.Errorf("Open error = %v, want ErrInvalidCiphertext", err)
+	// A different key produces a different tag.
+	var wrongKey [KeySize]byte
+	for i := range wrongKey {
+		wrongKey[i] = byte(i + 1)
 	}
-	if got != nil {
-		t.Error("Open returned non-nil plaintext on failure")
+
+	ct2, _ := Seal(nil, &wrongKey, pt)
+	_, openTag := Open(nil, key, ct2)
+
+	if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) == 1 {
+		t.Error("tags should not match for different keys")
 	}
 }
 
@@ -136,17 +140,15 @@ func TestOpenCiphertextModified(t *testing.T) {
 		pt[i] = byte(i)
 	}
 
-	ct, tag := Seal(nil, key, pt)
+	ct, sealTag := Seal(nil, key, pt)
 
 	// Flip a bit in the ciphertext.
 	ct[0] ^= 1
 
-	got, err := Open(nil, key, ct, &tag)
-	if err != ErrInvalidCiphertext {
-		t.Errorf("Open error = %v, want ErrInvalidCiphertext", err)
-	}
-	if got != nil {
-		t.Error("Open returned non-nil plaintext on failure")
+	_, openTag := Open(nil, key, ct)
+
+	if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) == 1 {
+		t.Error("tags should not match for modified ciphertext")
 	}
 }
 
@@ -157,50 +159,29 @@ func TestOpenChunkSwapped(t *testing.T) {
 		pt[i] = byte(i)
 	}
 
-	ct, tag := Seal(nil, key, pt)
+	ct, sealTag := Seal(nil, key, pt)
 
-	// Swap the two chunks, keep the tag.
+	// Swap the two chunks.
 	swapped := make([]byte, len(ct))
 	copy(swapped[:ChunkSize], ct[ChunkSize:])
 	copy(swapped[ChunkSize:], ct[:ChunkSize])
 
-	got, err := Open(nil, key, swapped, &tag)
-	if err != ErrInvalidCiphertext {
-		t.Errorf("Open error = %v, want ErrInvalidCiphertext", err)
-	}
-	if got != nil {
-		t.Error("Open returned non-nil plaintext on failure")
-	}
-}
+	_, openTag := Open(nil, key, swapped)
 
-func TestOpenWrongKey(t *testing.T) {
-	key := testKey()
-	pt := []byte("hello world")
-
-	ct, tag := Seal(nil, key, pt)
-
-	var wrongKey [KeySize]byte
-	for i := range wrongKey {
-		wrongKey[i] = byte(i + 1)
-	}
-
-	got, err := Open(nil, &wrongKey, ct, &tag)
-	if err != ErrInvalidCiphertext {
-		t.Errorf("Open error = %v, want ErrInvalidCiphertext", err)
-	}
-	if got != nil {
-		t.Error("Open returned non-nil plaintext on failure")
+	if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) == 1 {
+		t.Error("tags should not match for swapped chunks")
 	}
 }
 
 func TestOpenEmpty(t *testing.T) {
 	key := testKey()
 
-	// Empty ciphertext with valid tag should succeed.
-	ct, tag := Seal(nil, key, nil)
-	got, err := Open(nil, key, ct, &tag)
-	if err != nil {
-		t.Fatalf("Open failed: %v", err)
+	// Empty ciphertext with valid tag should round-trip.
+	ct, sealTag := Seal(nil, key, nil)
+	got, openTag := Open(nil, key, ct)
+
+	if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) != 1 {
+		t.Fatal("Open tag does not match Seal tag")
 	}
 	if len(got) != 0 {
 		t.Errorf("got %d bytes, want 0", len(got))
@@ -419,13 +400,13 @@ func BenchmarkOpen(b *testing.B) {
 
 	for _, bb := range benchmarks {
 		pt := make([]byte, bb.length)
-		ct, tag := Seal(nil, key, pt)
+		ct, _ := Seal(nil, key, pt)
 		output := make([]byte, bb.length)
 		b.Run(fmt.Sprintf("Open/%s", bb.name), func(b *testing.B) {
 			b.SetBytes(int64(bb.length))
 			b.ReportAllocs()
 			for b.Loop() {
-				_, _ = Open(output[:0], key, ct, &tag)
+				Open(output[:0], key, ct)
 			}
 		})
 	}

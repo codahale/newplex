@@ -15,14 +15,10 @@ package treewrap
 import (
 	"crypto/subtle"
 	"encoding/binary"
-	"errors"
 	"slices"
 
 	"github.com/codahale/permutation-city/keccak"
 )
-
-// ErrInvalidCiphertext is returned when the ciphertext is invalid or has been decrypted with the wrong key.
-var ErrInvalidCiphertext = errors.New("treewrap: invalid ciphertext")
 
 const (
 	// KeySize is the size of the key in bytes.
@@ -77,15 +73,13 @@ func Seal(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]by
 	return ret, computeTag(cvs, n)
 }
 
-// Open decrypts ciphertext and verifies the authentication tag, appends the plaintext to dst, and returns the
-// resulting slice. Returns ErrInvalidCiphertext if the tag is invalid.
+// Open decrypts ciphertext, appends the plaintext to dst, and returns the resulting slice along with the expected
+// TagSize-byte authentication tag. The caller MUST verify the tag using constant-time comparison before using the
+// plaintext.
 //
 // To reuse ciphertext's storage for the decrypted output, use ciphertext[:0] as dst. Otherwise, the remaining
 // capacity of dst must not overlap ciphertext.
-//
-// WARNING: When using in-place decryption (ciphertext[:0] as dst), Open decrypts before verifying the tag.
-// If the tag is invalid, the decrypted plaintext is zeroed out, but the original ciphertext is lost.
-func Open(dst []byte, key *[KeySize]byte, ciphertext []byte, tag *[TagSize]byte) ([]byte, error) {
+func Open(dst []byte, key *[KeySize]byte, ciphertext []byte) ([]byte, [TagSize]byte) {
 	n := max(1, (len(ciphertext)+ChunkSize-1)/ChunkSize)
 
 	ret, plaintext := sliceForAppend(dst, len(ciphertext))
@@ -113,13 +107,7 @@ func Open(dst []byte, key *[KeySize]byte, ciphertext []byte, tag *[TagSize]byte)
 		idx++
 	}
 
-	expected := computeTag(cvs, n)
-	if subtle.ConstantTimeCompare(expected[:], tag[:]) != 1 {
-		clear(plaintext)
-		return nil, ErrInvalidCiphertext
-	}
-
-	return ret, nil
+	return ret, computeTag(cvs, n)
 }
 
 // computeTag builds the KangarooTwelve final node structure and computes the tag.
