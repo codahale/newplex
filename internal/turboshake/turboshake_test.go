@@ -1,6 +1,7 @@
 package turboshake
 
 import (
+	"bytes"
 	"encoding/hex"
 	"strings"
 	"testing"
@@ -153,7 +154,7 @@ func TestSum(t *testing.T) {
 				got = got[len(got)-32:]
 			}
 
-			if !equal(got, want) {
+			if !bytes.Equal(got, want) {
 				t.Errorf("got  %x\nwant %x", got, want)
 			}
 		})
@@ -173,7 +174,7 @@ func TestHasher(t *testing.T) {
 				got = got[len(got)-32:]
 			}
 
-			if !equal(got, want) {
+			if !bytes.Equal(got, want) {
 				t.Errorf("got  %x\nwant %x", got, want)
 			}
 		})
@@ -192,7 +193,7 @@ func TestHasherIncremental(t *testing.T) {
 		got := make([]byte, 32)
 		_, _ = h.Read(got)
 		want := Sum(msg, 0x1F, 32)
-		if !equal(got, want) {
+		if !bytes.Equal(got, want) {
 			t.Errorf("chunkSize=%d: got %x, want %x", chunkSize, got, want)
 		}
 	}
@@ -211,20 +212,8 @@ func TestHasherIncrementalRead(t *testing.T) {
 			_, _ = h.Read(buf[:n])
 			got = append(got, buf[:n]...)
 		}
-		if !equal(got, want) {
+		if !bytes.Equal(got, want) {
 			t.Errorf("chunkSize=%d: output mismatch", chunkSize)
 		}
 	}
-}
-
-func equal(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
