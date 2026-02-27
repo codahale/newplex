@@ -197,8 +197,7 @@ func sealX1(key *[KeySize]byte, index uint64, pt, ct, cvBuf []byte) {
 	off := 0
 	for off < chunkLen {
 		n := min(blockRate, chunkLen-off)
-		mem.XOR(ct[off:off+n], pt[off:off+n], s0[:n])
-		copy(s0[:n], ct[off:off+n])
+		mem.XORAndCopy(ct[off:off+n], pt[off:off+n], s0[:n])
 		off += n
 		if off < chunkLen {
 			s0[blockRate] ^= leafDS
@@ -223,10 +222,8 @@ func sealX2(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 	off := 0
 	for off < ChunkSize {
 		n := min(blockRate, ChunkSize-off)
-		mem.XOR(ct[off:off+n], pt[off:off+n], s0[:n])
-		copy(s0[:n], ct[off:off+n])
-		mem.XOR(ct[ChunkSize+off:ChunkSize+off+n], pt[ChunkSize+off:ChunkSize+off+n], s1[:n])
-		copy(s1[:n], ct[ChunkSize+off:ChunkSize+off+n])
+		mem.XORAndCopy(ct[off:off+n], pt[off:off+n], s0[:n])
+		mem.XORAndCopy(ct[ChunkSize+off:ChunkSize+off+n], pt[ChunkSize+off:ChunkSize+off+n], s1[:n])
 		off += n
 		if off < ChunkSize {
 			s0[blockRate] ^= leafDS
@@ -258,14 +255,10 @@ func sealX4(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 	off := 0
 	for off < ChunkSize {
 		n := min(blockRate, ChunkSize-off)
-		mem.XOR(ct[off:off+n], pt[off:off+n], s0[:n])
-		copy(s0[:n], ct[off:off+n])
-		mem.XOR(ct[ChunkSize+off:ChunkSize+off+n], pt[ChunkSize+off:ChunkSize+off+n], s1[:n])
-		copy(s1[:n], ct[ChunkSize+off:ChunkSize+off+n])
-		mem.XOR(ct[2*ChunkSize+off:2*ChunkSize+off+n], pt[2*ChunkSize+off:2*ChunkSize+off+n], s2[:n])
-		copy(s2[:n], ct[2*ChunkSize+off:2*ChunkSize+off+n])
-		mem.XOR(ct[3*ChunkSize+off:3*ChunkSize+off+n], pt[3*ChunkSize+off:3*ChunkSize+off+n], s3[:n])
-		copy(s3[:n], ct[3*ChunkSize+off:3*ChunkSize+off+n])
+		mem.XORAndCopy(ct[off:off+n], pt[off:off+n], s0[:n])
+		mem.XORAndCopy(ct[ChunkSize+off:ChunkSize+off+n], pt[ChunkSize+off:ChunkSize+off+n], s1[:n])
+		mem.XORAndCopy(ct[2*ChunkSize+off:2*ChunkSize+off+n], pt[2*ChunkSize+off:2*ChunkSize+off+n], s2[:n])
+		mem.XORAndCopy(ct[3*ChunkSize+off:3*ChunkSize+off+n], pt[3*ChunkSize+off:3*ChunkSize+off+n], s3[:n])
 		off += n
 		if off < ChunkSize {
 			s0[blockRate] ^= leafDS
@@ -301,14 +294,11 @@ func openX1(key *[KeySize]byte, index uint64, ct, pt, cvBuf []byte) {
 	leafPad(&s0, key, index)
 	keccak.P1600(&s0)
 
-	var tmp [blockRate]byte
 	chunkLen := len(ct)
 	off := 0
 	for off < chunkLen {
 		n := min(blockRate, chunkLen-off)
-		copy(tmp[:n], ct[off:off+n])
-		mem.XOR(pt[off:off+n], ct[off:off+n], s0[:n])
-		copy(s0[:n], tmp[:n])
+		mem.XORAndReplace(pt[off:off+n], ct[off:off+n], s0[:n])
 		off += n
 		if off < chunkLen {
 			s0[blockRate] ^= leafDS
@@ -330,16 +320,11 @@ func openX2(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 	leafPad(&s1, key, baseIndex+1)
 	keccak.P1600x2(&s0, &s1)
 
-	var tmp [blockRate]byte
 	off := 0
 	for off < ChunkSize {
 		n := min(blockRate, ChunkSize-off)
-		copy(tmp[:n], ct[off:off+n])
-		mem.XOR(pt[off:off+n], ct[off:off+n], s0[:n])
-		copy(s0[:n], tmp[:n])
-		copy(tmp[:n], ct[ChunkSize+off:ChunkSize+off+n])
-		mem.XOR(pt[ChunkSize+off:ChunkSize+off+n], ct[ChunkSize+off:ChunkSize+off+n], s1[:n])
-		copy(s1[:n], tmp[:n])
+		mem.XORAndReplace(pt[off:off+n], ct[off:off+n], s0[:n])
+		mem.XORAndReplace(pt[ChunkSize+off:ChunkSize+off+n], ct[ChunkSize+off:ChunkSize+off+n], s1[:n])
 		off += n
 		if off < ChunkSize {
 			s0[blockRate] ^= leafDS
@@ -368,22 +353,13 @@ func openX4(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 	leafPad(&s3, key, baseIndex+3)
 	keccak.P1600x4(&s0, &s1, &s2, &s3)
 
-	var tmp [blockRate]byte
 	off := 0
 	for off < ChunkSize {
 		n := min(blockRate, ChunkSize-off)
-		copy(tmp[:n], ct[off:off+n])
-		mem.XOR(pt[off:off+n], ct[off:off+n], s0[:n])
-		copy(s0[:n], tmp[:n])
-		copy(tmp[:n], ct[ChunkSize+off:ChunkSize+off+n])
-		mem.XOR(pt[ChunkSize+off:ChunkSize+off+n], ct[ChunkSize+off:ChunkSize+off+n], s1[:n])
-		copy(s1[:n], tmp[:n])
-		copy(tmp[:n], ct[2*ChunkSize+off:2*ChunkSize+off+n])
-		mem.XOR(pt[2*ChunkSize+off:2*ChunkSize+off+n], ct[2*ChunkSize+off:2*ChunkSize+off+n], s2[:n])
-		copy(s2[:n], tmp[:n])
-		copy(tmp[:n], ct[3*ChunkSize+off:3*ChunkSize+off+n])
-		mem.XOR(pt[3*ChunkSize+off:3*ChunkSize+off+n], ct[3*ChunkSize+off:3*ChunkSize+off+n], s3[:n])
-		copy(s3[:n], tmp[:n])
+		mem.XORAndReplace(pt[off:off+n], ct[off:off+n], s0[:n])
+		mem.XORAndReplace(pt[ChunkSize+off:ChunkSize+off+n], ct[ChunkSize+off:ChunkSize+off+n], s1[:n])
+		mem.XORAndReplace(pt[2*ChunkSize+off:2*ChunkSize+off+n], ct[2*ChunkSize+off:2*ChunkSize+off+n], s2[:n])
+		mem.XORAndReplace(pt[3*ChunkSize+off:3*ChunkSize+off+n], ct[3*ChunkSize+off:3*ChunkSize+off+n], s3[:n])
 		off += n
 		if off < ChunkSize {
 			s0[blockRate] ^= leafDS

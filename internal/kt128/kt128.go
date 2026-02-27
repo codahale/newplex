@@ -277,7 +277,7 @@ func leafCVX1(data []byte, cv []byte) {
 	off := 0
 	for off < chunkLen {
 		n := min(rate-pos, chunkLen-off)
-		mem.XOR(s[pos:pos+n], s[pos:pos+n], data[off:off+n])
+		mem.XORInPlace(s[pos:pos+n], data[off:off+n])
 		pos += n
 		off += n
 		if pos == rate {
@@ -298,8 +298,8 @@ func leafCVsX2(data []byte, cv []byte) {
 	off := 0
 	for off < BlockSize {
 		n := min(rate-pos, BlockSize-off)
-		mem.XOR(s0[pos:pos+n], s0[pos:pos+n], data[off:off+n])
-		mem.XOR(s1[pos:pos+n], s1[pos:pos+n], data[BlockSize+off:BlockSize+off+n])
+		mem.XORInPlace(s0[pos:pos+n], data[off:off+n])
+		mem.XORInPlace(s1[pos:pos+n], data[BlockSize+off:BlockSize+off+n])
 		pos += n
 		off += n
 		if pos == rate {
@@ -323,10 +323,10 @@ func leafCVsX4(data []byte, cv []byte) {
 	off := 0
 	for off < BlockSize {
 		n := min(rate-pos, BlockSize-off)
-		mem.XOR(s0[pos:pos+n], s0[pos:pos+n], data[off:off+n])
-		mem.XOR(s1[pos:pos+n], s1[pos:pos+n], data[BlockSize+off:BlockSize+off+n])
-		mem.XOR(s2[pos:pos+n], s2[pos:pos+n], data[2*BlockSize+off:2*BlockSize+off+n])
-		mem.XOR(s3[pos:pos+n], s3[pos:pos+n], data[3*BlockSize+off:3*BlockSize+off+n])
+		mem.XORInPlace(s0[pos:pos+n], data[off:off+n])
+		mem.XORInPlace(s1[pos:pos+n], data[BlockSize+off:BlockSize+off+n])
+		mem.XORInPlace(s2[pos:pos+n], data[2*BlockSize+off:2*BlockSize+off+n])
+		mem.XORInPlace(s3[pos:pos+n], data[3*BlockSize+off:3*BlockSize+off+n])
 		pos += n
 		off += n
 		if pos == rate {

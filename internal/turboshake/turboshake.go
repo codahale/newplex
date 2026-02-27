@@ -32,7 +32,7 @@ func (h *Hasher) Write(p []byte) (int, error) {
 	n := len(p)
 	for len(p) > 0 {
 		w := min(Rate-h.pos, len(p))
-		mem.XOR(h.s[h.pos:h.pos+w], h.s[h.pos:h.pos+w], p[:w])
+		mem.XORInPlace(h.s[h.pos:h.pos+w], p[:w])
 		h.pos += w
 		p = p[w:]
 		if h.pos == Rate {
