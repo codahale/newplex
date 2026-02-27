@@ -78,12 +78,13 @@ func generateX1(seed *[SeedSize]byte, index uint64, out []byte) {
 	initState(&s, seed, index)
 	keccak.P1600(&s)
 
-	for len(out) > 0 {
-		n := copy(out, s[:rate])
-		out = out[n:]
-		if len(out) > 0 {
-			keccak.P1600(&s)
+	off := 0
+	for {
+		off += copy(out[off:], s[:rate])
+		if off >= len(out) {
+			break
 		}
+		keccak.P1600(&s)
 	}
 }
 
@@ -93,19 +94,18 @@ func generateX2(seed *[SeedSize]byte, baseIndex uint64, out []byte) {
 	initState(&s1, seed, baseIndex+1)
 	keccak.P1600x2(&s0, &s1)
 
-	states := [2]*[200]byte{&s0, &s1}
-	outs := splitChunks(out, 2)
-
+	l0 := min(ChunkSize, len(out))
+	l1 := min(ChunkSize, max(0, len(out)-ChunkSize))
+	off := 0
 	for {
-		done := true
-		for i, s := range states {
-			if len(outs[i]) > 0 {
-				n := copy(outs[i], s[:rate])
-				outs[i] = outs[i][n:]
-				done = false
-			}
+		w := min(rate, l0-off)
+		copy(out[off:off+w], s0[:w])
+		if off < l1 {
+			w1 := min(rate, l1-off)
+			copy(out[ChunkSize+off:ChunkSize+off+w1], s1[:w1])
 		}
-		if done {
+		off += w
+		if off >= l0 {
 			break
 		}
 		keccak.P1600x2(&s0, &s1)
@@ -120,34 +120,30 @@ func generateX4(seed *[SeedSize]byte, baseIndex uint64, out []byte) {
 	initState(&s3, seed, baseIndex+3)
 	keccak.P1600x4(&s0, &s1, &s2, &s3)
 
-	states := [4]*[200]byte{&s0, &s1, &s2, &s3}
-	outs := splitChunks(out, 4)
-
+	l0 := min(ChunkSize, len(out))
+	l1 := min(ChunkSize, max(0, len(out)-ChunkSize))
+	l2 := min(ChunkSize, max(0, len(out)-2*ChunkSize))
+	l3 := min(ChunkSize, max(0, len(out)-3*ChunkSize))
+	off := 0
 	for {
-		done := true
-		for i, s := range states {
-			if len(outs[i]) > 0 {
-				n := copy(outs[i], s[:rate])
-				outs[i] = outs[i][n:]
-				done = false
-			}
+		w := min(rate, l0-off)
+		copy(out[off:off+w], s0[:w])
+		if off < l1 {
+			w1 := min(w, l1-off)
+			copy(out[ChunkSize+off:ChunkSize+off+w1], s1[:w1])
 		}
-		if done {
+		if off < l2 {
+			w2 := min(w, l2-off)
+			copy(out[2*ChunkSize+off:2*ChunkSize+off+w2], s2[:w2])
+		}
+		if off < l3 {
+			w3 := min(w, l3-off)
+			copy(out[3*ChunkSize+off:3*ChunkSize+off+w3], s3[:w3])
+		}
+		off += w
+		if off >= l0 {
 			break
 		}
 		keccak.P1600x4(&s0, &s1, &s2, &s3)
 	}
-}
-
-func splitChunks(out []byte, n int) [4][]byte {
-	var chunks [4][]byte
-	for i := range n {
-		start := i * ChunkSize
-		if start >= len(out) {
-			break
-		}
-		end := min(start+ChunkSize, len(out))
-		chunks[i] = out[start:end]
-	}
-	return chunks
 }
