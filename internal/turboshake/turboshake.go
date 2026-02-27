@@ -76,3 +76,21 @@ func Sum(msg []byte, ds byte, outLen int) []byte {
 	_, _ = h.Read(out)
 	return out
 }
+
+// Chain clones the given Hasher, updates the clone with the given domain separation byte, and finalizes both in
+// parallel.
+func Chain(a *Hasher, ds byte) *Hasher {
+	if a.squeezing {
+		panic("turboshake: parallel finalization with finalized state")
+	}
+
+	b := *a
+	a.s[a.pos] ^= a.ds
+	a.s[Rate-1] ^= 0x80
+	b.s[b.pos] ^= ds
+	b.s[Rate-1] ^= 0x80
+	keccak.P1600x2(&a.s, &b.s)
+	a.pos, b.pos = 0, 0
+	a.squeezing, b.squeezing = true, true
+	return &b
+}

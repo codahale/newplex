@@ -217,3 +217,23 @@ func TestHasherIncrementalRead(t *testing.T) {
 		}
 	}
 }
+
+func TestChain(t *testing.T) {
+	msg := bytes.Repeat([]byte{0xDE, 0xCA, 0xFB, 0xAD}, 340)
+	h1 := Sum(msg, 0x22, 16)
+	h2 := Sum(msg, 0x23, 16)
+
+	var h3, h4 [16]byte
+	a := New(0x22)
+	_, _ = a.Write(msg)
+	b := Chain(a, 0x23)
+	_, _ = a.Read(h3[:])
+	_, _ = b.Read(h4[:])
+
+	if got, want := h3[:], h1; !bytes.Equal(got, want) {
+		t.Errorf("Chain(msg, 0x22) = %x, want = %x", got, want)
+	}
+	if got, want := h4[:], h2; !bytes.Equal(got, want) {
+		t.Errorf("Chain(msg, 0x23) = %x, want = %x", got, want)
+	}
+}
