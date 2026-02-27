@@ -365,15 +365,70 @@ string. This stronger property is required by the protocol framework's compositi
 
 ## 9. Test Vectors
 
-(To be generated from a reference implementation.)
+All vectors use the following inputs:
 
-Recommended test cases:
+- **Key:** 32 bytes `00 01 02 ... 1f`
+- **Plaintext:** `len` bytes `00 01 02 ... (len−1) mod 256`
 
-- Empty plaintext (MAC-only)
-- 1-byte plaintext (minimal, single leaf)
-- B-byte plaintext (exactly one chunk)
-- B+1-byte plaintext (two chunks, minimal second)
-- 4·B-byte plaintext (four full chunks, exercises 4-way SIMD)
-- EncryptAndMAC followed by DecryptAndMAC: tag equality
-- Single bit flip in each chunk position (tag mismatch)
-- Chunk-swapped ciphertext (tag mismatch)
+Ciphertext prefix shows the first min(32, len) bytes. Tags are full 32 bytes. All values are hexadecimal.
+
+### 9.1 Empty Plaintext (MAC-only, $n = 1$)
+
+| Field | Value                                                              |
+|-------|--------------------------------------------------------------------|
+| len   | 0                                                                  |
+| ct    | (empty)                                                            |
+| tag   | `4d74e724544a5498eb490e22778f990b91f4881abadf52aab863144ca037ee2d` |
+
+DecryptAndMAC with the same key and empty ciphertext produces the same tag.
+
+### 9.2 One-Byte Plaintext ($n = 1$)
+
+| Field | Value                                                              |
+|-------|--------------------------------------------------------------------|
+| len   | 1                                                                  |
+| ct    | `f1`                                                               |
+| tag   | `11c7e612c89abd32f4f3421557b2e29614eda613b2bcb316a15d02099a867769` |
+
+Flipping bit 0 of the ciphertext (`f0`) yields tag
+`9cb439ff6ca083f3656d8fef165dabe0aec3871ef2f8330bfffed17abae1ee53`.
+
+### 9.3 B-Byte Plaintext (exactly one chunk, $n = 1$)
+
+| Field   | Value                                                              |
+|---------|--------------------------------------------------------------------|
+| len     | 8192                                                               |
+| ct[:32] | `f13513b1112a5cf6cfd4fe007a73351cc808c4837321b9860843b2ef40c06163` |
+| tag     | `2550a32191dfa145cadc8364812821be06fd566472804df57be019629b911385` |
+
+Flipping bit 0 of `ct[0]` yields tag
+`f242cf24ef7376071cf5f0bf3e960c3c148ed39966ee1ff3542036cc1cf5e4d3`.
+
+### 9.4 B+1-Byte Plaintext (two chunks, minimal second, $n = 2$)
+
+| Field   | Value                                                              |
+|---------|--------------------------------------------------------------------|
+| len     | 8193                                                               |
+| ct[:32] | `f13513b1112a5cf6cfd4fe007a73351cc808c4837321b9860843b2ef40c06163` |
+| tag     | `9ed701f2d71ab47bc8e2819e256cb922a46f05497c292c383663fdcf2d6c9877` |
+
+Flipping bit 0 of `ct[0]` yields tag
+`658b13c422b23ab28a5e9ea801fba9526803a5e2a465834a83b3ae06a4caabd5`.
+
+### 9.5 4B-Byte Plaintext (four full chunks, $n = 4$)
+
+| Field   | Value                                                              |
+|---------|--------------------------------------------------------------------|
+| len     | 32768                                                              |
+| ct[:32] | `f13513b1112a5cf6cfd4fe007a73351cc808c4837321b9860843b2ef40c06163` |
+| tag     | `ae07f24e71e77ee3bc3247bfb87b897cede60b35186a95f00ba089391cf668c0` |
+
+Flipping bit 0 of `ct[0]` yields tag
+`4616ecd2b16e75b37a4a56dc2617be6a831483ce0eb9c340d4e05015d8f0ef95`.
+
+Swapping chunks 0 and 1 (bytes 0–8191 and 8192–16383) yields tag
+`196883af6fc7d63d123dbcda66c33b4af97b649792288bcbbaa17a23717afae1`.
+
+### 9.6 Round-Trip Consistency
+
+For all vectors above, `DecryptAndMAC(key, ct)` returns the original plaintext and the same tag as `EncryptAndMAC`.
