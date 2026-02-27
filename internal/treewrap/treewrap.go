@@ -37,12 +37,12 @@ const (
 	tagDS     = 0x61     // Domain separation byte for tag computation.
 )
 
-// Seal encrypts plaintext, appends the ciphertext to dst, and returns the resulting slice along with a TagSize-byte
-// authentication tag. The key MUST be unique per invocation.
+// EncryptAndMAC encrypts plaintext, appends the ciphertext to dst, and returns the resulting slice along with a
+// TagSize-byte authentication tag. The key MUST be unique per invocation.
 //
 // To reuse plaintext's storage for the encrypted output, use plaintext[:0] as dst. Otherwise, the remaining capacity
 // of dst must not overlap plaintext.
-func Seal(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]byte) {
+func EncryptAndMAC(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]byte) {
 	n := max(1, (len(plaintext)+ChunkSize-1)/ChunkSize)
 
 	ret, ciphertext := mem.SliceForAppend(dst, len(plaintext))
@@ -55,14 +55,14 @@ func Seal(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]by
 
 	for idx+4 <= fullChunks {
 		off := idx * ChunkSize
-		sealX4(key, uint64(idx), plaintext[off:off+4*ChunkSize], ciphertext[off:off+4*ChunkSize], cvBuf[:])
+		encryptX4(key, uint64(idx), plaintext[off:off+4*ChunkSize], ciphertext[off:off+4*ChunkSize], cvBuf[:])
 		feedCVs(h, cvBuf[:4*cvSize], &cvCount)
 		idx += 4
 	}
 
 	for idx+2 <= fullChunks {
 		off := idx * ChunkSize
-		sealX2(key, uint64(idx), plaintext[off:off+2*ChunkSize], ciphertext[off:off+2*ChunkSize], cvBuf[:2*cvSize])
+		encryptX2(key, uint64(idx), plaintext[off:off+2*ChunkSize], ciphertext[off:off+2*ChunkSize], cvBuf[:2*cvSize])
 		feedCVs(h, cvBuf[:2*cvSize], &cvCount)
 		idx += 2
 	}
@@ -70,7 +70,7 @@ func Seal(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]by
 	for idx < n {
 		off := idx * ChunkSize
 		end := min(off+ChunkSize, len(plaintext))
-		sealX1(key, uint64(idx), plaintext[off:end], ciphertext[off:end], cvBuf[:cvSize])
+		encryptX1(key, uint64(idx), plaintext[off:end], ciphertext[off:end], cvBuf[:cvSize])
 		feedCVs(h, cvBuf[:cvSize], &cvCount)
 		idx++
 	}
@@ -78,13 +78,14 @@ func Seal(dst []byte, key *[KeySize]byte, plaintext []byte) ([]byte, [TagSize]by
 	return ret, finalizeTag(h, n)
 }
 
-// Open decrypts ciphertext, appends the plaintext to dst, and returns the resulting slice along with the expected
-// TagSize-byte authentication tag. The caller MUST verify the tag using constant-time comparison before using the
+// DecryptAndMAC decrypts ciphertext, appends the plaintext to dst, and returns the resulting slice along with the
+// expected TagSize-byte authentication tag. The caller MUST verify the tag using constant-time comparison before using
+// the
 // plaintext.
 //
 // To reuse ciphertext's storage for the decrypted output, use ciphertext[:0] as dst. Otherwise, the remaining
 // capacity of dst must not overlap ciphertext.
-func Open(dst []byte, key *[KeySize]byte, ciphertext []byte) ([]byte, [TagSize]byte) {
+func DecryptAndMAC(dst []byte, key *[KeySize]byte, ciphertext []byte) ([]byte, [TagSize]byte) {
 	n := max(1, (len(ciphertext)+ChunkSize-1)/ChunkSize)
 
 	ret, plaintext := mem.SliceForAppend(dst, len(ciphertext))
@@ -97,14 +98,14 @@ func Open(dst []byte, key *[KeySize]byte, ciphertext []byte) ([]byte, [TagSize]b
 
 	for idx+4 <= fullChunks {
 		off := idx * ChunkSize
-		openX4(key, uint64(idx), ciphertext[off:off+4*ChunkSize], plaintext[off:off+4*ChunkSize], cvBuf[:])
+		decryptX4(key, uint64(idx), ciphertext[off:off+4*ChunkSize], plaintext[off:off+4*ChunkSize], cvBuf[:])
 		feedCVs(h, cvBuf[:4*cvSize], &cvCount)
 		idx += 4
 	}
 
 	for idx+2 <= fullChunks {
 		off := idx * ChunkSize
-		openX2(key, uint64(idx), ciphertext[off:off+2*ChunkSize], plaintext[off:off+2*ChunkSize], cvBuf[:2*cvSize])
+		decryptX2(key, uint64(idx), ciphertext[off:off+2*ChunkSize], plaintext[off:off+2*ChunkSize], cvBuf[:2*cvSize])
 		feedCVs(h, cvBuf[:2*cvSize], &cvCount)
 		idx += 2
 	}
@@ -112,7 +113,7 @@ func Open(dst []byte, key *[KeySize]byte, ciphertext []byte) ([]byte, [TagSize]b
 	for idx < n {
 		off := idx * ChunkSize
 		end := min(off+ChunkSize, len(ciphertext))
-		openX1(key, uint64(idx), ciphertext[off:end], plaintext[off:end], cvBuf[:cvSize])
+		decryptX1(key, uint64(idx), ciphertext[off:end], plaintext[off:end], cvBuf[:cvSize])
 		feedCVs(h, cvBuf[:cvSize], &cvCount)
 		idx++
 	}
@@ -188,7 +189,7 @@ func finalPos(chunkLen int) int {
 	return p
 }
 
-func sealX1(key *[KeySize]byte, index uint64, pt, ct, cvBuf []byte) {
+func encryptX1(key *[KeySize]byte, index uint64, pt, ct, cvBuf []byte) {
 	var s0 [200]byte
 	leafPad(&s0, key, index)
 	keccak.P1600(&s0)
@@ -213,7 +214,7 @@ func sealX1(key *[KeySize]byte, index uint64, pt, ct, cvBuf []byte) {
 	copy(cvBuf[:cvSize], s0[:cvSize])
 }
 
-func sealX2(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
+func encryptX2(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 	var s0, s1 [200]byte
 	leafPad(&s0, key, baseIndex)
 	leafPad(&s1, key, baseIndex+1)
@@ -244,7 +245,7 @@ func sealX2(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 	copy(cvBuf[cvSize:], s1[:cvSize])
 }
 
-func sealX4(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
+func encryptX4(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 	var s0, s1, s2, s3 [200]byte
 	leafPad(&s0, key, baseIndex)
 	leafPad(&s1, key, baseIndex+1)
@@ -289,7 +290,7 @@ func sealX4(key *[KeySize]byte, baseIndex uint64, pt, ct, cvBuf []byte) {
 	copy(cvBuf[3*cvSize:], s3[:cvSize])
 }
 
-func openX1(key *[KeySize]byte, index uint64, ct, pt, cvBuf []byte) {
+func decryptX1(key *[KeySize]byte, index uint64, ct, pt, cvBuf []byte) {
 	var s0 [200]byte
 	leafPad(&s0, key, index)
 	keccak.P1600(&s0)
@@ -314,7 +315,7 @@ func openX1(key *[KeySize]byte, index uint64, ct, pt, cvBuf []byte) {
 	copy(cvBuf[:cvSize], s0[:cvSize])
 }
 
-func openX2(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
+func decryptX2(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 	var s0, s1 [200]byte
 	leafPad(&s0, key, baseIndex)
 	leafPad(&s1, key, baseIndex+1)
@@ -345,7 +346,7 @@ func openX2(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 	copy(cvBuf[cvSize:], s1[:cvSize])
 }
 
-func openX4(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
+func decryptX4(key *[KeySize]byte, baseIndex uint64, ct, pt, cvBuf []byte) {
 	var s0, s1, s2, s3 [200]byte
 	leafPad(&s0, key, baseIndex)
 	leafPad(&s1, key, baseIndex+1)

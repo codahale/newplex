@@ -16,7 +16,7 @@ func testKey() *[KeySize]byte {
 	return &key
 }
 
-func TestSealOpen(t *testing.T) {
+func TestRoundTrip(t *testing.T) {
 	key := testKey()
 
 	sizes := []struct {
@@ -44,7 +44,7 @@ func TestSealOpen(t *testing.T) {
 				pt[i] = byte(i)
 			}
 
-			ct, sealTag := Seal(nil, key, pt)
+			ct, encryptTag := EncryptAndMAC(nil, key, pt)
 
 			if len(ct) != len(pt) {
 				t.Fatalf("ciphertext length %d, want %d", len(ct), len(pt))
@@ -54,10 +54,10 @@ func TestSealOpen(t *testing.T) {
 				t.Error("ciphertext equals plaintext")
 			}
 
-			got, openTag := Open(nil, key, ct)
+			got, decryptTag := DecryptAndMAC(nil, key, ct)
 
-			if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) != 1 {
-				t.Fatal("Open tag does not match Seal tag")
+			if subtle.ConstantTimeCompare(encryptTag[:], decryptTag[:]) != 1 {
+				t.Fatal("DecryptAndMAC tag does not match EncryptAndMAC tag")
 			}
 
 			if !bytes.Equal(got, pt) {
@@ -67,7 +67,7 @@ func TestSealOpen(t *testing.T) {
 	}
 }
 
-func TestSealOpenInPlace(t *testing.T) {
+func TestRoundTripInPlace(t *testing.T) {
 	key := testKey()
 
 	sizes := []struct {
@@ -94,14 +94,14 @@ func TestSealOpenInPlace(t *testing.T) {
 			orig := make([]byte, len(pt))
 			copy(orig, pt)
 
-			// In-place seal: reuse pt's storage.
-			ct, sealTag := Seal(pt[:0], key, pt)
+			// In-place encrypt: reuse pt's storage.
+			ct, encryptTag := EncryptAndMAC(pt[:0], key, pt)
 
-			// In-place open: reuse ct's storage.
-			got, openTag := Open(ct[:0], key, ct)
+			// In-place decrypt: reuse ct's storage.
+			got, decryptTag := DecryptAndMAC(ct[:0], key, ct)
 
-			if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) != 1 {
-				t.Fatal("Open tag does not match Seal tag")
+			if subtle.ConstantTimeCompare(encryptTag[:], decryptTag[:]) != 1 {
+				t.Fatal("DecryptAndMAC tag does not match EncryptAndMAC tag")
 			}
 
 			if !bytes.Equal(got, orig) {
@@ -111,82 +111,84 @@ func TestSealOpenInPlace(t *testing.T) {
 	}
 }
 
-func TestOpenTagMismatch(t *testing.T) {
-	key := testKey()
-	pt := []byte("hello world")
+func TestDecryptAndMAC(t *testing.T) {
+	t.Run("wrong key", func(t *testing.T) {
+		key := testKey()
+		pt := []byte("hello world")
 
-	_, sealTag := Seal(nil, key, pt)
+		_, encryptTag := EncryptAndMAC(nil, key, pt)
 
-	// A different key produces a different tag.
-	var wrongKey [KeySize]byte
-	for i := range wrongKey {
-		wrongKey[i] = byte(i + 1)
-	}
+		// A different key produces a different tag.
+		var wrongKey [KeySize]byte
+		for i := range wrongKey {
+			wrongKey[i] = byte(i + 1)
+		}
 
-	ct2, _ := Seal(nil, &wrongKey, pt)
-	_, openTag := Open(nil, key, ct2)
+		ct2, _ := EncryptAndMAC(nil, &wrongKey, pt)
+		_, decryptTag := DecryptAndMAC(nil, key, ct2)
 
-	if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) == 1 {
-		t.Error("tags should not match for different keys")
-	}
+		if subtle.ConstantTimeCompare(encryptTag[:], decryptTag[:]) == 1 {
+			t.Error("tags should not match for different keys")
+		}
+	})
+
+	t.Run("modified ciphertext", func(t *testing.T) {
+		key := testKey()
+		pt := make([]byte, ChunkSize)
+		for i := range pt {
+			pt[i] = byte(i)
+		}
+
+		ct, encryptTag := EncryptAndMAC(nil, key, pt)
+
+		// Flip a bit in the ciphertext.
+		ct[0] ^= 1
+
+		_, decryptTag := DecryptAndMAC(nil, key, ct)
+
+		if subtle.ConstantTimeCompare(encryptTag[:], decryptTag[:]) == 1 {
+			t.Error("tags should not match for modified ciphertext")
+		}
+	})
+
+	t.Run("chunk swapped", func(t *testing.T) {
+		key := testKey()
+		pt := make([]byte, 2*ChunkSize)
+		for i := range pt {
+			pt[i] = byte(i)
+		}
+
+		ct, encryptTag := EncryptAndMAC(nil, key, pt)
+
+		// Swap the two chunks.
+		swapped := make([]byte, len(ct))
+		copy(swapped[:ChunkSize], ct[ChunkSize:])
+		copy(swapped[ChunkSize:], ct[:ChunkSize])
+
+		_, decryptTag := DecryptAndMAC(nil, key, swapped)
+
+		if subtle.ConstantTimeCompare(encryptTag[:], decryptTag[:]) == 1 {
+			t.Error("tags should not match for swapped chunks")
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		key := testKey()
+
+		// Empty ciphertext with valid tag should round-trip.
+		ct, encryptTag := EncryptAndMAC(nil, key, nil)
+		got, decryptTag := DecryptAndMAC(nil, key, ct)
+
+		if subtle.ConstantTimeCompare(encryptTag[:], decryptTag[:]) != 1 {
+			t.Fatal("DecryptAndMAC tag does not match EncryptAndMAC tag")
+		}
+		if len(got) != 0 {
+			t.Errorf("got %d bytes, want 0", len(got))
+		}
+	})
 }
 
-func TestOpenCiphertextModified(t *testing.T) {
-	key := testKey()
-	pt := make([]byte, ChunkSize)
-	for i := range pt {
-		pt[i] = byte(i)
-	}
-
-	ct, sealTag := Seal(nil, key, pt)
-
-	// Flip a bit in the ciphertext.
-	ct[0] ^= 1
-
-	_, openTag := Open(nil, key, ct)
-
-	if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) == 1 {
-		t.Error("tags should not match for modified ciphertext")
-	}
-}
-
-func TestOpenChunkSwapped(t *testing.T) {
-	key := testKey()
-	pt := make([]byte, 2*ChunkSize)
-	for i := range pt {
-		pt[i] = byte(i)
-	}
-
-	ct, sealTag := Seal(nil, key, pt)
-
-	// Swap the two chunks.
-	swapped := make([]byte, len(ct))
-	copy(swapped[:ChunkSize], ct[ChunkSize:])
-	copy(swapped[ChunkSize:], ct[:ChunkSize])
-
-	_, openTag := Open(nil, key, swapped)
-
-	if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) == 1 {
-		t.Error("tags should not match for swapped chunks")
-	}
-}
-
-func TestOpenEmpty(t *testing.T) {
-	key := testKey()
-
-	// Empty ciphertext with valid tag should round-trip.
-	ct, sealTag := Seal(nil, key, nil)
-	got, openTag := Open(nil, key, ct)
-
-	if subtle.ConstantTimeCompare(sealTag[:], openTag[:]) != 1 {
-		t.Fatal("Open tag does not match Seal tag")
-	}
-	if len(got) != 0 {
-		t.Errorf("got %d bytes, want 0", len(got))
-	}
-}
-
-func TestSealX2MatchesX1(t *testing.T) {
+func TestEncryptX2MatchesX1(t *testing.T) {
 	key := testKey()
 
 	// x1 path: two separate calls.
@@ -197,23 +199,23 @@ func TestSealX2MatchesX1(t *testing.T) {
 	}
 
 	ct1 := make([]byte, 2*ChunkSize)
-	sealX1(key, 0, pt[:ChunkSize], ct1[:ChunkSize], cv1[:cvSize])
-	sealX1(key, 1, pt[ChunkSize:], ct1[ChunkSize:], cv1[cvSize:])
+	encryptX1(key, 0, pt[:ChunkSize], ct1[:ChunkSize], cv1[:cvSize])
+	encryptX1(key, 1, pt[ChunkSize:], ct1[ChunkSize:], cv1[cvSize:])
 
 	// x2 path: single call.
 	cv2 := make([]byte, 2*cvSize)
 	ct2 := make([]byte, 2*ChunkSize)
-	sealX2(key, 0, pt, ct2, cv2)
+	encryptX2(key, 0, pt, ct2, cv2)
 
 	if !bytes.Equal(ct1, ct2) {
-		t.Error("sealX2 ciphertext does not match sealX1")
+		t.Error("encryptX2 ciphertext does not match encryptX1")
 	}
 	if !bytes.Equal(cv1, cv2) {
-		t.Error("sealX2 chain values do not match sealX1")
+		t.Error("encryptX2 chain values do not match encryptX1")
 	}
 }
 
-func TestSealX4MatchesX1(t *testing.T) {
+func TestEncryptX4MatchesX1(t *testing.T) {
 	key := testKey()
 
 	pt := make([]byte, 4*ChunkSize)
@@ -225,77 +227,77 @@ func TestSealX4MatchesX1(t *testing.T) {
 	cv1 := make([]byte, 4*cvSize)
 	ct1 := make([]byte, 4*ChunkSize)
 	for i := range 4 {
-		sealX1(key, uint64(i), pt[i*ChunkSize:(i+1)*ChunkSize], ct1[i*ChunkSize:(i+1)*ChunkSize], cv1[i*cvSize:(i+1)*cvSize])
+		encryptX1(key, uint64(i), pt[i*ChunkSize:(i+1)*ChunkSize], ct1[i*ChunkSize:(i+1)*ChunkSize], cv1[i*cvSize:(i+1)*cvSize])
 	}
 
 	// x4 path.
 	cv4 := make([]byte, 4*cvSize)
 	ct4 := make([]byte, 4*ChunkSize)
-	sealX4(key, 0, pt, ct4, cv4)
+	encryptX4(key, 0, pt, ct4, cv4)
 
 	if !bytes.Equal(ct1, ct4) {
-		t.Error("sealX4 ciphertext does not match sealX1")
+		t.Error("encryptX4 ciphertext does not match encryptX1")
 	}
 	if !bytes.Equal(cv1, cv4) {
-		t.Error("sealX4 chain values do not match sealX1")
+		t.Error("encryptX4 chain values do not match encryptX1")
 	}
 }
 
-func TestOpenX2MatchesX1(t *testing.T) {
+func TestDecryptX2MatchesX1(t *testing.T) {
 	key := testKey()
 
-	// First seal to get ciphertext.
+	// First encrypt to get ciphertext.
 	pt := make([]byte, 2*ChunkSize)
 	for i := range pt {
 		pt[i] = byte(i)
 	}
-	ct, _ := Seal(nil, key, pt)
+	ct, _ := EncryptAndMAC(nil, key, pt)
 
 	// x1 path.
 	cv1 := make([]byte, 2*cvSize)
 	pt1 := make([]byte, 2*ChunkSize)
-	openX1(key, 0, ct[:ChunkSize], pt1[:ChunkSize], cv1[:cvSize])
-	openX1(key, 1, ct[ChunkSize:], pt1[ChunkSize:], cv1[cvSize:])
+	decryptX1(key, 0, ct[:ChunkSize], pt1[:ChunkSize], cv1[:cvSize])
+	decryptX1(key, 1, ct[ChunkSize:], pt1[ChunkSize:], cv1[cvSize:])
 
 	// x2 path.
 	cv2 := make([]byte, 2*cvSize)
 	pt2 := make([]byte, 2*ChunkSize)
-	openX2(key, 0, ct, pt2, cv2)
+	decryptX2(key, 0, ct, pt2, cv2)
 
 	if !bytes.Equal(pt1, pt2) {
-		t.Error("openX2 plaintext does not match openX1")
+		t.Error("decryptX2 plaintext does not match decryptX1")
 	}
 	if !bytes.Equal(cv1, cv2) {
-		t.Error("openX2 chain values do not match openX1")
+		t.Error("decryptX2 chain values do not match decryptX1")
 	}
 }
 
-func TestOpenX4MatchesX1(t *testing.T) {
+func TestDecryptX4MatchesX1(t *testing.T) {
 	key := testKey()
 
 	pt := make([]byte, 4*ChunkSize)
 	for i := range pt {
 		pt[i] = byte(i)
 	}
-	ct, _ := Seal(nil, key, pt)
+	ct, _ := EncryptAndMAC(nil, key, pt)
 
 	// x1 path.
 	cv1 := make([]byte, 4*cvSize)
 	pt1 := make([]byte, 4*ChunkSize)
 	for i := range 4 {
-		openX1(key, uint64(i), ct[i*ChunkSize:(i+1)*ChunkSize], pt1[i*ChunkSize:(i+1)*ChunkSize], cv1[i*cvSize:(i+1)*cvSize])
+		decryptX1(key, uint64(i), ct[i*ChunkSize:(i+1)*ChunkSize], pt1[i*ChunkSize:(i+1)*ChunkSize], cv1[i*cvSize:(i+1)*cvSize])
 	}
 
 	// x4 path.
 	cv4 := make([]byte, 4*cvSize)
 	pt4 := make([]byte, 4*ChunkSize)
-	openX4(key, 0, ct, pt4, cv4)
+	decryptX4(key, 0, ct, pt4, cv4)
 
 	if !bytes.Equal(pt1, pt4) {
-		t.Error("openX4 plaintext does not match openX1")
+		t.Error("decryptX4 plaintext does not match decryptX1")
 	}
 	if !bytes.Equal(cv1, cv4) {
-		t.Error("openX4 chain values do not match openX1")
+		t.Error("decryptX4 chain values do not match decryptX1")
 	}
 }
 
@@ -318,7 +320,7 @@ func TestLengthEncode(t *testing.T) {
 	}
 }
 
-func TestSealVectors(t *testing.T) {
+func TestEncryptAndMAC(t *testing.T) {
 	key := testKey()
 
 	// Test vectors generated from the reference x1 implementation.
@@ -342,7 +344,7 @@ func TestSealVectors(t *testing.T) {
 			for j := range pt {
 				pt[j] = byte(j)
 			}
-			ct, tag := Seal(nil, key, pt)
+			ct, tag := EncryptAndMAC(nil, key, pt)
 
 			prefix := min(32, len(ct))
 			if ctHex := hex.EncodeToString(ct[:prefix]); ctHex != tt.wantCT {
@@ -355,7 +357,7 @@ func TestSealVectors(t *testing.T) {
 	}
 }
 
-func BenchmarkSeal(b *testing.B) {
+func BenchmarkEncryptAndMAC(b *testing.B) {
 	key := testKey()
 
 	benchmarks := []struct {
@@ -372,17 +374,17 @@ func BenchmarkSeal(b *testing.B) {
 	for _, bb := range benchmarks {
 		pt := make([]byte, bb.length)
 		output := make([]byte, bb.length)
-		b.Run(fmt.Sprintf("Seal/%s", bb.name), func(b *testing.B) {
+		b.Run(fmt.Sprintf("EncryptAndMAC/%s", bb.name), func(b *testing.B) {
 			b.SetBytes(int64(bb.length))
 			b.ReportAllocs()
 			for b.Loop() {
-				Seal(output[:0], key, pt)
+				EncryptAndMAC(output[:0], key, pt)
 			}
 		})
 	}
 }
 
-func BenchmarkOpen(b *testing.B) {
+func BenchmarkDecryptAndMAC(b *testing.B) {
 	key := testKey()
 
 	benchmarks := []struct {
@@ -397,13 +399,13 @@ func BenchmarkOpen(b *testing.B) {
 
 	for _, bb := range benchmarks {
 		pt := make([]byte, bb.length)
-		ct, _ := Seal(nil, key, pt)
+		ct, _ := EncryptAndMAC(nil, key, pt)
 		output := make([]byte, bb.length)
-		b.Run(fmt.Sprintf("Open/%s", bb.name), func(b *testing.B) {
+		b.Run(fmt.Sprintf("DecryptAndMAC/%s", bb.name), func(b *testing.B) {
 			b.SetBytes(int64(bb.length))
 			b.ReportAllocs()
 			for b.Loop() {
-				Open(output[:0], key, ct)
+				DecryptAndMAC(output[:0], key, ct)
 			}
 		})
 	}
