@@ -15,10 +15,10 @@ TurboSHAKE128.
 TreeWrap is not an AEAD scheme. It does not perform tag verification internally. Instead, it exposes two
 operations—**EncryptAndMAC** and **DecryptAndMAC**—which both return the computed tag to the caller. The caller is
 responsible for tag comparison, transmission, and any policy decisions around verification failure. This design supports
-protocol frameworks that need to absorb the tag into an ongoing state regardless of verification outcome, or that
+protocol frameworks that need to absorb the tag into ongoing state regardless of verification outcome, or that
 authenticate ciphertext through external mechanisms such as signatures.
 
-TreeWrap is a pure function with no internal state. The caller manages key uniqueness and associated data.
+TreeWrap is a pure function with no internal state. Key uniqueness and associated data are managed by the caller.
 
 ## 2. Parameters
 
@@ -31,8 +31,8 @@ TreeWrap is a pure function with no internal state. The caller manages key uniqu
 
 ## 3. Dependencies
 
-**TurboSHAKE128(M, D, ℓ):** As specified in RFC 9861. Takes a message `M`, a domain separation byte `D` (0x01 – 0x7F),
-and an output length `ℓ` in bytes.
+**TurboSHAKE128(M, D, $\ell$):** As specified in RFC 9861. Takes a message `M`, a domain separation byte `D` (
+0x01–0x7F), and an output length $\ell$ in bytes.
 
 ## 4. Leaf Cipher
 
@@ -108,8 +108,9 @@ derived.
 
 *Procedure:*
 
-Partition `plaintext` into `n = max(1, ⌈len(plaintext) / B⌉)` chunks. Chunk `i` (0-indexed) has size
-`ℓᵢ = min(B, len(plaintext) − i·B)`. If plaintext is empty, `n = 1` and the single chunk is empty.
+Partition `plaintext` into $n = \max(1, \lceil\mathit{len}(\mathit{plaintext}) / B\rceil)$ chunks. Chunk $i$ (0-indexed)
+has size $\ell_i = \min(B,\, \mathit{len}(\mathit{plaintext}) - i \cdot B)$. If plaintext is empty, $n = 1$ and the
+single chunk is empty.
 
 For each chunk `i`:  
 &emsp; Create a leaf cipher `L`.  
@@ -197,15 +198,15 @@ random under a random key. Different leaves use different indices, so their keys
 
 The IND-CPA advantage is bounded by:
 
-&emsp; ε\_cpa ≤ n · (t + σ)² / 2^(c+1)
+$$\varepsilon_{\mathrm{cpa}} \leq \frac{n \cdot (\sigma + t)^2}{2^{c+1}}$$
 
-where `n` is the number of leaves, `t` is the adversary's offline computation, `σ` is the data complexity in Keccak-p
-blocks, and c = 256.
+where $n$ is the number of leaves, $t$ is the adversary's offline computation, $\sigma$ is the data complexity in
+Keccak-p blocks, and $c = 256$.
 
 ### 6.3 Tag PRF Security
 
 Under a uniformly random key, the TreeWrap tag is a pseudorandom function of the ciphertext. Specifically, for any fixed
-ciphertext, the tag output of EncryptAndMAC (or DecryptAndMAC) is indistinguishable from a uniformly random C-byte
+ciphertext, the tag output of EncryptAndMAC (or DecryptAndMAC) is indistinguishable from a uniformly random $C$-byte
 string.
 
 The argument:
@@ -214,15 +215,16 @@ The argument:
    indexed by the leaf position. Under the sponge indifferentiability claim, each chain value is pseudorandom and
    independent across leaves.
 
-2. The tag is `TurboSHAKE128(final_input, 0x61, C)` where `final_input` is a deterministic, injective encoding of the
-   chain values. Since the chain values are pseudorandom, `final_input` is a pseudorandom input to an independent random
-   oracle (domain byte 0x61 separates the tag computation from leaf ciphers at 0x60 and other uses of TurboSHAKE128).
+2. The tag is $\mathrm{TurboSHAKE128}(\mathit{final\_input}, \texttt{0x61}, C)$ where $\mathit{final\_input}$ is a
+   deterministic, injective encoding of the chain values. Since the chain values are
+   pseudorandom, $\mathit{final\_input}$ is a pseudorandom input to an independent random oracle (domain byte 0x61
+   separates the tag computation from leaf ciphers at 0x60 and other uses of TurboSHAKE128).
 
 3. A random oracle on a pseudorandom input produces a pseudorandom output.
 
 The tag PRF advantage is bounded by:
 
-&emsp; ε\_prf ≤ n · (t + σ)² / 2^(c+1) + (t + σ)² / 2^(c+1)
+$$\varepsilon_{\mathrm{prf}} \leq \frac{n \cdot (\sigma + t)^2}{2^{c+1}} + \frac{(\sigma + t)^2}{2^{c+1}}$$
 
 The first term covers the leaf chain value pseudorandomness; the second covers the tag accumulation TurboSHAKE128
 evaluation.
@@ -233,55 +235,55 @@ transcript instance.
 
 ### 6.4 Tag Collision Resistance
 
-For any two distinct `(key, ciphertext)` pairs, the probability that EncryptAndMAC (or DecryptAndMAC) produces the same
+For any two distinct (key, ciphertext) pairs, the probability that EncryptAndMAC (or DecryptAndMAC) produces the same
 tag is bounded by the collision resistance of TurboSHAKE128:
 
-&emsp; ε\_coll ≤ (t + σ)² / 2^(c+1)
+$$\varepsilon_{\mathrm{coll}} \leq \frac{(\sigma + t)^2}{2^{c+1}}$$
 
-This is because distinct `(key, ciphertext)` pairs produce distinct sequences of leaf inputs
-`(key, index, ciphertext_chunk)`. The leaf cipher's injective encoding ensures distinct sponge inputs, producing
-distinct chain values (except with probability bounded by the sponge claim). Distinct chain value sequences produce
-distinct `final_input` values (the encoding is injective). Distinct inputs to TurboSHAKE128 collide with probability
-bounded by the sponge claim.
+This is because distinct (key, ciphertext) pairs produce distinct sequences of leaf inputs (key, index,
+ciphertext\_chunk). The leaf cipher's injective encoding ensures distinct sponge inputs, producing distinct chain
+values (except with probability bounded by the sponge claim). Distinct chain value sequences produce
+distinct $\mathit{final\_input}$ values (the encoding is injective). Distinct inputs to TurboSHAKE128 collide with
+probability bounded by the sponge claim.
 
 ### 6.5 Committing Security (CMT-4)
 
 TreeWrap provides CMT-4 committing security: the ciphertext and tag together commit to the key and plaintext. This is
 the strongest committing security notion defined by Bellare and Hoang.
 
-The argument is as follows. The tag is a collision-resistant function of `(key, ciphertext)` (§6.4). Since the
-encryption within each leaf is invertible for a given key (the overwrite duplex encrypt/decrypt operations are
-inverses), committing to `(key, ciphertext)` is equivalent to committing to `(key, plaintext)`. An adversary who
-produces two distinct tuples `(key, plaintext)` and `(key', plaintext')` that yield the same `(ciphertext, tag)` has
-found a collision in the tag computation.
+The argument is as follows. The tag is a collision-resistant function of (key, ciphertext) (§6.4). Since the encryption
+within each leaf is invertible for a given key (the overwrite duplex encrypt/decrypt operations are inverses),
+committing to (key, ciphertext) is equivalent to committing to (key, plaintext). An adversary who produces two distinct
+tuples $(K, P)$ and $(K', P')$ that yield the same (ciphertext, tag) has found a collision in the tag computation.
 
 This committing property is inherent to the construction — it does not require any additional processing or a second
 pass over the data, unlike generic CMT-4 transforms applied to non-committing AE schemes.
 
 ### 6.6 Forgery Resistance
 
-An adversary who does not know the key and attempts to produce a valid `(ciphertext, tag)` pair succeeds with
-probability at most:
+An adversary who does not know the key and attempts to produce a valid (ciphertext, tag) pair succeeds with probability
+at most:
 
-&emsp; ε\_forge ≤ S / 2^(C×8) = S / 2^256
+$$\varepsilon_{\mathrm{forge}} \leq \frac{S}{2^{8C}} = \frac{S}{2^{256}}$$
 
-for S forgery attempts against the full C-byte tag. When the caller truncates the tag to T bytes (as in the protocol
-framework's Seal/Open), the forgery bound becomes S / 2^(T×8).
+for $S$ forgery attempts against the full $C$-byte tag. When the caller truncates the tag to $T$ bytes (as in the
+protocol framework's Seal/Open), the forgery bound becomes $S / 2^{8T}$.
 
 Note that forgery resistance is a consequence of tag PRF security (§6.3): the tag on any ciphertext the adversary has
-not queried is indistinguishable from random, and guessing a random C-byte value succeeds with probability 1 / 2^(C×8).
+not queried is indistinguishable from random, and guessing a random $C$-byte value succeeds with
+probability $1 / 2^{8C}$.
 
 ### 6.7 Chunk Reordering
 
 Each leaf is initialized with `key ‖ [index]₆₄LE`, binding it to its position. Reordering ciphertext chunks changes
 which leaf decrypts which data, producing different chain values and a different tag. Additionally, since leaf indices
-are bound at initialization, an attacker cannot cause chunk `i`'s ciphertext to be decrypted as chunk `j` — the
+are bound at initialization, an attacker cannot cause chunk $i$'s ciphertext to be decrypted as chunk $j$ — the
 decryption will produce garbage and the chain value will not match.
 
 ### 6.8 Empty Plaintext
 
-When plaintext is empty, a single leaf is still created. The chain value is derived from the cipher state after `init`
-(with a `pad_permute` but no encrypt calls). The final node input is
+When plaintext is empty, a single leaf is still created. The chain value is derived from the cipher state after `init` (
+with a `pad_permute` but no encrypt calls). The final node input is
 `cv[0] ‖ 0x03 0x00 0x00 0x00 0x00 0x00 0x00 0x00 ‖ 0x00 ‖ 0xFF 0xFF`, producing a valid tag that authenticates the key.
 This ensures DecryptAndMAC with an empty ciphertext computes the same tag as EncryptAndMAC with an empty plaintext.
 
@@ -290,10 +292,10 @@ This ensures DecryptAndMAC with an empty ciphertext computes the same tag as Enc
 Chain values are accumulated using the KangarooTwelve final node structure: `cv[0]` is absorbed as the "first chunk" of
 the final node, followed by the 8-byte marker `0x03 0x00...`, then chain values `cv[1]` through `cv[n−1]` as "leaf"
 contributions, followed by `length_encode(n−1)` and the terminator `0xFF 0xFF`. This is processed by TurboSHAKE128 with
-domain separation byte `0x61`, separating TreeWrap tag computation from both KT128 hashing (`0x07`) and TreeWrap leaf
-ciphers (`0x60`).
+domain separation byte 0x61, separating TreeWrap tag computation from both KT128 hashing (0x07) and TreeWrap leaf
+ciphers (0x60).
 
-The structure is unambiguous: chain values are fixed-size (C bytes each), `length_encode` encodes the number of leaf
+The structure is unambiguous: chain values are fixed-size ($C$ bytes each), `length_encode` encodes the number of leaf
 chain values, and the terminator marks the end. The number of chunks is determined by the ciphertext length, which is
 assumed to be public.
 
@@ -304,36 +306,37 @@ values. The chunk index is not secret and does not require side-channel protecti
 
 ### 6.11 Concrete Security Reduction
 
-Each leaf cipher is an overwrite duplex operating on the Keccak-p[1600,12] permutation with capacity c = 256 bits. The
+Each leaf cipher is an overwrite duplex operating on the Keccak-p[1600,12] permutation with capacity $c = 256$ bits. The
 security argument proceeds in three steps.
 
-**Step 1: Leaf PRF security.** The `init` call is exactly a TurboSHAKE128 evaluation:
-`TurboSHAKE128(key ‖ [index]₆₄LE, 0x60)`, since the 40-byte input fits within one sponge block and TreeWrap's padding
-(domain byte after data, `0x80` at position R−1) matches TurboSHAKE128's padding format. Subsequent encrypt blocks use a
-simplified padding (domain byte `0x60` and frame byte `0x80` both at position R−1, collapsing to `0xE0`) that does not
-correspond to TurboSHAKE128's multi-block structure. However, the leaf's outputs can be expressed as evaluations of the
-Keccak[256] sponge function (with Keccak-p[1600,12]) on an injective encoding of the leaf's inputs, following the same
-overwrite-to-XOR equivalence used by Daemen et al. in Lemma 2 of the overwrite duplex construction. The injectivity
-holds because: (a) the ciphertext overwrite is injective for a given keystream, (b) block boundaries are determined by
-the public plaintext length, and (c) the `pad_permute` domain byte position distinguishes blocks of different lengths.
+**Step 1: Leaf PRF security.** The `init` call is exactly a TurboSHAKE128
+evaluation: $\mathrm{TurboSHAKE128}(\mathit{key} \mathbin\| [\mathit{index}]_{\mathrm{64LE}},\, \texttt{0x60})$, since
+the 40-byte input fits within one sponge block and TreeWrap's padding (domain byte after data, 0x80 at position $R{-}1$)
+matches TurboSHAKE128's padding format. Subsequent encrypt blocks use a simplified padding (domain byte 0x60 and frame
+byte 0x80 both at position $R{-}1$, collapsing to 0xE0) that does not correspond to TurboSHAKE128's multi-block
+structure. However, the leaf's outputs can be expressed as evaluations of the $\mathrm{Keccak}[256]$ sponge function (
+with Keccak-p[1600,12]) on an injective encoding of the leaf's inputs, following the same overwrite-to-XOR equivalence
+used by Daemen et al. in Lemma 2 of the overwrite duplex construction. The injectivity holds because: (a) the ciphertext
+overwrite is injective for a given keystream, (b) block boundaries are determined by the public plaintext length, and (
+c) the `pad_permute` domain byte position distinguishes blocks of different lengths.
 
 Assuming the Keccak sponge claim holds for Keccak-p[1600,12], the advantage of distinguishing a TreeWrap leaf from an
-ideal cipher is at most `(t + σ)² / 2^(c+1)` where `t` is the computational complexity and `σ` is the data complexity in
-blocks. For c = 256, this term is negligible for practical workloads.
+ideal cipher is at most $(\sigma + t)^2 / 2^{c+1}$ where $t$ is the computational complexity and $\sigma$ is the data
+complexity in blocks. For $c = 256$, this term is negligible for practical workloads.
 
-**Step 2: Tag PRF and collision resistance.** The tag is a TurboSHAKE128 evaluation (domain byte `0x61`) over the
+**Step 2: Tag PRF and collision resistance.** The tag is a TurboSHAKE128 evaluation (domain byte 0x61) over the
 concatenation of leaf chain values. Since each chain value is pseudorandom under the key (by Step 1), the tag inherits
 both the PRF security and the collision resistance of TurboSHAKE128. The tag computation adds one additional sponge
 indifferentiability term.
 
-**Step 3: Combined bound.** Summing all terms for a TreeWrap invocation with n leaves:
+**Step 3: Combined bound.** Summing all terms for a TreeWrap invocation with $n$ leaves:
 
-    ε\_treewrap ≤ (n + 1) · (t + σ)² / 2^(c+1)
+$$\varepsilon_{\mathrm{treewrap}} \leq \frac{(n + 1) \cdot (\sigma + t)^2}{2^{c+1}}$$
 
-where the (n + 1) factor accounts for n leaf cipher evaluations plus one tag accumulation evaluation. For typical
-parameters (n ≤ 2^32 leaves, t + σ ≤ 2^64), this is (2^32 + 1) · 2^128 / 2^257 ≈ 2^-97, well within the 128-bit security
-target for any single invocation. Multi-invocation security is the responsibility of the calling protocol, which must
-ensure key uniqueness.
+where the $(n + 1)$ factor accounts for $n$ leaf cipher evaluations plus one tag accumulation evaluation. For typical
+parameters ($n \leq 2^{32}$ leaves, $\sigma + t \leq 2^{64}$), this
+is $(2^{32} + 1) \cdot 2^{128} / 2^{257} \approx 2^{-97}$, well within the 128-bit security target for any single
+invocation. Multi-invocation security is the responsibility of the calling protocol, which must ensure key uniqueness.
 
 ## 7. Comparison with Traditional AEAD
 
