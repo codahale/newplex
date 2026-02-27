@@ -47,29 +47,60 @@ func NewCustom(c []byte) *Hasher {
 // Write absorbs message bytes. It must not be called after Read or Sum.
 func (h *Hasher) Write(p []byte) (int, error) {
 	n := len(p)
-	h.buf = append(h.buf, p...)
 
-	// Enter tree mode once we have more than one chunk of message data.
-	if !h.treeMode && len(h.buf) > BlockSize {
+	if !h.treeMode {
+		// Buffer until we have more than one chunk.
+		need := BlockSize + 1 - len(h.buf)
+		if need > len(p) {
+			// Not enough to enter tree mode; just buffer.
+			h.buf = append(h.buf, p...)
+			return n, nil
+		}
+
+		// Enter tree mode: flush S_0 from buf + start of p.
+		h.buf = append(h.buf, p[:need]...)
+		p = p[need:]
 		h.ts = turboshake.New(0x06)
 		_, _ = h.ts.Write(h.buf[:BlockSize])
 		_, _ = h.ts.Write(kt12Marker[:])
-		remaining := copy(h.buf, h.buf[BlockSize:])
-		h.buf = h.buf[:remaining]
+		// Keep the one overflow byte.
+		h.buf[0] = h.buf[BlockSize]
+		h.buf = h.buf[:1]
 		h.treeMode = true
 	}
 
-	if h.treeMode {
-		h.flushLeaves()
-	}
-	return n, nil
-}
-
-// flushLeaves processes complete leaf chunks in SIMD-width batches.
-func (h *Hasher) flushLeaves() {
 	lanes := keccak.Lanes
+
+	// Large-write fast path: process chunks directly from p to avoid copying.
+	if len(p) > lanes*BlockSize {
+		// Complete any partial chunk in buf from p, then process it.
+		if len(h.buf) > 0 {
+			need := BlockSize - len(h.buf)
+			h.buf = append(h.buf, p[:need]...)
+			p = p[need:]
+			h.processLeafBatch(h.buf[:BlockSize], 1)
+			h.buf = h.buf[:0]
+		}
+
+		// Process complete chunks directly from p, keeping at least 1 byte back.
+		for {
+			processable := (len(p) - 1) / BlockSize
+			nFlush := (processable / lanes) * lanes
+			if nFlush == 0 {
+				break
+			}
+			h.processLeafBatch(p[:nFlush*BlockSize], nFlush)
+			p = p[nFlush*BlockSize:]
+		}
+
+		// Buffer the tail.
+		h.buf = append(h.buf, p...)
+		return n, nil
+	}
+
+	// Streaming path: accumulate in buf, flush in SIMD-width batches.
+	h.buf = append(h.buf, p...)
 	for {
-		// Only process chunks we know are complete (at least 1 byte follows them).
 		processable := (len(h.buf) - 1) / BlockSize
 		nFlush := (processable / lanes) * lanes
 		if nFlush == 0 {
@@ -79,6 +110,7 @@ func (h *Hasher) flushLeaves() {
 		remaining := copy(h.buf, h.buf[nFlush*BlockSize:])
 		h.buf = h.buf[:remaining]
 	}
+	return n, nil
 }
 
 // processLeafBatch computes leaf CVs for nLeaves complete chunks using X4→X2→X1 cascade.
@@ -237,31 +269,22 @@ func lengthEncode(x uint64) []byte {
 	return buf
 }
 
-// absorbParallel XORs chunk data into parallel Keccak states at the sponge rate,
-// permuting when full. Returns the final position within the rate.
-func absorbParallel(states [4]*[200]byte, lanes int, data []byte, chunkLen int, perm func()) int {
-	pos := 0
-	off := 0
-	for off < chunkLen {
-		w := min(rate-pos, chunkLen-off)
-		for lane := range lanes {
-			base := lane * chunkLen
-			mem.XOR(states[lane][pos:pos+w], states[lane][pos:pos+w], data[base+off:base+off+w])
-		}
-		pos += w
-		off += w
-		if pos == rate {
-			perm()
-			pos = 0
-		}
-	}
-	return pos
-}
-
 // leafCVX1 computes a single leaf CV using TurboSHAKE128(data, 0x0B, 32).
 func leafCVX1(data []byte, cv []byte) {
 	var s [200]byte
-	pos := absorbParallel([4]*[200]byte{&s}, 1, data, len(data), func() { keccak.P1600(&s) })
+	chunkLen := len(data)
+	pos := 0
+	off := 0
+	for off < chunkLen {
+		n := min(rate-pos, chunkLen-off)
+		mem.XOR(s[pos:pos+n], s[pos:pos+n], data[off:off+n])
+		pos += n
+		off += n
+		if pos == rate {
+			keccak.P1600(&s)
+			pos = 0
+		}
+	}
 	s[pos] ^= leafDS
 	s[rate-1] ^= 0x80
 	keccak.P1600(&s)
@@ -271,7 +294,19 @@ func leafCVX1(data []byte, cv []byte) {
 // leafCVsX2 computes 2 leaf CVs in parallel using P1600x2.
 func leafCVsX2(data []byte, cv []byte) {
 	var s0, s1 [200]byte
-	pos := absorbParallel([4]*[200]byte{&s0, &s1}, 2, data, BlockSize, func() { keccak.P1600x2(&s0, &s1) })
+	pos := 0
+	off := 0
+	for off < BlockSize {
+		n := min(rate-pos, BlockSize-off)
+		mem.XOR(s0[pos:pos+n], s0[pos:pos+n], data[off:off+n])
+		mem.XOR(s1[pos:pos+n], s1[pos:pos+n], data[BlockSize+off:BlockSize+off+n])
+		pos += n
+		off += n
+		if pos == rate {
+			keccak.P1600x2(&s0, &s1)
+			pos = 0
+		}
+	}
 	s0[pos] ^= leafDS
 	s0[rate-1] ^= 0x80
 	s1[pos] ^= leafDS
@@ -284,12 +319,29 @@ func leafCVsX2(data []byte, cv []byte) {
 // leafCVsX4 computes 4 leaf CVs in parallel using P1600x4.
 func leafCVsX4(data []byte, cv []byte) {
 	var s0, s1, s2, s3 [200]byte
-	pos := absorbParallel([4]*[200]byte{&s0, &s1, &s2, &s3}, 4, data, BlockSize,
-		func() { keccak.P1600x4(&s0, &s1, &s2, &s3) })
-	for _, s := range []*[200]byte{&s0, &s1, &s2, &s3} {
-		s[pos] ^= leafDS
-		s[rate-1] ^= 0x80
+	pos := 0
+	off := 0
+	for off < BlockSize {
+		n := min(rate-pos, BlockSize-off)
+		mem.XOR(s0[pos:pos+n], s0[pos:pos+n], data[off:off+n])
+		mem.XOR(s1[pos:pos+n], s1[pos:pos+n], data[BlockSize+off:BlockSize+off+n])
+		mem.XOR(s2[pos:pos+n], s2[pos:pos+n], data[2*BlockSize+off:2*BlockSize+off+n])
+		mem.XOR(s3[pos:pos+n], s3[pos:pos+n], data[3*BlockSize+off:3*BlockSize+off+n])
+		pos += n
+		off += n
+		if pos == rate {
+			keccak.P1600x4(&s0, &s1, &s2, &s3)
+			pos = 0
+		}
 	}
+	s0[pos] ^= leafDS
+	s0[rate-1] ^= 0x80
+	s1[pos] ^= leafDS
+	s1[rate-1] ^= 0x80
+	s2[pos] ^= leafDS
+	s2[rate-1] ^= 0x80
+	s3[pos] ^= leafDS
+	s3[rate-1] ^= 0x80
 	keccak.P1600x4(&s0, &s1, &s2, &s3)
 	copy(cv[:cvSize], s0[:cvSize])
 	copy(cv[cvSize:2*cvSize], s1[:cvSize])
